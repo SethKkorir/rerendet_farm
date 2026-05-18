@@ -47,6 +47,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  storeCredit: {
+    type: Number,
+    default: 0
+  },
   role: {
     type: String,
     enum: ['customer', 'admin', 'super-admin'],
@@ -127,6 +131,14 @@ const userSchema = new mongoose.Schema({
   lastLoginAt: Date,
   lastActivityAt: Date,
   tokenVersion: { type: Number, default: 0 },
+  knownDevices: [
+    {
+      ip: String,
+      userAgent: String,
+      location: String,
+      verifiedAt: { type: Date, default: Date.now }
+    }
+  ],
 
   // Shopping Cart Persistence
   cart: [

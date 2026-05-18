@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/kurr/Documents/secret_projects/rerendet_website/tmp/find_diffs_optimized.py", line 37, in <module>
+    if not filecmp.cmp(full_path, clean_path, shallow=False):
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/filecmp.py", line 63, in cmp
+    outcome = _do_cmp(f1, f2)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/filecmp.py", line 78, in _do_cmp
+    b1 = fp1.read(bufsize)
+OSError: [Errno 89] Operation canceled

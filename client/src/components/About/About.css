@@ -10,7 +10,7 @@
    SECTION BASE
 ============================================== */
 .about-editorial-section {
-  padding: 12rem 0;
+  padding: 6rem 0; /* Reduced from 12rem */
   position: relative;
   background-color: var(--bg-home);
   overflow: hidden;
@@ -28,7 +28,7 @@
   font-family: var(--font-heading);
   font-size: 25vw;
   font-weight: 900;
-  color: var(--text-dark);
+  color: var(--text-main);
   opacity: 0.03;
   line-height: 1;
   text-transform: uppercase;
@@ -39,7 +39,7 @@
 }
 
 [data-theme='dark'] .editorial-watermark {
-  color: var(--text-light);
+  color: var(--text-main);
   opacity: 0.02;
 }
 

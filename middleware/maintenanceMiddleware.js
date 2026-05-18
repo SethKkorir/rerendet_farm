@@ -24,18 +24,24 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
     }
 
     // 2. Fetch settings to check if maintenance is ON
-    let settings;
-    try {
-        settings = await Settings.getSettings();
-    } catch (err) {
-        // FAIL-CLOSED: If we can't fetch settings (DB down?), act as if maintenance is ON for security
-        console.error('⚠️ Critical: Could not fetch settings for maintenance check. Failing closed.');
-        return res.status(503).json({
-            success: false,
-            maintenance: true,
-            downtime: true,
-            message: 'System is currently stabilizing. Please try again in a few moments.'
-        });
+    // CACHE SETTINGS: Avoid DB roundtrip on every request
+    let settings = maintenanceMode.cache?.data;
+    const cacheAge = Date.now() - (maintenanceMode.cache?.timestamp || 0);
+
+    if (!settings || cacheAge > 60000) { // 60 second cache
+        try {
+            settings = await Settings.getSettings();
+            maintenanceMode.cache = { data: settings, timestamp: Date.now() };
+        } catch (err) {
+            // FAIL-CLOSED: If we can't fetch settings (DB down?), act as if maintenance is ON for security
+            console.error('⚠️ Critical: Could not fetch settings for maintenance check. Failing closed.');
+            return res.status(503).json({
+                success: false,
+                maintenance: true,
+                downtime: true,
+                message: 'System is currently stabilizing. Please try again in a few moments.'
+            });
+        }
     }
 
     if (!settings?.maintenance || !settings.maintenance.enabled) {

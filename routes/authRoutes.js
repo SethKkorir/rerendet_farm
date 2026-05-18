@@ -31,20 +31,43 @@ import {
   refreshAccessToken
 } from '../controllers/authController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
+import rateLimit from 'express-rate-limit';
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit to 5 attempts per IP in 15 minutes
+  handler: (req, res, next) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many login attempts from this IP. Please try again after 15 minutes.'
+    });
+  }
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // Limit to 5 registrations per IP in an hour
+  handler: (req, res, next) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many registration attempts from this IP. Please try again after an hour.'
+    });
+  }
+});
 
 const router = express.Router();
 
 // ==================== PUBLIC ROUTES ====================
 
 // Customer auth
-router.post('/customer/register', registerCustomer);
-router.post('/customer/login', loginCustomer);
-router.post('/customer/verify-2fa', verify2FALogin);
-router.post('/google', googleLogin);
+router.post('/customer/register', registerLimiter, registerCustomer);
+router.post('/customer/login', loginLimiter, loginCustomer);
+router.post('/customer/verify-2fa', loginLimiter, verify2FALogin);
+router.post('/google', loginLimiter, googleLogin);
 
 // Admin auth
-router.post('/admin/login', loginAdmin);
-router.post('/admin/verify-2fa', verify2FALogin);
+router.post('/admin/login', loginLimiter, loginAdmin);
+router.post('/admin/verify-2fa', loginLimiter, verify2FALogin);
 
 // Common auth
 router.post('/verify-email', verifyEmail);

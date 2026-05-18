@@ -4,7 +4,7 @@ import Settings from '../models/Settings.js';
 
 const sendEmail = async (options) => {
   try {
-    console.log('📧 Attempting to send email to:', options.email || options.to);
+    console.log('[EMAIL] Attempting to send email to:', options.email || options.to);
 
     // Fetch dynamic settings from DB
     const settings = await Settings.getSettings();

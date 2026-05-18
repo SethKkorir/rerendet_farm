@@ -38,7 +38,7 @@ export const logActivity = async (req, action, entityName, entityId = null, deta
 
         // Safety check
         if (!actorId) {
-            console.warn(`⚠️ [ActivityLog] Attempted to log ${action} action without authenticated user`);
+            console.warn(`[WARN] [ActivityLog] Attempted to log ${action} action without authenticated user`);
             return;
         }
 
@@ -53,28 +53,29 @@ export const logActivity = async (req, action, entityName, entityId = null, deta
         });
 
         await log.save();
-        console.log(`📝 [ActivityLog] Logged: ${action} by ${actor.firstName}`);
+        console.log(`[ActivityLog] Logged: ${action} by ${actor.firstName}`);
 
         // ── High-Risk Action Alert ────────────────────────────────────────────
         if (HIGH_RISK_ACTIONS.has(action)) {
-            await alertSuperAdmin({
+            // Background task: don't await the alert (email sending is slow)
+            alertSuperAdmin({
                 adminUser: actor,
                 action,
                 entityName,
                 ip: req.ip || req.connection?.remoteAddress,
                 details
-            });
+            }).catch(err => console.error('[ERROR] [ActivityLog] Background alert failed:', err.message));
         }
 
         // ── Rapid-Action Anomaly Detection ────────────────────────────────────
-        // If this admin has fired many actions very quickly, that's suspicious
         if (actor._id) {
-            await checkRapidActions(actor);
+            // Background task: don't await
+            checkRapidActions(actor).catch(err => console.error('[ActivityLog] Rapid check failed:', err.message));
         }
 
     } catch (error) {
         // Log failures should NEVER crash the main request
-        console.error('❌ [ActivityLog] Failed to save log:', error.message);
+        console.error('[ActivityLog] Failed to save log:', error.message);
     }
 };
 
@@ -105,7 +106,7 @@ const alertSuperAdmin = async ({ adminUser, action, entityName, ip, details }) =
             try {
                 await sendEmail({
                     to: superAdmin.email,
-                    subject: `🚨 Admin Alert: ${action} by ${adminUser.firstName} — Rerendet`,
+                    subject: `[Security Alert] Admin Alert: ${action} by ${adminUser.firstName} — Rerendet`,
                     html: getAdminMisuseAlert({
                         adminName: `${adminUser.firstName} ${adminUser.lastName || ''}`,
                         adminEmail: adminUser.email,
@@ -117,13 +118,13 @@ const alertSuperAdmin = async ({ adminUser, action, entityName, ip, details }) =
                         logoUrl
                     })
                 });
-                console.log(`📧 [SecurityAlert] High-risk action "${action}" alerted to ${superAdmin.email}`);
+                console.log(`[SecurityAlert] High-risk action "${action}" alerted to ${superAdmin.email}`);
             } catch (emailErr) {
-                console.error(`❌ [SecurityAlert] Failed to send alert to ${superAdmin.email}:`, emailErr.message);
+                console.error(`[SecurityAlert] Failed to send alert to ${superAdmin.email}:`, emailErr.message);
             }
         }
     } catch (err) {
-        console.error('❌ [SecurityAlert] Error in alertSuperAdmin:', err.message);
+        console.error('[SecurityAlert] Error in alertSuperAdmin:', err.message);
     }
 };
 

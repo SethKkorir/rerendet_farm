@@ -498,13 +498,20 @@
   transform: translateY(-1px);
 }
 
-/* Mobile overlay */
+/* Mobile overlay (hidden on desktop) */
 .sb-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 1199;
-  backdrop-filter: blur(2px);
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .sb-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 1199;
+    backdrop-filter: blur(2px);
+  }
 }
 
 /* ══ MAIN CONTENT ═══════════════════════════════════════════ */

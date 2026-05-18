@@ -1,5 +1,5 @@
 // src/components/Admin/AdminLogin.jsx — Premium Overhaul
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { FaEnvelope, FaLock, FaShieldAlt, FaArrowLeft, FaExclamationCircle } from 'react-icons/fa';
@@ -13,8 +13,15 @@ const AdminLogin = () => {
   const [step, setStep] = useState('login'); // 'login' or '2fa'
   const [code, setCode] = useState('');
 
-  const { loginAdmin, verifyAdmin2FA, showNotification } = useContext(AppContext);
+  const { user, isAuthenticated, loginAdmin, verifyAdmin2FA, showNotification } = useContext(AppContext);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated && user && (user.role === 'admin' || user.role === 'super-admin' || user.userType === 'admin')) {
+      console.log('🔄 Authenticated admin on login page, redirecting to dashboard...');
+      navigate('/admin');
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

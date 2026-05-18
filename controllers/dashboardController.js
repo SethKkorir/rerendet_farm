@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Address from '../models/Address.js';
 import PaymentMethod from '../models/PaymentMethod.js';
 import Order from '../models/Order.js';
+import Contact from '../models/Contact.js';
 
 // @desc    Get dashboard data
 // @route   GET /api/dashboard/data
@@ -503,6 +504,51 @@ const deleteAccount = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get support tickets for current user
+// @route   GET /api/dashboard/tickets
+// @access  Private
+const getTickets = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const tickets = await Contact.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .populate('order', 'orderNumber total status');
+
+  res.json({
+    success: true,
+    data: tickets
+  });
+});
+
+// @desc    Create a support ticket attached to user and optionally an order ID
+// @route   POST /api/dashboard/tickets
+// @access  Private
+const createTicket = asyncHandler(async (req, res) => {
+  const { subject, message, orderId } = req.body;
+  const userId = req.user._id;
+
+  if (!subject || !message) {
+    res.status(400);
+    throw new Error('Please provide subject and message');
+  }
+
+  // Create ticket
+  const ticket = await Contact.create({
+    user: userId,
+    name: `${req.user.firstName} ${req.user.lastName}`,
+    email: req.user.email,
+    subject,
+    message,
+    order: orderId || undefined,
+    status: 'new'
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Support ticket opened successfully. Our team will review it.',
+    data: ticket
+  });
+});
+
 export {
   getDashboardData,
   updateProfile,
@@ -522,5 +568,7 @@ export {
   verify2FA,
   disable2FA,
   getLoginHistory,
-  deleteAccount
+  deleteAccount,
+  getTickets,
+  createTicket
 };

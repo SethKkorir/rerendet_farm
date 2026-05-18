@@ -97,107 +97,115 @@ const generateMonthlyReport = asyncHandler(async (req, res) => {
   }
 });
 
+// Optimization: Cache for analytics data
+let analyticsCache = {
+  data: null,
+  lastUpdated: 0,
+  ttl: 15 * 60 * 1000 // 15 minutes
+};
+
 // @desc    Get sales analytics data
 // @route   GET /api/reports/analytics
 // @access  Private/Admin
 const getSalesAnalytics = asyncHandler(async (req, res) => {
-  const { period = '30d' } = req.query;
+  const { period = '30d', force = false } = req.query;
+
+  // Check cache
+  if (!force && analyticsCache.data?.[period] && (Date.now() - analyticsCache.lastUpdated < analyticsCache.ttl)) {
+    return res.json({
+      success: true,
+      data: analyticsCache.data[period],
+      cached: true
+    });
+  }
   
   let startDate;
   const endDate = new Date();
 
   switch (period) {
-    case '7d':
-      startDate = moment().subtract(7, 'days').toDate();
-      break;
-    case '30d':
-      startDate = moment().subtract(30, 'days').toDate();
-      break;
-    case '90d':
-      startDate = moment().subtract(90, 'days').toDate();
-      break;
-    case '1y':
-      startDate = moment().subtract(1, 'year').toDate();
-      break;
-    default:
-      startDate = moment().subtract(30, 'days').toDate();
+    case '7d': startDate = moment().subtract(7, 'days').toDate(); break;
+    case '30d': startDate = moment().subtract(30, 'days').toDate(); break;
+    case '90d': startDate = moment().subtract(90, 'days').toDate(); break;
+    case '1y': startDate = moment().subtract(1, 'year').toDate(); break;
+    default: startDate = moment().subtract(30, 'days').toDate();
   }
 
-  const orders = await Order.find({
-    createdAt: { $gte: startDate, $lte: endDate },
-    paymentStatus: 'paid'
-  }).populate('items.product');
-
-  // Calculate analytics
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const totalOrders = orders.length;
-  const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-  // Daily revenue breakdown
-  const dailyRevenue = {};
-  orders.forEach(order => {
-    const date = moment(order.createdAt).format('YYYY-MM-DD');
-    if (!dailyRevenue[date]) {
-      dailyRevenue[date] = 0;
+  // 1. Aggregate Core Stats (Revenue, Count, Avg)
+  const statsTask = Order.aggregate([
+    { $match: { createdAt: { $gte: startDate, $lte: endDate }, paymentStatus: 'paid' } },
+    { 
+      $group: { 
+        _id: null, 
+        totalRevenue: { $sum: '$total' }, 
+        totalOrders: { $sum: 1 },
+        avgOrderValue: { $avg: '$total' }
+      } 
     }
-    dailyRevenue[date] += order.total;
-  });
+  ]);
 
-  // Top products
-  const productSales = {};
-  orders.forEach(order => {
-    order.items.forEach(item => {
-      const productName = item.name;
-      if (!productSales[productName]) {
-        productSales[productName] = {
-          quantity: 0,
-          revenue: 0
-        };
+  // 2. Aggregate Daily Revenue
+  const dailyRevenueTask = Order.aggregate([
+    { $match: { createdAt: { $gte: startDate, $lte: endDate }, paymentStatus: 'paid' } },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+        revenue: { $sum: '$total' }
       }
-      productSales[productName].quantity += item.quantity;
-      productSales[productName].revenue += item.itemTotal;
-    });
-  });
+    },
+    { $sort: { '_id': 1 } },
+    { $project: { date: '$_id', revenue: 1, _id: 0 } }
+  ]);
 
-  const topProducts = Object.entries(productSales)
-    .sort((a, b) => b[1].revenue - a[1].revenue)
-    .slice(0, 10)
-    .map(([name, data]) => ({
-      name,
-      ...data
-    }));
+  // 3. Aggregate Top Products
+  const topProductsTask = Order.aggregate([
+    { $match: { createdAt: { $gte: startDate, $lte: endDate }, paymentStatus: 'paid' } },
+    { $unwind: '$items' },
+    {
+      $group: {
+        _id: '$items.name',
+        quantity: { $sum: '$items.quantity' },
+        revenue: { $sum: '$items.itemTotal' }
+      }
+    },
+    { $sort: { revenue: -1 } },
+    { $limit: 10 },
+    { $project: { name: '$_id', quantity: 1, revenue: 1, _id: 0 } }
+  ]);
+
+  // 4. Aggregate Order Status
+  const statusTask = Order.aggregate([
+    { $match: { createdAt: { $gte: startDate, $lte: endDate } } },
+    { $group: { _id: '$status', count: { $sum: 1 } } }
+  ]);
+
+  // Run all aggregations in parallel
+  const [stats, dailyRevenue, topProducts, orderStatus] = await Promise.all([
+    statsTask,
+    dailyRevenueTask,
+    topProductsTask,
+    statusTask
+  ]);
+
+  const summary = stats[0] || { totalRevenue: 0, totalOrders: 0, avgOrderValue: 0 };
+
+  const resultData = {
+    summary: {
+      ...summary,
+      period: { start: startDate, end: endDate }
+    },
+    dailyRevenue,
+    topProducts,
+    orderStatus
+  };
+
+  // Update global cache
+  if (!analyticsCache.data) analyticsCache.data = {};
+  analyticsCache.data[period] = resultData;
+  analyticsCache.lastUpdated = Date.now();
 
   res.json({
     success: true,
-    data: {
-      summary: {
-        totalRevenue,
-        totalOrders,
-        avgOrderValue,
-        period: {
-          start: startDate,
-          end: endDate
-        }
-      },
-      dailyRevenue: Object.entries(dailyRevenue).map(([date, revenue]) => ({
-        date,
-        revenue
-      })),
-      topProducts,
-      orderStatus: await Order.aggregate([
-        {
-          $match: {
-            createdAt: { $gte: startDate, $lte: endDate }
-          }
-        },
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
-      ])
-    }
+    data: resultData
   });
 });
 

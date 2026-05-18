@@ -2,6 +2,25 @@
 import asyncHandler from 'express-async-handler';
 import Product from '../models/Product.js';
 
+// Cache for high-traffic public endpoints
+let productCache = {
+  featured: { data: null, lastUpdated: 0 },
+  categories: { data: null, lastUpdated: 0 },
+  ttl: 10 * 60 * 1000 // 10 minutes
+};
+
+// Cache Buster helper
+const clearProductCache = () => {
+  productCache.featured.data = null;
+  productCache.categories.data = null;
+  console.log('🧹 Product Cache Cleared');
+};
+
+// Regex escape helper
+const escapeRegex = (string) => {
+  return string.replace(/[/\-\\^$*+?.()|[\]{}]/g, '\\$&');
+};
+
 // @desc    Get all products
 // @route   GET /api/products
 // @access  Public
@@ -12,20 +31,21 @@ const getProducts = asyncHandler(async (req, res) => {
     featured,
     inStock,
     page = 1,
-    limit = 12
+    limit = 12,
+    sort = '-createdAt'
   } = req.query;
 
+  const skip = (parseInt(page) - 1) * parseInt(limit);
   let filter = { isActive: true };
 
-  if (category && category !== 'all') {
-    filter.category = category;
+  // 1. Text Search Optimization
+  if (search) {
+    filter.$text = { $search: search };
   }
 
-  if (search) {
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } }
-    ];
+  // 2. Filter logic
+  if (category && category !== 'all') {
+    filter.category = category;
   }
 
   if (featured === 'true') {
@@ -34,20 +54,28 @@ const getProducts = asyncHandler(async (req, res) => {
 
   if (inStock === 'true') {
     filter.inStock = true;
-    filter['inventory.stock'] = { $gt: 0 };
   }
 
-  const skip = (page - 1) * limit;
+  // 3. Optimized parallel execution with projection
+  // Only fetch fields needed for the shop grid to reduce data transfer
+  const publicProjection = 'name category sizes images inStock isFeatured badge inventory.stock seo.slug ratings';
 
-  const [products, total, categories] = await Promise.all([
+  const [products, total] = await Promise.all([
     Product.find(filter)
-      .sort({ isFeatured: -1, createdAt: -1 })
+      .select(publicProjection)
+      .sort(search ? { score: { $meta: 'textScore' } } : sort)
       .skip(skip)
       .limit(parseInt(limit))
       .lean(),
-    Product.countDocuments(filter),
-    Product.distinct('category', { isActive: true })
+    Product.countDocuments(filter)
   ]);
+
+  // Categories are relatively static - could be cached or fetched separately
+  // For now, only fetch if page is 1 to save overhead on pagination
+  let categories = [];
+  if (parseInt(page) === 1) {
+    categories = await Product.distinct('category', { isActive: true });
+  }
 
   res.json({
     success: true,
@@ -59,7 +87,7 @@ const getProducts = asyncHandler(async (req, res) => {
         total,
         pages: Math.ceil(total / limit)
       },
-      categories
+      categories: categories.length > 0 ? categories : undefined
     }
   });
 });
@@ -68,7 +96,7 @@ const getProducts = asyncHandler(async (req, res) => {
 // @route   GET /api/products/:id
 // @access  Public
 const getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const product = await Product.findById(req.params.id).lean();
 
   if (!product || !product.isActive) {
     res.status(404);
@@ -85,11 +113,26 @@ const getProductById = asyncHandler(async (req, res) => {
 // @route   GET /api/products/featured/products
 // @access  Public
 const getFeaturedProducts = asyncHandler(async (req, res) => {
+  // Check cache
+  if (productCache.featured.data && (Date.now() - productCache.featured.lastUpdated < productCache.ttl)) {
+    return res.json({
+      success: true,
+      data: productCache.featured.data,
+      cached: true
+    });
+  }
+
   const products = await Product.find({
     isFeatured: true,
     isActive: true,
     inStock: true
-  }).limit(8);
+  }).limit(8).lean();
+
+  // Update cache
+  productCache.featured = {
+    data: products,
+    lastUpdated: Date.now()
+  };
 
   res.json({
     success: true,
@@ -108,7 +151,7 @@ const getProductsByCategory = asyncHandler(async (req, res) => {
     category,
     isActive: true,
     inStock: true
-  }).limit(parseInt(limit));
+  }).limit(parseInt(limit)).lean();
 
   res.json({
     success: true,
@@ -193,6 +236,7 @@ const createProduct = asyncHandler(async (req, res) => {
   });
 
   const createdProduct = await product.save();
+  clearProductCache();
 
   res.status(201).json({
     success: true,
@@ -286,6 +330,7 @@ const updateProduct = asyncHandler(async (req, res) => {
   }
 
   const updatedProduct = await product.save();
+  clearProductCache();
 
   res.json({
     success: true,
@@ -308,6 +353,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
   // Soft delete
   product.isActive = false;
   await product.save();
+  clearProductCache();
 
   res.json({
     success: true,
@@ -399,7 +445,7 @@ const deleteProductImage = asyncHandler(async (req, res) => {
 // @route   GET /api/products/slug/:slug
 // @access  Public
 const getProductBySlug = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ 'seo.slug': req.params.slug });
+  const product = await Product.findOne({ 'seo.slug': req.params.slug }).lean();
 
   if (product) {
     res.json({

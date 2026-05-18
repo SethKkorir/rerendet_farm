@@ -231,15 +231,26 @@ productSchema.pre('save', async function (next) {
 productSchema.index({
   name: 'text',
   description: 'text',
-  flavorNotes: 'text',
+  origin: 'text',
   tags: 'text',
-  origin: 'text'
+  flavorNotes: 'text'
+}, {
+  weights: {
+    name: 10,
+    tags: 5,
+    origin: 3,
+    description: 1,
+    flavorNotes: 1
+  },
+  name: 'ProductTextIndex'
 });
 
-productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ category: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'sizes.price': 1 });
-productSchema.index({ isFeatured: 1, isActive: 1 });
+productSchema.index({ isFeatured: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'inventory.stock': 1 });
+productSchema.index({ 'seo.slug': 1 });
+productSchema.index({ isActive: 1, inStock: 1 });
 
 // Static method to get products by category
 productSchema.statics.getByCategory = function (category, limit = 10) {

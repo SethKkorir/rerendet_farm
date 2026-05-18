@@ -155,7 +155,7 @@ const Settings = () => {
     setGeneratingLink(true);
     try {
       const { default: axios } = await import('axios');
-      const res = await axios.post(`${process.env.REACT_APP_API_URL || '/api'}/settings/maintenance/magic-link`, {}, {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/settings/maintenance/magic-link`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) {

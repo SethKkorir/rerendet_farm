@@ -180,6 +180,58 @@ const OrdersManagement = () => {
     }
   };
 
+  const handleManualOverride = async (orderId, payload) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/manual-override`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to override payment');
+      }
+      const data = await res.json();
+      if (data.success) {
+        showNotification('Order manually marked as paid successfully', 'success');
+        fetchOrders();
+        if (selectedOrder?._id === orderId) {
+          setSelectedOrder(data.data);
+        }
+        return true;
+      }
+    } catch (err) {
+      showNotification(err.message || 'Manual override failed', 'error');
+      return false;
+    }
+  };
+
+  const handleRefund = async (orderId, payload) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/refund`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || 'Failed to initiate refund');
+      }
+      const data = await res.json();
+      if (data.success) {
+        showNotification(data.message || 'Refund successfully processed', 'success');
+        fetchOrders();
+        if (selectedOrder?._id === orderId) {
+          setSelectedOrder(data.data);
+        }
+        return true;
+      }
+    } catch (err) {
+      showNotification(err.message || 'Refund processing failed', 'error');
+      return false;
+    }
+  };
+
   const handleSelectAll = (e) => setSelectedOrders(e.target.checked ? orders.map(o => o._id) : []);
   const handleSelectOrder = (id) =>
     setSelectedOrders(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
@@ -397,6 +449,8 @@ const OrdersManagement = () => {
             order={selectedOrder}
             onClose={() => setSelectedOrder(null)}
             onUpdate={updateOrderStatus}
+            onManualOverride={handleManualOverride}
+            onRefund={handleRefund}
           />
         )}
       </AnimatePresence>
@@ -415,13 +469,33 @@ const SUGGESTED_MESSAGES = {
   returned: "We noticed your order was returned. Our team will contact you shortly to resolve this."
 };
 
-const OrderDrawer = ({ order, onClose, onUpdate }) => {
+const OrderDrawer = ({ order, onClose, onUpdate, onManualOverride, onRefund }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [paymentStatus, setPaymentStatus] = useState(order.paymentStatus || 'pending');
   const [fulfillmentStatus, setFulfillmentStatus] = useState(order.fulfillmentStatus || 'unfulfilled');
   const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber || '');
   const [message, setMessage] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Manual actions UI states
+  const [showOverrideForm, setShowOverrideForm] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideRef, setOverrideRef] = useState('');
+  const [overrideMethod, setOverrideMethod] = useState('MPESA');
+
+  const [showRefundForm, setShowRefundForm] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+  const [forceManualRefund, setForceManualRefund] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState(false);
+
+  // Sync state with incoming order prop modifications
+  useEffect(() => {
+    if (order) {
+      setPaymentStatus(order.paymentStatus || 'pending');
+      setFulfillmentStatus(order.fulfillmentStatus || 'unfulfilled');
+      setTrackingNumber(order.trackingNumber || '');
+    }
+  }, [order]);
 
   // Auto-suggest message when fulfillment status changes
   useEffect(() => {
@@ -543,20 +617,158 @@ const OrderDrawer = ({ order, onClose, onUpdate }) => {
                   </div>
                 </div>
 
-                {/* Payment Summary */}
-                <div className="om-drawer-section">
-                  <h4 className="om-section-title"><FaMoneyBillWave /> Payment Summary</h4>
-                  <div className="om-summary">
-                    <div className="om-summary-row"><span>Subtotal</span><span>KES {order.subtotal?.toLocaleString()}</span></div>
-                    <div className="om-summary-row"><span>Shipping</span><span>KES {order.shippingCost?.toLocaleString() || '0'}</span></div>
-                    {order.tax > 0 && <div className="om-summary-row"><span>Tax</span><span>KES {order.tax?.toLocaleString()}</span></div>}
-                    <div className="om-summary-row total"><span>Total</span><span>KES {order.total?.toLocaleString()}</span></div>
+                  {/* Payment Summary */}
+                  <div className="om-drawer-section">
+                    <h4 className="om-section-title"><FaMoneyBillWave /> Payment Summary</h4>
+                    <div className="om-summary">
+                      <div className="om-summary-row"><span>Subtotal</span><span>KES {order.subtotal?.toLocaleString()}</span></div>
+                      <div className="om-summary-row"><span>Shipping</span><span>KES {order.shippingCost?.toLocaleString() || '0'}</span></div>
+                      {order.tax > 0 && <div className="om-summary-row"><span>Tax</span><span>KES {order.tax?.toLocaleString()}</span></div>}
+                      <div className="om-summary-row total"><span>Total</span><span>KES {order.total?.toLocaleString()}</span></div>
+                    </div>
+                    <div className={`om-pay-indicator ${order.paymentStatus}`}>
+                      <span className="om-pay-dot" />
+                      {order.paymentStatus === 'paid' ? '✓ Payment received' : `Payment ${order.paymentStatus}`} via {order.paymentMethod}
+                    </div>
+
+                    {/* Manual Override Action Section */}
+                    {order.paymentStatus === 'pending' && !showOverrideForm && (
+                      <button 
+                        type="button" 
+                        className="om-action-btn-override" 
+                        onClick={() => setShowOverrideForm(true)}
+                      >
+                        ⚡ Mark Paid (Manual Override)
+                      </button>
+                    )}
+
+                    {showOverrideForm && (
+                      <motion.div className="om-inline-form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                        <h5>⚡ Manual Payment Override</h5>
+                        <div className="om-form-field">
+                          <label>Override Reason</label>
+                          <input 
+                            type="text" 
+                            value={overrideReason} 
+                            onChange={e => setOverrideReason(e.target.value)} 
+                            placeholder="e.g. Received Paybill transfer or direct Cash" 
+                            required 
+                          />
+                        </div>
+                        <div className="om-form-grid-2">
+                          <div className="om-form-field">
+                            <label>Receipt Ref #</label>
+                            <input 
+                              type="text" 
+                              value={overrideRef} 
+                              onChange={e => setOverrideRef(e.target.value)} 
+                              placeholder="e.g. M-Pesa Code" 
+                            />
+                          </div>
+                          <div className="om-form-field">
+                            <label>Method</label>
+                            <select value={overrideMethod} onChange={e => setOverrideMethod(e.target.value)}>
+                              <option value="MPESA">M-Pesa</option>
+                              <option value="CASH">Cash</option>
+                              <option value="BANK_TRANSFER">Bank Transfer</option>
+                              <option value="STRIPE">Stripe</option>
+                              <option value="PAYPAL">PayPal</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="om-form-actions">
+                          <button 
+                            type="button" 
+                            className="om-submit-sub-btn success" 
+                            disabled={submittingAction}
+                            onClick={async () => {
+                              if (!overrideReason.trim()) return alert('Please enter an override reason');
+                              setSubmittingAction(true);
+                              const ok = await onManualOverride(order._id, {
+                                reason: overrideReason,
+                                referenceId: overrideRef,
+                                method: overrideMethod
+                              });
+                              setSubmittingAction(false);
+                              if (ok) {
+                                setShowOverrideForm(false);
+                                setOverrideReason('');
+                                setOverrideRef('');
+                              }
+                            }}
+                          >
+                            {submittingAction ? 'Settle...' : 'Settle Paid'}
+                          </button>
+                          <button type="button" className="om-cancel-sub-btn" onClick={() => setShowOverrideForm(false)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Refund Action Section */}
+                    {order.paymentStatus === 'paid' && !showRefundForm && (
+                      <button 
+                        type="button" 
+                        className="om-action-btn-refund" 
+                        onClick={() => setShowRefundForm(true)}
+                      >
+                        💸 Initiate Refund / Return Order
+                      </button>
+                    )}
+
+                    {showRefundForm && (
+                      <motion.div className="om-inline-form" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                        <h5>💸 Initiate Refund Management</h5>
+                        <div className="om-form-field">
+                          <label>Reason for Refund</label>
+                          <input 
+                            type="text" 
+                            value={refundReason} 
+                            onChange={e => setRefundReason(e.target.value)} 
+                            placeholder="e.g. Out of stock or customer cancelled" 
+                            required 
+                          />
+                        </div>
+                        {order.paymentMethod?.toLowerCase() === 'paypal' && (
+                          <div className="om-form-field checkbox-field">
+                            <input 
+                              type="checkbox" 
+                              id="forceManual" 
+                              checked={forceManualRefund} 
+                              onChange={e => setForceManualRefund(e.target.checked)} 
+                            />
+                            <label htmlFor="forceManual">Local record only (bypass gateway API)</label>
+                          </div>
+                        )}
+                        <div className="om-form-actions">
+                          <button 
+                            type="button" 
+                            className="om-submit-sub-btn danger" 
+                            disabled={submittingAction}
+                            onClick={async () => {
+                              if (!refundReason.trim()) return alert('Please enter a refund reason');
+                              setSubmittingAction(true);
+                              const ok = await onRefund(order._id, {
+                                reason: refundReason,
+                                forceManual: forceManualRefund
+                              });
+                              setSubmittingAction(false);
+                              if (ok) {
+                                setShowRefundForm(false);
+                                setRefundReason('');
+                              }
+                            }}
+                          >
+                            {submittingAction ? 'Processing...' : 'Authorize Refund'}
+                          </button>
+                          <button type="button" className="om-cancel-sub-btn" onClick={() => setShowRefundForm(false)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
-                  <div className={`om-pay-indicator ${order.paymentStatus}`}>
-                    <span className="om-pay-dot" />
-                    {order.paymentStatus === 'paid' ? '✓ Payment received' : `Payment ${order.paymentStatus}`} via {order.paymentMethod}
-                  </div>
-                </div>
 
                 <div className="om-drawer-section">
                   <h4 className="om-section-title"><FaTag /> Order Info</h4>

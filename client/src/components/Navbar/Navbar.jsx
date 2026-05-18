@@ -57,11 +57,8 @@ function Navbar() {
     document.documentElement.setAttribute('data-theme', initialMode ? 'dark' : 'light');
   }, []);
 
-  useEffect(() => {
-    if (!publicSettings) {
-      fetchPublicSettings();
-    }
-  }, [publicSettings, fetchPublicSettings]);
+  // Public settings are now centrally handled by AppContext initialization 
+  // to prevent redundant fetches and re-render loops.
 
 
   // Toggle handlers
@@ -158,7 +155,7 @@ function Navbar() {
               className="header__account"
               onClick={() => {
                 if (user) {
-                  navigate(isAdminUser ? '/admin' : '/account');
+                  navigate(isAdminUser ? '/admin' : '/profile');
                 } else {
                   openAuth('login');
                 }
@@ -203,7 +200,7 @@ function Navbar() {
             ))}
             {user ? (
               <>
-                <button className="header__mobile-nav-link" onClick={() => { navigate(isAdminUser ? '/admin' : '/account'); setMobileMenuOpen(false); }}>
+                <button className="header__mobile-nav-link" onClick={() => { navigate(isAdminUser ? '/admin' : '/profile'); setMobileMenuOpen(false); }}>
                   {isAdminUser ? 'Admin Panel' : 'My Account'}
                 </button>
                 <button className="header__mobile-nav-link" onClick={() => { logout(); setMobileMenuOpen(false); }}>

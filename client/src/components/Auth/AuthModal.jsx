@@ -6,6 +6,41 @@ import { AppContext } from '../../context/AppContext';
 import { forgotPassword, resetPassword, verifyEmail, resendVerification } from '../../api/api';
 import './AuthModal.css';
 
+const defaultPolicies = {
+    termsConditions: `
+# Terms & Conditions
+Welcome to Rerendet Coffee. By accessing our platform and purchasing our premium highland specialty coffees, you agree to comply with the following terms:
+
+## 1. Quality and Specialty Standards
+All Rerendet coffee is specialty-grade Arabica, grown at elevations of 1,800m above sea level in the rich volcanic soils of Kenya, hand-picked, and medium-roasted to order. We guarantee maximum freshness upon delivery.
+
+## 2. Orders and Payments
+All pricing is in KSh (Kenya Shillings). We support fully secure M-Pesa, debit/credit cards, and cash-on-delivery payments. Order cancellations are accepted within 1 hour of placement before roasting begins.
+
+## 3. Shipping and Logistics
+We partner with premium local couriers to deliver freshly roasted coffee directly to your doorstep. Deliveries are processed within 24-48 hours.
+
+## 4. Intellectual Property
+All content, photography, branding, custom-blended recipes, and coffee-builder configurations are the exclusive property of Rerendet Coffee.
+    `,
+    privacyPolicy: `
+# Privacy Policy
+At Rerendet Coffee, we are committed to protecting your personal information and ensuring a highly secure, premium shopping experience.
+
+## 1. Personal Data Collected
+We securely collect and store your name, email address, shipping address, phone number, and preferences solely to facilitate coffee order processing, seamless shipping logistics, and account security.
+
+## 2. Secure Payment Processing
+We do not store or process credit card details on our servers. All financial transactions are fully tokenized and routed securely through PCI-DSS compliant direct payment gateways.
+
+## 3. Account Health & Security
+Your credentials are fully hashed using industry-standard bcrypt encryption. You may enable Two-Factor Authentication (2FA) inside your profile settings for maximum account protection.
+
+## 4. Data Deletion
+We respect your right to privacy. You can permanently delete your account and wipe all personal order history at any time directly through your Profile Dashboard.
+    `
+};
+
 const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
     const { login, register, loginWithGoogle, verify2FA, verifyEmail, loading: authLoading, showSuccess, showError, showNotification, publicSettings } = useContext(AppContext);
 
@@ -120,7 +155,8 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
             if (signupData.password !== signupData.confirmPassword) return setErrors({ confirmPassword: 'Passwords do not match' });
             setSignupStep(3);
         } else if (signupStep === 3) {
-            if (!signupData.firstName || !signupData.lastName) return setErrors({ general: 'Names are required' });
+            if (!signupData.firstName) return setErrors({ firstName: 'First name is required' });
+            if (!signupData.lastName) return setErrors({ lastName: 'Last name is required' });
             setSignupStep(4);
         }
         setErrors({}); // Clear errors when moving forward
@@ -303,6 +339,44 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
         }
     };
 
+    const evaluatePasswordStrength = (pass) => {
+        if (!pass) return { score: 0, label: 'Empty', color: '#666', feedback: 'Enter a secure password' };
+        let score = 0;
+        
+        // Length check
+        if (pass.length >= 8) score++;
+        if (pass.length >= 12) score++;
+        
+        // Diversity check
+        let hasLower = /[a-z]/.test(pass);
+        let hasUpper = /[A-Z]/.test(pass);
+        let hasDigit = /\d/.test(pass);
+        let hasSpecial = /[^A-Za-z0-9]/.test(pass);
+        
+        const diversityCount = [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length;
+        if (diversityCount >= 3) score++;
+        if (diversityCount === 4 && pass.length >= 10) score++;
+        
+        if (score > 4) score = 4;
+        
+        const colors = ['#e11d48', '#f97316', '#eab308', '#22c55e', '#10b981'];
+        const labels = ['Too Weak', 'Weak', 'Fair', 'Strong', 'Excellent'];
+        const feedbacks = [
+            'Add uppercase, numbers, or symbols',
+            'Make it longer with mixed characters',
+            'Good, but could be longer',
+            'Secure password!',
+            'Ultra secure, perfect password!'
+        ];
+        
+        return {
+            score,
+            label: labels[score],
+            color: colors[score],
+            feedback: feedbacks[score]
+        };
+    };
+
     // --- Render Helpers ---
 
     const modalVariants = {
@@ -403,6 +477,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                             <input
                                                 name="email"
                                                 type="email"
+                                                autoComplete="email"
                                                 className={`form-input ${errors.email ? 'error' : ''}`}
                                                 value={loginData.email}
                                                 onChange={handleInputChange(setLoginData)}
@@ -419,6 +494,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                 name="password"
                                                 type={showPassword ? 'text' : 'password'}
                                                 className="form-input"
+                                                autoComplete="current-password"
                                                 value={loginData.password}
                                                 onChange={handleInputChange(setLoginData)}
                                                 placeholder="••••••••"
@@ -444,8 +520,14 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                             className="custom-google-btn login"
                                             onClick={() => showNotification('Google login is coming soon!', 'info')}
                                             disabled={loading || authLoading}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                         >
-                                            <FaGoogle />
+                                            <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '10px', display: 'inline-block', verticalAlign: 'middle' }}>
+                                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                                            </svg>
                                             <span>Login with Google (Coming Soon)</span>
                                         </button>
                                     </div>
@@ -478,6 +560,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                             <div className="form-input-wrapper">
                                                 <input
                                                     name="email" type="email" className="form-input"
+                                                    autoComplete="email"
                                                     value={signupData.email} onChange={handleInputChange(setSignupData)}
                                                     placeholder="hello@example.com" autoFocus
                                                 />
@@ -495,6 +578,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                 <div className="form-input-wrapper">
                                                     <input
                                                         name="password" type={showPassword ? 'text' : 'password'} className="form-input"
+                                                        autoComplete="new-password"
                                                         value={signupData.password} onChange={handleInputChange(setSignupData)}
                                                         placeholder="••••••••" autoFocus
                                                     />
@@ -502,6 +586,36 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                         {showPassword ? <FaEyeSlash /> : <FaEye />}
                                                     </button>
                                                 </div>
+                                                {signupData.password && (
+                                                    <div className="password-strength-container" style={{ marginTop: '0.5rem' }}>
+                                                        <div className="strength-bars-wrap" style={{ display: 'flex', gap: '4px', height: '4px', margin: '6px 0 4px' }}>
+                                                            {[0, 1, 2, 3].map((index) => {
+                                                                const strength = evaluatePasswordStrength(signupData.password);
+                                                                const isActive = strength.score > index;
+                                                                return (
+                                                                    <div
+                                                                        key={index}
+                                                                        style={{
+                                                                            flex: 1,
+                                                                            height: '100%',
+                                                                            borderRadius: '2px',
+                                                                            backgroundColor: isActive ? strength.color : 'rgba(255, 255, 255, 0.08)',
+                                                                            transition: 'background-color 0.3s ease'
+                                                                        }}
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: '600' }}>
+                                                            <span style={{ color: evaluatePasswordStrength(signupData.password).color }}>
+                                                                {evaluatePasswordStrength(signupData.password).label}
+                                                            </span>
+                                                            <span style={{ color: 'var(--text-muted)' }}>
+                                                                {evaluatePasswordStrength(signupData.password).feedback}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 {errors.password && <span className="error-text">{errors.password}</span>}
                                             </div>
                                             <div className="form-group">
@@ -509,6 +623,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                 <div className="form-input-wrapper">
                                                     <input
                                                         name="confirmPassword" type={showPassword ? 'text' : 'password'} className="form-input"
+                                                        autoComplete="new-password"
                                                         value={signupData.confirmPassword} onChange={handleInputChange(setSignupData)}
                                                         placeholder="••••••••"
                                                     />
@@ -526,22 +641,26 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                 <div className="form-input-wrapper">
                                                     <input
                                                         name="firstName" className="form-input"
+                                                        autoComplete="new-user-first-name"
                                                         value={signupData.firstName} onChange={handleInputChange(setSignupData)}
                                                         placeholder="John" autoFocus
                                                     />
                                                     <FaUser className="input-icon-btn" />
                                                 </div>
+                                                {errors.firstName && <span className="error-text">{errors.firstName}</span>}
                                             </div>
                                             <div className="form-group">
                                                 <label>Last Name</label>
                                                 <div className="form-input-wrapper">
                                                     <input
                                                         name="lastName" className="form-input"
+                                                        autoComplete="new-user-last-name"
                                                         value={signupData.lastName} onChange={handleInputChange(setSignupData)}
                                                         placeholder="Doe"
                                                     />
                                                     <FaUser className="input-icon-btn" />
                                                 </div>
+                                                {errors.lastName && <span className="error-text">{errors.lastName}</span>}
                                             </div>
                                         </>
                                     )}
@@ -584,8 +703,14 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                     className="custom-google-btn signup"
                                                     onClick={() => showNotification('Google sign-up is coming soon!', 'info')}
                                                     disabled={loading || authLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                 >
-                                                    <FaGoogle />
+                                                    <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '10px', display: 'inline-block', verticalAlign: 'middle' }}>
+                                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                                                    </svg>
                                                     <span>Sign up with Google (Coming Soon)</span>
                                                 </button>
                                             </div>
@@ -671,6 +796,36 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                                         placeholder="••••••••"
                                                     />
                                                 </div>
+                                                {resetData.newPassword && (
+                                                    <div className="password-strength-container" style={{ marginTop: '0.5rem' }}>
+                                                        <div className="strength-bars-wrap" style={{ display: 'flex', gap: '4px', height: '4px', margin: '6px 0 4px' }}>
+                                                            {[0, 1, 2, 3].map((index) => {
+                                                                const strength = evaluatePasswordStrength(resetData.newPassword);
+                                                                const isActive = strength.score > index;
+                                                                return (
+                                                                    <div
+                                                                        key={index}
+                                                                        style={{
+                                                                            flex: 1,
+                                                                            height: '100%',
+                                                                            borderRadius: '2px',
+                                                                            backgroundColor: isActive ? strength.color : 'rgba(255, 255, 255, 0.08)',
+                                                                            transition: 'background-color 0.3s ease'
+                                                                        }}
+                                                                    />
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: '600' }}>
+                                                            <span style={{ color: evaluatePasswordStrength(resetData.newPassword).color }}>
+                                                                {evaluatePasswordStrength(resetData.newPassword).label}
+                                                            </span>
+                                                            <span style={{ color: 'var(--text-muted)' }}>
+                                                                {evaluatePasswordStrength(resetData.newPassword).feedback}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="form-group">
                                                 <label>Confirm Password</label>
@@ -719,10 +874,15 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                         <div
                                             className="policy-body-rendered"
                                             dangerouslySetInnerHTML={{
-                                                __html: (publicSettings?.policies?.[policyType] || "Policy content is currently being updated.")
-                                                    .replace(/\n/g, '<br/>')
-                                                    .replace(/## (.*)/g, '<h3>$1</h3>')
-                                                    .replace(/# (.*)/g, '<h2>$1</h2>')
+                                                __html: (() => {
+                                                    const dbPolicy = publicSettings?.policies?.[policyType];
+                                                    const isPlaceholder = !dbPolicy || dbPolicy.trim().length < 15 || /updating|updated/i.test(dbPolicy);
+                                                    const finalPolicy = isPlaceholder ? defaultPolicies[policyType] : dbPolicy;
+                                                    return finalPolicy
+                                                        .replace(/\n/g, '<br/>')
+                                                        .replace(/## (.*)/g, '<h3>$1</h3>')
+                                                        .replace(/# (.*)/g, '<h2>$1</h2>');
+                                                })()
                                             }}
                                         />
                                     </div>

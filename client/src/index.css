@@ -5,43 +5,33 @@
   --color-primary: #D4AF37;
   --color-primary-dark: #B5952F;
   --color-primary-light: #E5C365;
-  --color-secondary: #0f172a;
-  --color-accent: #6f4e37;
+  --color-secondary: #1c120c; /* Rich Coffee Seed */
+  --color-accent: #6f4e37; /* Coffee bean brown */
 
   /* --- Semantic Workspace (Light Mode: Warm Parchment) --- */
-  --bg-home: #F9F7F2;
-  /* Warm Creamy Parchment */
-  --bg-deep: #F1EBE4;
-  /* Sophisticated Oatmeal */
-  --bg-surface: #FBFAF8;
+  --bg-home: #F8F4EE; /* Creamy espresso crema */
+  --bg-deep: #ECE3D7; /* Milk foam oatmeal */
+  --bg-surface: #FAF7F2; /* Flawless steamed milk */
   --bg-card: #ffffff;
   --bg-input: #ffffff;
-  --bg-glass: rgba(249, 247, 242, 0.9);
-  /* Matching warm glass */
-  --bg-overlay: rgba(111, 78, 55, 0.12);
-  /* Subtle Coffee tint */
+  --bg-glass: rgba(248, 244, 238, 0.94); /* Less transparent, rich crema glass */
+  --bg-overlay: rgba(111, 78, 55, 0.16); /* Warm coffee tint */
 
-  --text-main: #111111;
-  /* Pitch black for maximum clarity */
-  --text-muted: #555555;
-  /* Darker grey */
-  --text-dim: #718096;
-  /* Darker dim text */
+  --text-main: #1d1510; /* Roasted coffee black */
+  --text-muted: #615045; /* Dark milk chocolate */
+  --text-dim: #8b7566; /* Hazelnut ground */
   --text-on-dark: #FDFCFB;
   --text-gold: #B5952F;
 
-  --border-light: #E9EDF2;
-  --border-main: #D1D9E6;
-  /* Much stronger border for light mode visibility */
-  --border-strong: #A3AFBF;
-  /* Very visible borders */
-  --border-glass: rgba(0, 0, 0, 0.12);
-  /* Visible glass borders in light mode */
+  --border-light: #ECE5DC;
+  --border-main: #D6CAB8; /* Noticeable coffee borders for rich structures */
+  --border-strong: #A89582;
+  --border-glass: rgba(111, 78, 55, 0.15);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
-  --shadow-premium: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(111, 78, 55, 0.08);
+  --shadow-md: 0 4px 10px rgba(111, 78, 55, 0.12);
+  --shadow-lg: 0 12px 24px rgba(111, 78, 55, 0.15);
+  --shadow-premium: 0 20px 35px rgba(111, 78, 55, 0.12);
 
   /* Shared Extensions */
   --radius-sm: 8px;
@@ -57,30 +47,30 @@
 }
 
 [data-theme='dark'] {
-  /* --- Semantic Workspace (Dark Mode) --- */
-  --bg-home: #020617;
-  --bg-deep: #0b0f1a;
-  --bg-surface: #1e293b;
-  --bg-card: #111827;
-  --bg-input: #020617;
-  --bg-glass: rgba(17, 24, 39, 0.7);
-  --bg-overlay: rgba(0, 0, 0, 0.4);
+  /* --- Semantic Workspace (Dark Mode: Premium Hand-Selected Espresso) --- */
+  --bg-home: #0f0a08;       /* Triple-shot espresso black-brown */
+  --bg-deep: #080504;       /* Ultra-deep roasted coffee bean */
+  --bg-surface: #18110e;    /* Dark roasted cocoa mocha */
+  --bg-card: #201713;       /* Hot creamy latte clay */
+  --bg-input: #0f0a08;
+  --bg-glass: rgba(24, 17, 14, 0.90); /* Highly opaque, rich coffee bean glass */
+  --bg-overlay: rgba(8, 5, 4, 0.75); /* Deep dark roast tint */
 
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
-  --text-on-dark: #f8fafc;
+  --text-main: #faf6f0;     /* Delicious milk foam white */
+  --text-muted: #b5a496;    /* Warm milk chocolate dust */
+  --text-dim: #8a7667;      /* Muted roasted coffee skin */
+  --text-on-dark: #fdfdfc;
   --text-gold: #D4AF37;
 
-  --border-light: #1f2937;
-  --border-main: #374151;
-  --border-strong: #4b5563;
-  --border-glass: rgba(255, 255, 255, 0.1);
+  --border-light: #221814;
+  --border-main: #33241d;   /* Warm roasted shell */
+  --border-strong: #4f3b32; /* Golden crema boundary */
+  --border-glass: rgba(212, 175, 55, 0.15); /* Glowing gold-glass boundary */
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.8);
-  --shadow-premium: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.8);
+  --shadow-premium: 0 30px 60px rgba(0, 0, 0, 0.85);
 }
 
 /* --- Aliases for Backward Compatibility --- */

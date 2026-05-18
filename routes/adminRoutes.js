@@ -36,7 +36,11 @@ import {
   getInventoryReport,
   getCouponsReport,
   exportOrdersCSV,
-  exportCustomersCSV
+  exportCustomersCSV,
+  getPaymentTransactions,
+  manualPaymentOverride,
+  refundOrder,
+  getReconciliationReport
 } from '../controllers/adminController.js';
 
 import {
@@ -67,6 +71,8 @@ router.get('/orders/status', adminAuth(['orders:manage']), checkNewOrders);
 router.get('/orders', adminAuth(['orders:manage']), getOrders);
 router.get('/orders/:id', adminAuth(['orders:manage']), getOrderDetail);
 router.put('/orders/:id/status', adminAuth(['orders:update_status']), updateOrderStatus);
+router.post('/orders/:id/manual-override', adminAuth(['orders:update_status']), manualPaymentOverride);
+router.post('/orders/:id/refund', adminAuth(['orders:update_status']), refundOrder);
 
 // ==================== PRODUCT MANAGEMENT ====================
 router.get('/products', adminAuth(['products:manage']), getProducts);
@@ -97,9 +103,10 @@ router.post('/upload/logo', adminAuth(['settings:manage']), upload.single('logo'
   res.json({ success: true, message: 'Logo uploaded successfully', data: { url: req.file.path } });
 }));
 
-// ==================== ANALYTICS ====================
+// ==================== ANALYTICS & AUDIT TRAIL ====================
 router.get('/analytics/sales', adminAuth(['analytics:view']), getSalesAnalytics);
 router.get('/logs', adminAuth(['logs:view']), getActivityLogs);
+router.get('/payments', adminAuth(['logs:view']), getPaymentTransactions);
 
 // ==================== EXTENDED REPORTS ====================
 router.get('/reports/abandoned-carts', adminAuth(['analytics:view']), getAbandonedCartsReport);
@@ -107,6 +114,7 @@ router.get('/reports/payments', adminAuth(['analytics:view']), getPaymentsReport
 router.get('/reports/customers', adminAuth(['analytics:view']), getCustomersReport);
 router.get('/reports/inventory', adminAuth(['analytics:view']), getInventoryReport);
 router.get('/reports/coupons', adminAuth(['analytics:view']), getCouponsReport);
+router.get('/reports/reconciliation', adminAuth(['analytics:view']), getReconciliationReport);
 
 // ==================== COUPON MANAGEMENT ====================
 router.get('/coupons', adminAuth(['marketing:manage']), getCoupons);

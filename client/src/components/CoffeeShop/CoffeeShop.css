@@ -8,20 +8,20 @@
 
 /* ── Tokens ── */
 :root {
-  --cs-gold: #D4AF37;
-  --cs-gold-dk: #b8932a;
-  --cs-gold-lt: #e8cc6a;
-  --cs-bg: #0c0a08;
-  --cs-bg-2: #14110d;
-  --cs-bg-3: #1c1812;
-  --cs-bg-4: #241f18;
-  --cs-border: rgba(212, 175, 55, 0.12);
-  --cs-border2: rgba(255, 255, 255, 0.06);
-  --cs-text: #f0e8d8;
-  --cs-muted: #8a7d6a;
-  --cs-dim: #4a4035;
-  --cs-radius: 20px;
-  --cs-radius-sm: 12px;
+  --cs-gold: var(--color-primary, #D4AF37);
+  --cs-gold-dk: var(--color-primary-dark, #b8932a);
+  --cs-gold-lt: var(--color-primary-light, #e8cc6a);
+  --cs-bg: var(--bg-deep, #0c0a08);
+  --cs-bg-2: var(--bg-surface, #14110d);
+  --cs-bg-3: var(--bg-home, #1c1812);
+  --cs-bg-4: var(--bg-overlay, #241f18);
+  --cs-border: var(--border-glass, rgba(212, 175, 55, 0.12));
+  --cs-border2: var(--border-light, rgba(255, 255, 255, 0.06));
+  --cs-text: var(--text-main, #f0e8d8);
+  --cs-muted: var(--text-muted, #8a7d6a);
+  --cs-dim: var(--text-dim, #4a4035);
+  --cs-radius: var(--radius-lg, 20px);
+  --cs-radius-sm: var(--radius-md, 12px);
   --cs-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -29,12 +29,12 @@
    SECTION SHELL
 ══════════════════════════════════════════════════════════ */
 .cs-section {
-  background: var(--cs-bg);
-  padding: 9rem 0 7rem;
-  min-height: 100dvh;
+  background: var(--bg-home);
+  padding: 4rem 0 6rem; /* Reduced padding to fix spacing clash with Hero */
+  min-height: auto; /* Fix: Don't force 100vh if content is shorter */
   position: relative;
   overflow: hidden;
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
 }
 
 /* Background atmosphere */
@@ -88,64 +88,47 @@
 /* ══════════════════════════════════════════════════════════
    SECTION HEADER
 ══════════════════════════════════════════════════════════ */
-.cs-header {
+/* ── Premium Header Styles ── */
+.cs-premium-header {
   text-align: center;
-  margin-bottom: 4rem;
+  margin-bottom: 5rem;
+  position: relative;
 }
 
-.cs-header-eyebrow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1.2rem;
-  font-family: 'DM Sans', sans-serif;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.28em;
+.cs-header-accent {
+  width: 40px;
+  height: 2px;
+  background: var(--cs-gold);
+  margin: 0 auto 1.5rem;
+  opacity: 0.6;
+}
+
+.cs-premium-title {
+  font-family: var(--font-heading), serif;
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 300;
+  color: var(--text-main);
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.cs-premium-title .gold {
   color: var(--cs-gold);
-  margin-bottom: 1.5rem;
-}
-
-.cs-eyebrow-line {
-  display: block;
-  width: 48px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--cs-gold));
-}
-
-.cs-eyebrow-line:last-child {
-  background: linear-gradient(90deg, var(--cs-gold), transparent);
-}
-
-.cs-heading {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: clamp(3rem, 6vw, 5.5rem);
-  font-weight: 300;
-  line-height: 1.05;
-  color: var(--cs-text);
-  letter-spacing: -0.02em;
-  margin-bottom: 1.5rem;
-}
-
-.cs-heading-em {
   font-style: italic;
-  font-weight: 600;
-  background: linear-gradient(135deg, var(--cs-gold-lt) 0%, var(--cs-gold) 50%, var(--cs-gold-dk) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 500;
 }
 
-.cs-subheading {
+.cs-premium-subtitle {
   font-family: 'DM Sans', sans-serif;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 300;
-  color: var(--cs-muted);
-  max-width: 520px;
+  color: var(--text-muted);
+  max-width: 400px;
   margin: 0 auto;
-  line-height: 1.7;
-  letter-spacing: 0.01em;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -269,24 +252,24 @@
 /* ── Card ── */
 .cs-card {
   position: relative;
-  background: var(--cs-bg-2);
-  border: 1px solid var(--cs-border2);
+  background: var(--bg-card);
+  border: 1px solid var(--border-main);
   border-radius: var(--cs-radius);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   height: 540px;
   transform-style: preserve-3d;
-  transition: border-color 0.3s ease, box-shadow 0.4s ease;
+  transition: all 0.5s var(--cs-ease);
   cursor: default;
 }
 
 .cs-card:hover {
-  border-color: var(--cs-border);
+  border-color: rgba(212, 175, 55, 0.4);
   box-shadow:
-    0 0 0 1px rgba(212, 175, 55, 0.08),
-    0 24px 64px rgba(0, 0, 0, 0.5),
-    0 8px 24px rgba(212, 175, 55, 0.06);
+    0 30px 60px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(212, 175, 55, 0.08);
+  transform: translateY(-8px) scale(1.02);
 }
 
 .cs-card--oos {
@@ -314,12 +297,19 @@
 .cs-img-zone {
   position: relative;
   height: 240px;
-  background: var(--cs-bg-3);
+  background: radial-gradient(circle at center, rgba(212, 175, 55, 0.08) 0%, rgba(12, 10, 8, 0.05) 100%), var(--bg-deep);
   margin: 12px 12px 0;
   border-radius: 14px;
+  border: 1px solid rgba(212, 175, 55, 0.1);
   overflow: hidden;
   flex-shrink: 0;
   z-index: 1;
+  transition: all 0.4s var(--cs-ease);
+}
+
+.cs-card:hover .cs-img-zone {
+  border-color: rgba(212, 175, 55, 0.28);
+  background: radial-gradient(circle at center, rgba(212, 175, 55, 0.16) 0%, rgba(12, 10, 8, 0.08) 100%), var(--bg-deep);
 }
 
 .cs-img-link {
@@ -500,10 +490,10 @@
 }
 
 .cs-title {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-heading), Georgia, serif;
   font-size: 1.35rem;
   font-weight: 600;
-  color: var(--cs-text);
+  color: var(--text-main);
   line-height: 1.25;
   margin: 0;
   display: -webkit-box;
@@ -533,7 +523,7 @@
 }
 
 .cs-price-amount {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-heading), Georgia, serif;
   font-size: 1.45rem;
   font-weight: 600;
   color: var(--cs-gold);
@@ -806,7 +796,7 @@
 }
 
 .qv-title {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-heading), Georgia, serif;
   font-size: 2.6rem;
   font-weight: 600;
   color: var(--cs-text);
@@ -839,7 +829,7 @@
 }
 
 .qv-price-value {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-family: var(--font-heading), Georgia, serif;
   font-size: 2.2rem;
   font-weight: 600;
   color: var(--cs-gold);

@@ -1,5 +1,6 @@
 // components/PaymentProcessingModal/PaymentProcessingModal.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
+import { AppContext } from '../../context/AppContext';
 import { FaSpinner, FaCheckCircle, FaTimesCircle, FaPhone, FaCreditCard, FaLock } from 'react-icons/fa';
 import './PaymentProcessingModal.css';
 
@@ -8,10 +9,13 @@ const PaymentProcessingModal = ({
     paymentMethod,
     amount,
     phone,
+    orderId,
+    orderNumber,
     onSuccess,
     onFailure,
     onCancel
 }) => {
+    const { token } = useContext(AppContext);
     const [status, setStatus] = useState('processing'); // processing, success, failed
     const [message, setMessage] = useState('');
     const [transactionId, setTransactionId] = useState('');
@@ -25,11 +29,97 @@ const PaymentProcessingModal = ({
         }
 
         if (paymentMethod === 'mpesa') {
-            simulateMpesaPayment();
+            if (orderId && phone && phone !== '0700000000') {
+                triggerRealMpesaPayment();
+            } else {
+                simulateMpesaPayment();
+            }
         } else if (paymentMethod === 'card') {
             simulateCardPayment();
         }
-    }, [isOpen, paymentMethod]);
+    }, [isOpen, paymentMethod, orderId]);
+
+    const triggerRealMpesaPayment = async () => {
+        setStatus('processing');
+        setMessage(`Sending Secure STK Push to ${phone}...`);
+
+        try {
+            const response = await fetch('/api/payments/mpesa/stk', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ orderId, phoneNumber: phone })
+            });
+
+            const result = await response.json();
+            if (!result.success) {
+                throw new Error(result.message || 'Failed to trigger STK Push');
+            }
+
+            const { checkoutRequestId } = result;
+            setTransactionId(checkoutRequestId);
+            setMessage('Awaiting M-Pesa pin authorization on your phone...');
+
+            // Start status polling
+            pollPaymentStatus(checkoutRequestId);
+
+        } catch (error) {
+            setStatus('failed');
+            setMessage(error.message || 'M-Pesa payment initiation failed');
+            setTimeout(() => {
+                onFailure(error.message || 'M-Pesa payment initiation failed');
+            }, 2500);
+        }
+    };
+
+    const pollPaymentStatus = (checkoutRequestId) => {
+        let attempts = 0;
+        const maxAttempts = 20; // 20 attempts * 3s = 60s
+        
+        const interval = setInterval(async () => {
+            attempts++;
+            if (attempts > maxAttempts) {
+                clearInterval(interval);
+                setStatus('failed');
+                setMessage('M-Pesa payment validation timed out. Please check your phone and try again.');
+                setTimeout(() => {
+                    onFailure('M-Pesa payment validation timed out.');
+                }, 2500);
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/payments/mpesa/status/${checkoutRequestId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    if (result.status === 'SUCCESS') {
+                        clearInterval(interval);
+                        setStatus('success');
+                        setMessage('Payment Authorized Successfully! Asante.');
+                        setTimeout(() => {
+                            onSuccess({ transactionId: checkoutRequestId, method: 'mpesa' });
+                        }, 1500);
+                    } else if (result.status === 'FAILED') {
+                        clearInterval(interval);
+                        setStatus('failed');
+                        setMessage('M-Pesa transaction was cancelled or failed.');
+                        setTimeout(() => {
+                            onFailure('M-Pesa transaction was cancelled or failed.');
+                        }, 2500);
+                    }
+                }
+            } catch (err) {
+                console.error('Polling error:', err);
+            }
+        }, 3000);
+    };
 
     const simulateMpesaPayment = async () => {
         setStatus('processing');
@@ -159,7 +249,7 @@ const PaymentProcessingModal = ({
                         )}
                         {status === 'failed' && (
                             <>
-                                <button className="btn-modal btn-retry" onClick={paymentMethod === 'mpesa' ? simulateMpesaPayment : simulateCardPayment}>
+                                <button className="btn-modal btn-retry" onClick={paymentMethod === 'mpesa' ? (orderId && phone && phone !== '0700000000' ? triggerRealMpesaPayment : simulateMpesaPayment) : simulateCardPayment}>
                                     Retry {paymentMethod === 'mpesa' ? 'M-Pesa' : 'Payment'}
                                 </button>
                                 <button className="btn-modal btn-cancel" onClick={onCancel}>
@@ -190,6 +280,7 @@ const PaymentProcessingModal = ({
                         </div>
                     )}
 
+                    {/* Premium Card Security Details */}
                     {status === 'processing' && paymentMethod === 'card' && (
                         <div className="payment-instructions" style={{ textAlign: 'center', background: '#F0F9FF', border: 'none' }}>
                             <p style={{ justifyContent: 'center', color: '#0369A1' }}>

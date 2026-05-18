@@ -19,7 +19,9 @@ import {
   disable2FA,
   getLoginHistory,
   getOrders,
-  deleteAccount
+  deleteAccount,
+  getTickets,
+  createTicket
 } from '../controllers/dashboardController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -55,6 +57,11 @@ router.route('/payment-methods/:id')
 
 // Orders
 router.get('/orders', getOrders);
+
+// Support tickets
+router.route('/tickets')
+  .get(getTickets)
+  .post(createTicket);
 
 // Security
 router.put('/security/password', updatePassword);

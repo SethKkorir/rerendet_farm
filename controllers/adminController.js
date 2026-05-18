@@ -1,5 +1,6 @@
 // controllers/adminController.js - COMPLETELY REWRITTEN WITH FORM DATA FIXES
 import asyncHandler from 'express-async-handler';
+import moment from 'moment';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
@@ -7,16 +8,35 @@ import Contact from '../models/Contact.js';
 import Settings from '../models/Settings.js';
 import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js'; // For fetching logs later
+import PaymentTransaction from '../models/PaymentTransaction.js';
 import mongoose from 'mongoose';
 import sendEmail from '../utils/sendEmail.js';
 import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail } from '../utils/emailTemplates.js';
 import nodemailer from 'nodemailer';
+import axios from 'axios';
+// Optimization: Simple in-memory cache for dashboard stats
+let statsCache = {
+  data: null,
+  lastUpdated: 0,
+  ttl: 5 * 60 * 1000 // 5 minutes
+};
 
 // @desc    Get dashboard statistics
 // @route   GET /api/admin/dashboard/stats
 // @access  Private/Admin
 const getDashboardStats = asyncHandler(async (req, res) => {
-  const { timeframe = '30d' } = req.query;
+  const { timeframe = '30d', force = false } = req.query;
+  
+  // Return cached data if available and not expired
+  if (!force && statsCache.data && (Date.now() - statsCache.lastUpdated < statsCache.ttl)) {
+    return res.json({
+      success: true,
+      data: statsCache.data,
+      cached: true,
+      lastUpdated: new Date(statsCache.lastUpdated)
+    });
+  }
+
   const today = new Date();
   const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -53,15 +73,14 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     newUsersThisMonth,
     shippedOrders
   ] = await Promise.all([
-    Order.countDocuments(),
-    Product.countDocuments({ isActive: true }),
-    User.countDocuments({ userType: 'customer' }),
+    Order.countDocuments().lean(),
+    Product.countDocuments({ isActive: true }).lean(),
+    User.countDocuments({ userType: 'customer' }).lean(),
     Order.aggregate([
-      // Include both paid and pending for "Potential Revenue" vs "Actual"
       { $match: { paymentStatus: { $in: ['paid', 'pending'] } } },
       { $group: { _id: null, total: { $sum: '$total' } } }
     ]),
-    Order.countDocuments({ createdAt: { $gte: startOfToday } }),
+    Order.countDocuments({ createdAt: { $gte: startOfToday } }).lean(),
     Order.aggregate([
       {
         $match: {
@@ -74,39 +93,49 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     Order.find()
       .populate('user', 'firstName lastName email')
       .sort({ createdAt: -1 })
-      .limit(5),
+      .limit(5)
+      .lean(),
     Product.find({
       isActive: true,
       $or: [
         { 'inventory.stock': { $lte: 10 } },
         { stock: { $lte: 10 } }
       ]
-    }).limit(10),
-    Order.countDocuments({ paymentStatus: 'pending' }),
-    User.countDocuments({ userType: 'customer', createdAt: { $gte: startOfMonth } }),
-    Order.countDocuments({ fulfillmentStatus: 'shipped' })
+    }).limit(10).lean(),
+    Order.countDocuments({ paymentStatus: 'pending' }).lean(),
+    User.countDocuments({ userType: 'customer', createdAt: { $gte: startOfMonth } }).lean(),
+    Order.countDocuments({ fulfillmentStatus: 'shipped' }).lean()
   ]);
 
   const totalRevenue = totalRevenueResult[0]?.total || 0;
   const todayRevenue = todayRevenueResult[0]?.total || 0;
 
+  const resultData = {
+    overview: {
+      totalOrders,
+      totalProducts,
+      totalUsers,
+      totalRevenue,
+      todayOrders,
+      todayRevenue,
+      pendingOrders: pendingCount,
+      newUsersThisMonth,
+      shippedOrders
+    },
+    recentOrders,
+    lowStockProducts
+  };
+
+  // Update cache
+  statsCache = {
+    data: resultData,
+    lastUpdated: Date.now(),
+    ttl: 5 * 60 * 1000
+  };
+
   res.json({
     success: true,
-    data: {
-      overview: {
-        totalOrders,
-        totalProducts,
-        totalUsers,
-        totalRevenue,
-        todayOrders,
-        todayRevenue,
-        pendingOrders: pendingCount,
-        newUsersThisMonth,
-        shippedOrders
-      },
-      recentOrders,
-      lowStockProducts
-    }
+    data: resultData
   });
 });
 
@@ -1160,150 +1189,114 @@ const updateSettings = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/analytics/sales
 // @access  Private/Admin
 const getSalesAnalytics = asyncHandler(async (req, res) => {
-  const period = req.query.period || req.query.timeframe || '3000d'; // Default to long if missing
-
-  let startDate;
+  const timeframe = req.query.period || req.query.timeframe || '30d';
   const now = new Date();
-  switch (period) {
-    case '7d': startDate = new Date(); startDate.setDate(now.getDate() - 7); break;
-    case '90d': startDate = new Date(); startDate.setDate(now.getDate() - 90); break;
-    case '1y': startDate = new Date(); startDate.setFullYear(now.getFullYear() - 1); break;
+  let startDate;
+
+  switch (timeframe) {
+    case '7d': startDate = moment().subtract(7, 'days').toDate(); break;
+    case '90d': startDate = moment().subtract(90, 'days').toDate(); break;
+    case '1y': startDate = moment().subtract(1, 'year').toDate(); break;
     case 'all': startDate = new Date('2020-01-01'); break;
     case '30d':
-    default:
-      startDate = new Date();
-      startDate.setDate(now.getDate() - 30);
+    default: startDate = moment().subtract(30, 'days').toDate();
   }
-
-  // Set to start of day for consistent filtering
   startDate.setHours(0, 0, 0, 0);
 
-  // Fetch orders
-  const allOrders = await Order.find({})
-    .populate({ path: 'items.product', select: 'name category' })
-    .populate({ path: 'user', select: 'firstName lastName' })
-    .sort({ createdAt: -1 })
-    .lean();
-
-  const filteredOrders = allOrders.filter(o => {
-    const d = new Date(o.createdAt);
-    return d >= startDate;
-  });
-
-  const paidOrders = filteredOrders.filter(o => o.paymentStatus === 'paid');
-
-  // 1. Daily Sales Timeline
-  const dailyMap = {};
-  for (const o of filteredOrders) {
-    const key = new Date(o.createdAt).toISOString().split('T')[0];
-    if (!dailyMap[key]) dailyMap[key] = { _id: key, total: 0, orders: 0 };
-    dailyMap[key].orders += 1;
-    if (o.paymentStatus === 'paid') {
-      dailyMap[key].total += Number(o.total) || 0;
-    }
-  }
-
-  const salesData = [];
-  const cur = new Date(startDate);
-  while (cur <= now) {
-    const key = cur.toISOString().split('T')[0];
-    salesData.push(dailyMap[key] || { _id: key, total: 0, orders: 0 });
-    cur.setDate(cur.getDate() + 1);
-  }
-
-  // 2. Category Distribution
-  const catMap = {};
-  for (const o of filteredOrders) {
-    for (const item of (o.items || [])) {
-      const cat = item.product?.category || 'Uncategorized';
-      catMap[cat] = (catMap[cat] || 0) + (Number(item.quantity) || 1);
-    }
-  }
-  const totalItemsCount = Object.values(catMap).reduce((a, b) => a + b, 0) || 1;
-  const categoryDistribution = Object.entries(catMap)
-    .map(([name, count]) => ({ name, value: Math.round((count / totalItemsCount) * 100) }))
-    .sort((a, b) => b.value - a.value);
-
-  // 3. Overview Totals
-  const totalRevenue = paidOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
-  const totalOrders = filteredOrders.length;
-  const productsSold = filteredOrders.reduce((s, o) => s + (o.items || []).reduce((q, i) => q + (Number(i.quantity) || 0), 0), 0);
-  const uniqueIds = new Set(filteredOrders.map(o => (o.user?._id || o.user)?.toString()).filter(Boolean));
-  const activeCustomers = uniqueIds.size;
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
-  // 4. Top Products
-  const productMap = {};
-  for (const o of filteredOrders) {
-    for (const item of (o.items || [])) {
-      const id = (item.product?._id || 'unknown').toString();
-      const name = item.product?.name || item.name || 'Unknown';
-      if (!productMap[id]) productMap[id] = { name, sales: 0, revenue: 0 };
-      productMap[id].sales += Number(item.quantity) || 0;
-      productMap[id].revenue += (Number(item.price) || 0) * (Number(item.quantity) || 0);
-    }
-  }
-  const topProducts = Object.values(productMap).sort((a, b) => b.sales - a.sales).slice(0, 8);
-
-  // 5. Top Customers
-  const customerMap = {};
-  for (const o of paidOrders) {
-    const id = ((o.user?._id || o.user) || 'unknown').toString();
-    const name = o.user ? ((o.user.firstName || '') + ' ' + (o.user.lastName || '')).trim() || 'Customer' : 'Guest';
-    if (!customerMap[id]) customerMap[id] = { name, orders: 0, spent: 0 };
-    customerMap[id].orders += 1;
-    customerMap[id].spent += Number(o.total) || 0;
-  }
-  const topCustomers = Object.values(customerMap).sort((a, b) => b.spent - a.spent).slice(0, 8);
-
-  // 6. Fulfillment Breakdown
-  const fulfillmentMap = {};
-  const labelMap = { unfulfilled: 'Confirmed', packed: 'Processing', shipped: 'Shipped', delivered: 'Delivered', returned: 'Returned' };
-  for (const o of allOrders) {
-    const label = labelMap[o.fulfillmentStatus] || 'Confirmed';
-    fulfillmentMap[label] = (fulfillmentMap[label] || 0) + 1;
-  }
-  const fulfillmentTotal = Object.values(fulfillmentMap).reduce((a, b) => a + b, 0) || 1;
-  const fulfillmentBreakdown = Object.entries(fulfillmentMap)
-    .map(([name, count]) => ({ name, value: Math.round((count / fulfillmentTotal) * 100) }));
-
-  // 7. Trend comparison
   const periodMs = now - startDate;
   const prevStart = new Date(startDate.getTime() - periodMs);
-  const prevOrders = allOrders.filter(o => {
-    const d = new Date(o.createdAt);
-    return d >= prevStart && d < startDate;
-  });
-  const prevRevenue = prevOrders.filter(o => o.paymentStatus === 'paid').reduce((s, o) => s + (Number(o.total) || 0), 0);
+
+  // 1. Parallel Aggregations
+  const [
+    mainStats,
+    dailySales,
+    categoryData,
+    topProducts,
+    customerSales,
+    fulfillmentData,
+    prevStats,
+    newCustCount,
+    prevNewCustCount
+  ] = await Promise.all([
+    // Core Stats
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startDate }, paymentStatus: 'paid' } },
+      { $group: { _id: null, totalRevenue: { $sum: '$total' }, totalOrders: { $sum: 1 }, productsSold: { $sum: { $size: '$items' } } } }
+    ]),
+    // Daily Timeline
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, total: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'paid'] }, '$total', 0] } }, orders: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]),
+    // Category Dist
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      { $unwind: '$items' },
+      { $lookup: { from: 'products', localField: 'items.product', foreignField: '_id', as: 'prod' } },
+      { $unwind: '$prod' },
+      { $group: { _id: '$prod.category', count: { $sum: '$items.quantity' } } }
+    ]),
+    // Top Products
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startDate } } },
+      { $unwind: '$items' },
+      { $group: { _id: '$items.name', sales: { $sum: '$items.quantity' }, revenue: { $sum: '$items.itemTotal' } } },
+      { $sort: { sales: -1 } },
+      { $limit: 8 },
+      { $project: { name: '$_id', sales: 1, revenue: 1, _id: 0 } }
+    ]),
+    // Top Customers
+    Order.aggregate([
+      { $match: { createdAt: { $gte: startDate }, paymentStatus: 'paid' } },
+      { $lookup: { from: 'users', localField: 'user', foreignField: '_id', as: 'u' } },
+      { $unwind: '$u' },
+      { $group: { _id: '$user', name: { $first: { $concat: ['$u.firstName', ' ', '$u.lastName'] } }, orders: { $sum: 1 }, spent: { $sum: '$total' } } },
+      { $sort: { spent: -1 } },
+      { $limit: 8 }
+    ]),
+    // Fulfillment
+    Order.aggregate([
+      { $group: { _id: '$fulfillmentStatus', count: { $sum: 1 } } }
+    ]),
+    // Prev Stats for trend
+    Order.aggregate([
+      { $match: { createdAt: { $gte: prevStart, $lt: startDate }, paymentStatus: 'paid' } },
+      { $group: { _id: null, totalRevenue: { $sum: '$total' }, totalOrders: { $sum: 1 } } }
+    ]),
+    // Customer Trends
+    User.countDocuments({ createdAt: { $gte: startDate }, userType: 'customer' }),
+    User.countDocuments({ createdAt: { $gte: prevStart, $lt: startDate }, userType: 'customer' })
+  ]);
+
+  const stats = mainStats[0] || { totalRevenue: 0, totalOrders: 0, productsSold: 0 };
+  const pStats = prevStats[0] || { totalRevenue: 0, totalOrders: 0 };
 
   const getTrend = (cur, prev) => {
     if (prev <= 0) return cur > 0 ? 100 : 0;
     return Number(((cur - prev) / prev * 100).toFixed(1));
   };
 
-  const revenueTrend = getTrend(totalRevenue, prevRevenue);
-  const ordersTrend = getTrend(totalOrders, prevOrders.length);
-
-  // Customer trend
-  const newCustCount = await User.countDocuments({ createdAt: { $gte: startDate }, userType: 'customer' });
-  const prevNewCustCount = await User.countDocuments({ createdAt: { $gte: prevStart, $lt: startDate }, userType: 'customer' });
-  const customersTrend = getTrend(newCustCount, prevNewCustCount);
+  const labelMap = { unfulfilled: 'Confirmed', packed: 'Processing', shipped: 'Shipped', delivered: 'Delivered', returned: 'Returned' };
+  const fTotal = fulfillmentData.reduce((s, f) => s + f.count, 0) || 1;
 
   res.json({
     success: true,
     data: {
-      salesData, categoryDistribution, fulfillmentBreakdown,
-      topProducts, topCustomers,
-      totalRevenue, totalOrders, productsSold,
-      activeCustomers, averageOrderValue,
-      revenueTrend, ordersTrend, customersTrend,
-      productsTrend: 0,
-      conversionRate: totalOrders > 0
-        ? Number((totalOrders / (totalOrders * 1.5 + 10) * 100).toFixed(1))
-        : 0,
-      retentionRate: 18.5,
-      period,
-      lastOrderDate: allOrders.length > 0 ? allOrders[0].createdAt : null,
+      salesData: dailySales,
+      categoryDistribution: categoryData.map(c => ({ name: c._id, value: Math.round((c.count / (stats.productsSold || 1)) * 100) })),
+      fulfillmentBreakdown: fulfillmentData.map(f => ({ name: labelMap[f._id] || 'Confirmed', value: Math.round((f.count / fTotal) * 100) })),
+      topProducts,
+      topCustomers: customerSales.map(c => ({ name: c.name || 'Customer', orders: c.orders, spent: c.spent })),
+      totalRevenue: stats.totalRevenue,
+      totalOrders: stats.totalOrders,
+      productsSold: stats.productsSold,
+      activeCustomers: customerSales.length,
+      averageOrderValue: stats.totalOrders > 0 ? stats.totalRevenue / stats.totalOrders : 0,
+      revenueTrend: getTrend(stats.totalRevenue, pStats.totalRevenue),
+      ordersTrend: getTrend(stats.totalOrders, pStats.totalOrders),
+      customersTrend: getTrend(newCustCount, prevNewCustCount),
+      productsTrend: 0
     }
   });
 });
@@ -1531,7 +1524,7 @@ const getAdminOverview = asyncHandler(async (req, res) => {
     unreadContacts,
     totalUsers
   ] = await Promise.all([
-    Order.countDocuments({ status: 'pending' }),
+    Order.countDocuments({ paymentStatus: 'pending' }),
     Product.countDocuments({ 'inventory.stock': { $lte: 10 }, isActive: true }),
     Contact.countDocuments({ status: 'new' }),
     User.countDocuments({ userType: 'customer' })
@@ -1958,6 +1951,306 @@ const exportCustomersCSV = asyncHandler(async (req, res) => {
   res.send(csv);
 });
 
+// @desc    Get payment transactions ledger logs
+// @route   GET /api/admin/payments
+// @access  Private/Admin
+const getPaymentTransactions = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, search, provider, status } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  let filter = {};
+
+  if (provider && provider !== 'all') {
+    filter.provider = provider.toUpperCase();
+  }
+
+  if (status && status !== 'all') {
+    filter.status = status.toUpperCase();
+  }
+
+  if (search) {
+    filter.$or = [
+      { transactionId: { $regex: search, $options: 'i' } },
+      { 'metadata.phoneNumber': { $regex: search, $options: 'i' } },
+      { 'metadata.mpesaPhoneNumber': { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  try {
+    const [transactions, total] = await Promise.all([
+      PaymentTransaction.find(filter)
+        .populate({
+          path: 'order',
+          select: 'orderNumber total paymentStatus shippingAddress.email shippingAddress.phone',
+          populate: { path: 'user', select: 'firstName lastName email' }
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      PaymentTransaction.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          current: parseInt(page),
+          page: parseInt(page),
+          pages: Math.ceil(total / limit),
+          total
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to fetch payment transaction logs: ' + error.message);
+  }
+});
+
+// @desc    Manually mark order as paid
+// @route   POST /api/admin/orders/:id/manual-override
+// @access  Private/Admin
+const manualPaymentOverride = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason, referenceId, method = 'MPESA' } = req.body;
+
+  if (!reason) {
+    res.status(400);
+    throw new Error('Please provide a reason for the manual payment override');
+  }
+
+  const order = await Order.findById(id);
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  if (order.paymentStatus === 'paid') {
+    res.status(400);
+    throw new Error('Order is already marked as paid');
+  }
+
+  const overrideTxId = referenceId || `MANUAL-${Date.now()}`;
+
+  // 1. Update order payment status
+  order.paymentStatus = 'paid';
+  order.status = 'confirmed';
+  order.transactionId = overrideTxId;
+  order.orderEvents.push({
+    status: 'PAYMENT_CONFIRMED',
+    note: `Manually marked as PAID by Admin: ${req.user.email}. Reason: ${reason}. Ref: ${overrideTxId}`,
+    user: req.user._id
+  });
+  await order.save();
+
+  // 2. Create successful Transaction Record
+  await PaymentTransaction.create({
+    order: order._id,
+    provider: method.toUpperCase(),
+    transactionId: overrideTxId,
+    amount: order.total,
+    currency: 'KES',
+    status: 'SUCCESS',
+    rawResponse: { manualOverride: true, reason, adminId: req.user._id },
+    metadata: { reason, overriddenBy: req.user.email, date: new Date() }
+  });
+
+  // 3. Log administrative action in ActivityLog
+  await logActivity(req, 'MANUAL_PAYMENT_OVERRIDE', `Manually marked order #${order.orderNumber} as paid. Reason: ${reason}`, order._id);
+
+  res.json({
+    success: true,
+    message: 'Order manually overridden and marked as paid successfully',
+    data: order
+  });
+});
+
+// @desc    Initiate dynamic/manual gateway refund
+// @route   POST /api/admin/orders/:id/refund
+// @access  Private/Admin
+const refundOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason, forceManual = false } = req.body;
+
+  if (!reason) {
+    res.status(400);
+    throw new Error('Please provide a reason for initiating this refund');
+  }
+
+  const order = await Order.findById(id);
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  if (order.paymentStatus !== 'paid') {
+    res.status(400);
+    throw new Error('Can only refund orders that have already been fully paid');
+  }
+
+  // Find original successful transaction
+  const tx = await PaymentTransaction.findOne({ order: order._id, status: 'SUCCESS' });
+  let gatewayRefundSuccess = false;
+  let refundDetails = {};
+
+  if (tx && tx.provider === 'PAYPAL' && !forceManual) {
+    // Process live automated PayPal refund via REST API!
+    try {
+      console.log(`💸 Initiating automated PayPal refund for Order ${order.orderNumber}...`);
+      const captureId = tx.rawResponse?.purchase_units?.[0]?.payments?.captures?.[0]?.id || tx.transactionId;
+      
+      const { getPayPalAccessToken } = await import('../services/paypalService.js');
+      const paypalAccessToken = await getPayPalAccessToken();
+      const paypalUrl = process.env.PAYPAL_ENVIRONMENT === 'production' 
+        ? 'https://api-m.paypal.com' 
+        : 'https://api-m.sandbox.paypal.com';
+
+      const response = await axios.post(
+        `${paypalUrl}/v2/payments/captures/${captureId}/refund`,
+        { note_to_payer: reason },
+        {
+          headers: {
+            Authorization: `Bearer ${paypalAccessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data && ['COMPLETED', 'PENDING'].includes(response.data.status)) {
+        gatewayRefundSuccess = true;
+        refundDetails = response.data;
+        console.log(`✅ PayPal gateway refund successful: ID=${response.data.id}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ PayPal gateway refund failed: ${err.message}. Recording manual fallback.`);
+    }
+  }
+
+  // 1. Update order payment status to refunded
+  order.paymentStatus = 'refunded';
+  order.orderStatus = 'cancelled';
+  order.orderEvents.push({
+    status: 'REFUND_PROCESSED',
+    note: `Refund processed by admin: ${req.user.email}. Gateway Refunded: ${gatewayRefundSuccess ? 'Yes' : 'No (Manual override)'}. Reason: ${reason}`,
+    user: req.user._id
+  });
+  await order.save();
+
+  // 2. Log reversed transaction in ledger
+  await PaymentTransaction.create({
+    order: order._id,
+    provider: tx ? tx.provider : 'MPESA',
+    transactionId: `REFUND-${Date.now()}`,
+    amount: order.total,
+    currency: 'KES',
+    status: 'FAILED',
+    rawResponse: { refunded: true, reason, gatewayRefundSuccess, refundDetails },
+    metadata: { reason, refundedBy: req.user.email, date: new Date() }
+  });
+
+  // 3. Roll back product stock dynamically to replenish inventory!
+  for (const item of order.items) {
+    await Product.findByIdAndUpdate(item.product, {
+      $inc: { 'inventory.stock': item.quantity },
+      $set: { inStock: true }
+    });
+  }
+
+  // 4. Log admin activity
+  await logActivity(req, 'INITIATED_REFUND', `Refunded order #${order.orderNumber}. Reason: ${reason}. Gateway: ${gatewayRefundSuccess ? 'Automated' : 'Manual'}`, order._id);
+
+  res.json({
+    success: true,
+    message: gatewayRefundSuccess 
+      ? 'Payment refunded successfully through gateway and inventory replenished' 
+      : 'Refund recorded manually and inventory replenished successfully',
+    data: order
+  });
+});
+
+// @desc    Generate financial reconciliation comparison report
+// @route   GET /api/admin/reports/reconciliation
+// @access  Private/Admin
+const getReconciliationReport = asyncHandler(async (req, res) => {
+  const { startDate, endDate } = req.query;
+
+  const filter = {};
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) filter.createdAt.$lte = new Date(endDate);
+  }
+
+  try {
+    // 1. Aggregated total revenue of database orders
+    const dbSummary = await Order.aggregate([
+      { $match: { ...filter, paymentStatus: 'paid' } },
+      {
+        $group: {
+          _id: '$paymentMethod',
+          totalAmount: { $sum: '$total' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // 2. Aggregated total of PaymentTransaction ledger items
+    const ledgerSummary = await PaymentTransaction.aggregate([
+      { $match: { ...filter, status: 'SUCCESS' } },
+      {
+        $group: {
+          _id: '$provider',
+          totalAmount: { $sum: '$amount' },
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // 3. Scan for discrepancies
+    const unmatchedOrders = await Order.find({
+      ...filter,
+      paymentStatus: 'paid'
+    }).select('orderNumber total paymentMethod transactionId shippingAddress.email');
+
+    const discrepancies = [];
+
+    for (const order of unmatchedOrders) {
+      const match = await PaymentTransaction.findOne({
+        $or: [
+          { transactionId: order.transactionId },
+          { order: order._id }
+        ],
+        status: 'SUCCESS'
+      });
+      if (!match) {
+        discrepancies.push({
+          type: 'MISSING_TRANSACTION_LEDGER',
+          message: `Order #${order.orderNumber} is marked PAID, but no matching transaction was found in the secure ledger`,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          amount: order.total,
+          method: order.paymentMethod
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        dbSummary,
+        ledgerSummary,
+        discrepancies,
+        reportTimeframe: { startDate, endDate }
+      }
+    });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to generate reconciliation audit: ' + error.message);
+  }
+});
+
 export {
   getDashboardStats,
   getOrders,
@@ -1990,5 +2283,9 @@ export {
   exportOrdersCSV,
   exportCustomersCSV,
   updateProductStock,
-  resetUserSecurity
+  resetUserSecurity,
+  getPaymentTransactions,
+  manualPaymentOverride,
+  refundOrder,
+  getReconciliationReport
 };

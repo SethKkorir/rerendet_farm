@@ -1,4 +1,3 @@
-// routes/orderRoutes.js - WITH RATE LIMITING
 import express from 'express';
 import {
   createOrder,
@@ -10,7 +9,8 @@ import {
   generateOrderInvoice,
   validateCoupon,
   logAbandonedCheckout,
-  getAbandonedCheckouts
+  getAbandonedCheckouts,
+  cancelOrder
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { checkoutLimiter } from '../middleware/checkoutRateLimit.js';
@@ -23,13 +23,12 @@ router.post('/shipping-cost', calculateShippingCost);
 // Protected routes
 router.use(protect);
 
-
-
 // Customer routes - Apply rate limiting to checkout
 router.post('/validate-coupon', validateCoupon);
 router.post('/abandoned', logAbandonedCheckout);
 router.post('/', checkoutLimiter, createOrder);
 router.get('/my', getUserOrders);
+router.post('/:id/cancel', cancelOrder);
 
 // Admin routes — MUST be before /:id to avoid being swallowed by the wildcard
 router.get('/abandoned', admin, getAbandonedCheckouts);

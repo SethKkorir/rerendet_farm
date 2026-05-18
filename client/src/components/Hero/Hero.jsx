@@ -132,19 +132,7 @@ const Hero = () => {
             roasting secrets passed through generations, delivered fresh to your door.
           </motion.p>
 
-          {/* Stat strip */}
-          <motion.div className="hero-stat-strip" variants={itemVariants}>
-            {[
-              { value: '100%', label: 'Kenyan Origin' },
-              { value: '3rd Gen', label: 'Roasters' },
-              { value: '48hr', label: 'Fresh Delivery' },
-            ].map((s) => (
-              <div className="hero-stat" key={s.label}>
-                <span className="hero-stat-value">{s.value}</span>
-                <span className="hero-stat-label">{s.label}</span>
-              </div>
-            ))}
-          </motion.div>
+
 
           <motion.div className="hero-button-group" variants={itemVariants}>
             <button

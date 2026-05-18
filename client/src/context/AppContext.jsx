@@ -74,33 +74,8 @@ export function AppProvider({ children }) {
   const [globalMaintenance, setGlobalMaintenance] = useState(false);
 
   // Response interceptor to handle auth errors and maintenance
-  useEffect(() => {
-    const interceptor = API.interceptors.response.use(
-      (response) => {
-        // If we get a successful response and were in maintenance, maybe we are back?
-        // But we usually want the explicit settings fetch to decide
-        return response;
-      },
-      (error) => {
-        // Handle Maintenance Mode (503 Service Unavailable)
-        if (error.response?.status === 503) {
-          console.warn('🚧 Server reported Maintenance Mode (503)');
-          setGlobalMaintenance(true);
-        }
-
-        if (error.response?.status === 401) {
-          localStorage.removeItem('auth');
-          if (window.location.pathname.startsWith('/admin')) {
-            window.location.href = '/admin/login';
-          }
-        }
-        return Promise.reject(error);
-      }
-    );
-
-    return () => API.interceptors.response.eject(interceptor);
-  }, []);
-
+  // Interceptor removed: It was redundant with the one in src/api/api.js 
+  // and causing double-redirect/loop issues during session expiration.
   // ==================== IDLE SESSION MANAGEMENT ====================
   const [isLocked, setIsLocked] = useState(false);
   const IDLE_TIMEOUT = 8 * 60 * 1000; // 8 minutes in milliseconds
@@ -622,6 +597,26 @@ export function AppProvider({ children }) {
     }
   }, [setAuth, validateToken, showSuccess, showError]);
 
+  // Verify Admin 2FA Login
+  const verifyAdmin2FA = useCallback(async (email, code) => {
+    setLoading(true);
+    try {
+      const response = await API.post('/auth/admin/verify-2fa', { email, code });
+      const { user: userData, token: authToken } = response.data.data;
+
+      if (!validateToken(authToken)) throw new Error('Invalid token received');
+
+      setAuth(userData, authToken, 'admin');
+      showSuccess(`Admin login successful! Welcome ${userData.role === 'super-admin' ? 'Super Admin' : 'Admin'}!`);
+      return response.data;
+    } catch (error) {
+      showError(error.response?.data?.message || 'Verification failed');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [setAuth, validateToken, showSuccess, showError]);
+
   // Confirm Password
   const confirmPassword = useCallback(async (password) => {
     try {
@@ -1091,116 +1086,74 @@ export function AppProvider({ children }) {
 
   // Initialize auth — use silent refresh via HttpOnly cookie (no token in localStorage)
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-
     const initializeAuth = async () => {
+      if (hasInitialized.current) return;
+      hasInitialized.current = true;
+      
       try {
+        console.log('🚀 Initializing App State...');
+        
+        // 1. Fetch settings first
         await fetchPublicSettings();
-
-        // Check if we have cached auth data (token in old format, or just user profile in new format)
+        
+        // 2. Check auth
         const storedAuth = localStorage.getItem('auth');
         if (storedAuth) {
-          const parsed = JSON.parse(storedAuth);
-
-          // ── Path 1: Try silent cookie refresh (new secure system) ──
-          console.log('🔄 Attempting silent token refresh via HttpOnly cookie...');
           try {
-            const { default: axios } = await import('axios');
-            const refreshRes = await axios.post(
-              `${process.env.REACT_APP_API_URL || '/api'}/auth/refresh`,
-              {},
-              { withCredentials: true }
-            );
-            if (refreshRes.data?.data?.token) {
-              const { tokenStore } = await import('../api/api');
-              tokenStore.set(refreshRes.data.data.token);
-              setToken(refreshRes.data.data.token);
-
-              const { getCurrentUser } = await import('../api/api');
-              const meRes = await getCurrentUser();
-              if (meRes.data.success) {
-                const userData = meRes.data.data;
-                const actualUserType = userData.userType || (userData.role === 'admin' || userData.role === 'super-admin' ? 'admin' : 'customer');
-                setAuth(userData, refreshRes.data.data.token, actualUserType);
-                console.log(`✅ Auth restored via silent refresh: ${userData.email}`);
-              }
-              return; // Done — don't fall through
-            }
-          } catch (refreshErr) {
-            const status = refreshErr?.response?.status;
-            console.log(`ℹ️ Silent refresh skipped (${status || refreshErr.message}) — trying legacy token fallback...`);
-          }
-
-          // ── Path 2: Legacy fallback — old localStorage token (pre-dual-token) ──
-          // This bridges users who were logged in before the security upgrade.
-          // On next logout+login they'll get the new cookie and this path won't run.
-          const legacyToken = parsed?.token;
-          if (legacyToken) {
-            console.log('🔁 Found legacy token — attempting one-time bridge login...');
+            const { user: cachedUser, token: cachedToken, userType: cachedType } = JSON.parse(storedAuth);
+            
+            // Try silent refresh
             try {
-              const { tokenStore, getCurrentUser } = await import('../api/api');
-              tokenStore.set(legacyToken);
-              setToken(legacyToken);
+              const { default: axios } = await import('axios');
+              const refreshRes = await axios.post(
+                `${import.meta.env.VITE_API_URL || '/api'}/auth/refresh`,
+                {},
+                { withCredentials: true }
+              );
 
-              const meRes = await getCurrentUser();
-              if (meRes.data.success) {
-                const userData = meRes.data.data;
-                const actualUserType = userData.userType || (userData.role === 'admin' || userData.role === 'super-admin' ? 'admin' : 'customer');
-                // Overwrite localStorage with new format (no token)
-                setAuth(userData, legacyToken, actualUserType);
-                console.log(`✅ Auth restored via legacy token: ${userData.email}`);
+              if (refreshRes.data.success && refreshRes.data.data.token) {
+                const userData = refreshRes.data.data.user;
+                const actualUserType = (userData.userType === 'admin' || userData.role === 'admin' || userData.role === 'super-admin') ? 'admin' : 'customer';
+                setAuth(userData, refreshRes.data.data.token, actualUserType);
+                console.log('✅ Session refreshed successfully');
               }
-            } catch (legacyErr) {
-              const status = legacyErr?.response?.status;
-              if (status === 401) {
-                console.log('❌ Legacy token expired — clearing auth');
-                clearAuth();
-              } else {
-                // Network error etc — don't force logout, let them retry
-                console.warn('⚠️ Could not verify legacy token (network issue?) — keeping state');
+            } catch (refreshErr) {
+              console.log('ℹ️ Silent refresh unavailable, using cached session');
+              // Validate the cached token if refresh failed
+              if (cachedToken) {
+                setAuth(cachedUser, cachedToken, cachedType);
               }
             }
+          } catch (e) {
+            console.error('Malformed auth data:', e);
+            clearAuth();
           }
         }
 
-        // Initialize cart
+        // 3. Initialize cart
         const storedCart = localStorage.getItem('cart');
         if (storedCart) {
           try {
             const parsedCart = JSON.parse(storedCart);
-            if (Array.isArray(parsedCart)) {
-              setCartState(parsedCart);
-              console.log('🛒 Cart restored:', parsedCart.length, 'items');
-            }
-          } catch (error) {
-            console.error('Failed to parse cart:', error);
+            if (Array.isArray(parsedCart)) setCartState(parsedCart);
+          } catch (e) {
             setCartState([]);
           }
         }
       } catch (error) {
-        console.error('Auth initialization error:', error);
-        clearAuth();
+        console.error('Initialization error:', error);
       } finally {
-        // Only stop loading after BOTH settings and auth attempts are done
+        console.log('🏁 Initialization complete');
         setSettingsLoading(false);
       }
     };
 
+    console.log('🏁 Initialization check passed');
     initializeAuth();
 
-    // SAFETY FALBACK: Force stop loading after 5 seconds no matter what
-    const safetyTimeout = setTimeout(() => {
-      setSettingsLoading(prev => {
-        if (prev) {
-          console.warn('⚠️ Safety timeout triggered: Forcing App to load.');
-          return false;
-        }
-        return prev;
-      });
-    }, 5000);
-
-    return () => clearTimeout(safetyTimeout);
+    return () => {
+      console.log('🧹 Cleaning up initialization effect');
+    };
   }, [clearAuth, validateToken, fetchPublicSettings]);
 
   // Save cart to localStorage
@@ -1245,6 +1198,7 @@ export function AppProvider({ children }) {
     login,
     loginCustomer,
     verify2FA,
+    verifyAdmin2FA,
     loginAdmin,
     loginWithGoogle,
     register,
@@ -1308,14 +1262,13 @@ export function AppProvider({ children }) {
     showAuthModal, authView,
     addNotification, removeNotification, clearNotifications, showSuccess, showError, showWarning, showInfo,
     showAlert, hideAlert,
-    login, loginWithGoogle, loginAdmin, register, logout, clearAuth, unlockSession,
+    login, loginWithGoogle, loginAdmin, verifyAdmin2FA, register, logout, clearAuth, unlockSession,
     updateUserProfile, changeUserPassword, deleteAccount, fetchUserOrders,
     addToCart, removeFromCart, updateCartQuantity, clearCart, getCartTotal, getCartItemCount,
     openCart, closeCart, toggleCart, setMobileMenuOpenState,
     fetchDashboardStats, fetchSalesAnalytics, fetchAdminUsers, updateUserRole, deleteUser, fetchAdminOrders, fetchAdminProducts,
     publicSettings, settingsLoading, fetchPublicSettings, globalMaintenance,
     orderRefreshTrigger, refreshOrders,
-    isLocked, unlockSession,
     fetchAbandonedCheckouts,
     logAbandonedCheckout
   ]);

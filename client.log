@@ -1,0 +1,237 @@
+
+> rerendet_coffee@1.0.0 client
+> npm start --prefix client
+
+
+> react-ui@0.1.0 start
+> vite
+
+You or a plugin you are using have set `optimizeDeps.esbuildOptions` but this option is now deprecated. Vite now uses Rolldown to optimize the dependencies. Please use `optimizeDeps.rolldownOptions` instead.
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ loader: 'jsx', include: /src\/.*\.jsx?$/, exclude: [] }`
+
+  VITE v8.0.10  ready in 410 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: use --host to expose
+12:29:33 AM [vite] http proxy error: /api/settings/public
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:33 AM [vite] (client) [console.error] ❌ Failed to fetch public settings: Request failed with status code 502
+12:29:33 AM [vite] http proxy error: /api/auth/refresh
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:47 AM [vite] http proxy error: /api/reviews/top
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:47 AM [vite] http proxy error: /api/products?isActive=true&limit=100
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:47 AM [vite] http proxy error: /api/reviews/top
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:47 AM [vite] http proxy error: /api/products?isActive=true&limit=100
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:47 AM [vite] (client) [console.warn] Please ensure that the container has a non-static position, like 'relative', 'fixed', or 'absolute' to ensure scroll offset is calculated correctly.
+12:29:47 AM [vite] (client) [console.error] Error: Failed to fetch products
+    at http://localhost:3000/src/components/CoffeeShop/CoffeeShop.jsx:855:28
+12:29:47 AM [vite] (client) [console.error] Error: Failed to fetch products
+    at http://localhost:3000/src/components/CoffeeShop/CoffeeShop.jsx:855:28
+12:29:47 AM [vite] http proxy error: /api/promotions/placement/homepage
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:29:48 AM [vite] http proxy error: /api/promotions/placement/homepage
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:32:10 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.css
+12:32:10 AM [vite] (client) page reload index.html
+12:32:10 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.css
+12:32:10 AM [vite] (client) hmr update /src/components/Footer/Footer.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/About/About.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/Modals/PaymentModal.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/About/About.css
+12:32:10 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.css
+12:32:10 AM [vite] (client) hmr update /src/components/Footer/Footer.css
+12:32:10 AM [vite] (client) hmr update /src/components/Hero/Hero.jsx
+12:32:10 AM [vite] (client) hmr update /src/components/Hero/Hero.css
+12:32:15 AM [vite] (client) hmr update /src/components/Auth/SessionLock.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:32:15 AM [vite] (client) hmr update /src/App.css
+12:32:15 AM [vite] (client) hmr update /src/components/Auth/AuthModal.css
+12:32:15 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:32:15 AM [vite] (client) page reload src/index.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.css
+12:32:15 AM [vite] (client) hmr update /src/components/Features/Features.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Auth/SessionLock.css
+12:32:15 AM [vite] (client) hmr update /src/components/Modals/PaymentModal.css
+12:32:15 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:32:15 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.css
+12:32:15 AM [vite] (client) hmr update /src/components/Contact/Contact.css
+12:32:15 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:32:15 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.css
+12:32:15 AM [vite] (client) hmr update /src/components/Features/Features.css
+12:32:15 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:32:28 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:34:49 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:34:54 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:35:01 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.css
+12:35:06 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.css
+12:35:06 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.css
+12:35:06 AM [vite] (client) page reload index.html
+12:35:10 AM [vite] (client) page reload src/index.jsx
+12:35:11 AM [vite] (client) page reload src/index.jsx
+12:35:11 AM [vite] (client) hmr update /src/components/Footer/Footer.jsx
+12:35:24 AM [vite] (client) hmr update /src/components/Auth/AuthModal.css
+12:35:26 AM [vite] (client) hmr update /src/components/Footer/Footer.css
+12:35:26 AM [vite] (client) hmr update /src/App.css
+12:35:27 AM [vite] http proxy error: /api/settings/public
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:35:27 AM [vite] (client) [console.error] ❌ Failed to fetch public settings: Request failed with status code 502
+12:35:27 AM [vite] http proxy error: /api/auth/refresh
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1193:18)
+    at afterConnectMultiple (node:net:1783:7)
+12:37:02 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:37:02 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.css
+12:37:02 AM [vite] (client) page reload index.html
+12:37:02 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.css
+12:37:02 AM [vite] (client) hmr update /src/components/Footer/Footer.jsx
+12:37:02 AM [vite] (client) hmr update /src/components/Footer/Footer.css
+12:37:02 AM [vite] (client) hmr update /src/App.css
+12:37:02 AM [vite] (client) hmr update /src/components/Auth/AuthModal.css
+12:37:02 AM [vite] (client) page reload src/index.jsx
+12:37:35 AM [vite] (client) hmr update /src/components/Auth/SessionLock.jsx
+12:37:36 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:37:36 AM [vite] (client) hmr update /src/components/Features/Features.jsx
+12:37:36 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:37:38 AM [vite] (client) hmr update /src/components/Auth/SessionLock.jsx
+12:37:44 AM [vite] (client) hmr update /src/components/About/About.jsx
+12:37:44 AM [vite] (client) hmr update /src/components/Hero/Hero.jsx
+12:37:47 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:37:48 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:37:48 AM [vite] (client) hmr update /src/components/Auth/SessionLock.css
+12:37:48 AM [vite] (client) page reload index.html
+12:37:49 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:37:50 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:37:52 AM [vite] (client) hmr update /src/components/Features/Features.css
+12:37:52 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:37:52 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.jsx
+12:37:54 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:39:40 AM [vite] (client) hmr update /src/components/Navbar/Navbar.jsx
+12:39:40 AM [vite] (client) hmr update /src/components/Features/Features.jsx
+12:39:40 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:39:40 AM [vite] (client) hmr update /src/components/Features/Features.css
+12:42:42 AM [vite] (client) hmr update /src/components/Hero/Hero.css
+12:42:43 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:42:43 AM [vite] (client) hmr update /src/components/About/About.css
+12:42:43 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:42:46 AM [vite] (client) hmr update /src/components/Navbar/Navbar.jsx
+12:42:46 AM [vite] (client) hmr update /src/components/About/About.css
+12:42:46 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/About/About.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/About/About.css
+12:42:55 AM [vite] (client) hmr update /src/components/Hero/Hero.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Hero/Hero.css
+12:42:55 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:42:55 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.jsx
+12:42:55 AM [vite] (client) page reload src/index.jsx
+12:42:55 AM [vite] (client) hmr update /src/components/Modals/PaymentModal.jsx
+12:42:56 AM [vite] (client) hmr update /src/components/Footer/Footer.jsx
+12:42:57 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.css
+12:42:58 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.jsx
+12:43:01 AM [vite] (client) hmr update /src/components/Features/Features.jsx
+12:43:01 AM [vite] (client) hmr update /src/components/About/About.css
+12:43:01 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.jsx
+12:43:01 AM [vite] (client) hmr update /src/components/About/About.jsx
+12:43:02 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.css
+12:43:05 AM [vite] (client) hmr update /src/App.css
+12:43:10 AM [vite] (client) hmr update /src/components/Contact/Contact.css
+12:43:10 AM [vite] (client) hmr update /src/components/Hero/Hero.jsx
+12:43:10 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:43:10 AM [vite] (client) hmr update /src/components/Hero/Hero.css
+12:43:10 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/UI/FloatingBeans.jsx
+12:44:10 AM [vite] (client) page reload index.html
+12:44:10 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/Auth/SessionLock.jsx
+12:44:10 AM [vite] (client) hmr update /src/App.css
+12:44:10 AM [vite] (client) page reload src/index.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/Features/Features.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/Auth/SessionLock.css
+12:44:10 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:44:10 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.jsx
+12:45:45 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.css
+12:45:49 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:45:49 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:45:49 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:45:50 AM [vite] (client) hmr update /src/App.css
+12:45:50 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:46:05 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.jsx
+12:46:05 AM [vite] (client) page reload src/index.jsx
+12:46:05 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:46:05 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:46:05 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:46:20 AM [vite] (client) hmr update /src/components/Footer/Footer.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/UI/WhatsAppSupport.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/About/About.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Modals/PaymentModal.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/About/About.css
+12:46:21 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.css
+12:46:21 AM [vite] (client) hmr update /src/components/Hero/Hero.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Hero/Hero.css
+12:46:21 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/AdPlacement/AdPlacement.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.css
+12:46:21 AM [vite] (client) hmr update /src/components/Contact/Contact.css
+12:46:21 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:46:21 AM [vite] (client) hmr update /src/components/Testimonials/Testimonials.css
+12:46:21 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:49:13 AM [vite] (client) hmr update /src/App.css
+12:49:13 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.jsx
+12:49:13 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.css
+12:49:13 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.css
+12:49:27 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:49:27 AM [vite] (client) hmr update /src/components/Navbar/Navbar.jsx
+12:49:27 AM [vite] (client) page reload index.html
+12:49:41 AM [vite] (client) hmr update /src/components/Notification/Notification.jsx
+12:49:44 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.css
+12:49:44 AM [vite] (client) hmr update /src/components/BackToTop/BackToTop.jsx
+12:49:44 AM [vite] (client) hmr update /src/App.css
+12:49:44 AM [vite] (client) page reload src/index.jsx
+12:49:44 AM [vite] (client) hmr update /src/components/CoffeeShop/CoffeeShop.jsx
+12:49:44 AM [vite] (client) hmr update /src/components/Notification/Notification.css
+12:49:44 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.jsx
+12:49:44 AM [vite] (client) hmr update /src/components/Cart/CartSidebar.css
+12:49:47 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.css
+12:49:47 AM [vite] (client) hmr update /src/components/Contact/Contact.jsx
+12:49:47 AM [vite] (client) hmr update /src/components/Contact/Contact.css
+12:50:11 AM [vite] (client) page reload src/index.jsx
+12:50:11 AM [vite] (client) hmr update /src/components/Newsletter/Newsletter.jsx
+12:51:02 AM [vite] (client) page reload src/index.jsx

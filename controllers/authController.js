@@ -1,17 +1,85 @@
 import asyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
-import generateToken, { generateAccessToken, generateRefreshToken, setRefreshTokenCookie, clearRefreshTokenCookie } from '../utils/generateToken.js';
+import generateToken, { 
+  generateAccessToken, 
+  generateRefreshToken, 
+  setRefreshTokenCookie, 
+  clearRefreshTokenCookie,
+  setTokenCookie,
+  clearTokenCookie
+} from '../utils/generateToken.js';
 import sendEmail from '../utils/sendEmail.js';
 import { getVerificationEmail, getWelcomeEmail, getResetPasswordEmail, getRegretEmail, getSecurityAlertEmail } from '../utils/emailTemplates.js';
 import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js';
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library';
+import { checkPasswordStrength } from '../utils/passwordValidator.js';
 
-// Load environment variables
-dotenv.config();
+const parseUserAgent = (uaString) => {
+  let browser = 'Unknown Browser';
+  let os = 'Unknown OS';
+
+  const ua = uaString || '';
+
+  if (/chrome|crios/i.test(ua) && !/edge|edg/i.test(ua) && !/opr|opera/i.test(ua)) browser = 'Chrome';
+  else if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) browser = 'Safari';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/edge|edg/i.test(ua)) browser = 'Edge';
+  else if (/opr|opera/i.test(ua)) browser = 'Opera';
+
+  if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/windows|win32/i.test(ua)) os = 'Windows';
+  else if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+
+  return { browser, os };
+};
+
+const handleDeviceFingerprint = async (req, user) => {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || 'Unknown IP';
+  const uaString = req.headers['user-agent'] || 'Unknown User-Agent';
+  const { browser, os } = parseUserAgent(uaString);
+
+  const isKnown = user.knownDevices && user.knownDevices.some(
+    dev => dev.ip === ip && dev.userAgent === uaString
+  );
+
+  if (!isKnown) {
+    console.log(`🔍 New login device detected for ${user.email} (IP: ${ip}, UA: ${uaString})`);
+    
+    user.knownDevices = user.knownDevices || [];
+    user.knownDevices.push({
+      ip,
+      userAgent: uaString,
+      location: 'Nairobi, Kenya',
+      verifiedAt: new Date()
+    });
+    await user.save({ validateBeforeSave: false });
+    
+    try {
+      let logoUrl;
+      try {
+        const settings = await Settings.getSettings();
+        logoUrl = settings?.store?.logo;
+      } catch (err) {}
+
+      const alertMessage = `We detected a login from a new device/browser (${browser} on ${os}) for your account from IP address ${ip}. If this was you, no action is needed. If this wasn't you, please freeze your account immediately by resetting your password.`;
+      
+      await sendEmail({
+        to: user.email,
+        subject: '⚠️ Security Alert: New Device Login Detected',
+        html: getSecurityAlertEmail(user.firstName, alertMessage, logoUrl)
+      });
+    } catch (emailErr) {
+      console.error('Failed to send device login alert email:', emailErr);
+    }
+  }
+};
 
 // ==================== CUSTOMER AUTH ====================
 
@@ -78,8 +146,12 @@ const verify2FALogin = asyncHandler(async (req, res) => {
   // LOG ACTIVITY IF CUSTOMER
   // (We don't log customer activity to the admin security dashboard to prevent log bloat and spam alerts)
 
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+  // Verify device fingerprint asynchronously
+  handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+
+  const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
+  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
+  setTokenCookie(res, accessToken);
   setRefreshTokenCookie(res, refreshToken);
 
   res.json({
@@ -154,6 +226,13 @@ const registerCustomer = asyncHandler(async (req, res) => {
   if (!firstName || !lastName || !email || !password) {
     res.status(400);
     throw new Error('Please fill in all required fields');
+  }
+
+  // Validate password strength using zxcvbn
+  const strength = checkPasswordStrength(password, email);
+  if (strength.score < 3) {
+    res.status(400);
+    throw new Error(`Password too weak! ${strength.feedback} (Strength Score: ${strength.score}/4)`);
   }
 
   // Validate age if dateOfBirth provided
@@ -362,8 +441,12 @@ const googleLogin = asyncHandler(async (req, res) => {
     if (!user.isVerified) user.isVerified = true;
     await user.save();
 
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    // Verify device fingerprint asynchronously
+    handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+
+    const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
+    const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
+    setTokenCookie(res, accessToken);
     setRefreshTokenCookie(res, refreshToken);
 
     console.log(`✅ Google Login successful for ${email}`);
@@ -409,12 +492,19 @@ const loginCustomer = asyncHandler(async (req, res) => {
   console.log('👤 Customer login attempt:', email);
 
   // First, find user by email to do a proper check
-  const user = await User.findOne({ email }).select('+password +isVerified +loginAttempts +lockUntil +verificationCode +verificationCodeExpires +twoFactorEnabled +userType');
+  const user = await User.findOne({ email }).select('+password +isVerified +isActive +loginAttempts +lockUntil +verificationCode +verificationCodeExpires +twoFactorEnabled +userType');
 
   if (!user) {
     console.log('❌ Customer not found:', email);
     res.status(401);
     throw new Error('Invalid email or password');
+  }
+
+  // Check if account is active
+  if (user.isActive === false) {
+    console.log('❌ Customer account inactive:', email);
+    res.status(403);
+    throw new Error('Your account has been deactivated. Please contact support.');
   }
 
   // RELAXED SECURITY: Allow admin to log in via customer portal for testing
@@ -446,7 +536,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
 
     // Lock account after 5 failed attempts
     if (attempts >= 5) {
-      const lockExpiry = Date.now() + (30 * 60 * 1000); // 30 minutes
+      const lockExpiry = Date.now() + (60 * 60 * 1000); // 1 hour
       await User.findByIdAndUpdate(user._id, {
         $set: { lockUntil: lockExpiry }
       });
@@ -463,7 +553,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
           subject: '⚠️ Security Alert: Account Locked - Rerendet Coffee',
           html: getSecurityAlertEmail(
             user.firstName,
-            `Your account has been temporarily locked for 30 minutes due to ${attempts} consecutive failed login attempts. If this was not you, please reset your password immediately.`,
+            `Your account has been temporarily locked for an hour due to ${attempts} consecutive failed login attempts. If this was not you, please reset your password immediately.`,
             logoUrl
           )
         });
@@ -472,7 +562,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
       }
 
       res.status(423);
-      throw new Error('Too many failed attempts. Account locked for 30 minutes. A security alert has been sent to your email.');
+      throw new Error('Too many failed attempts. Account locked for an hour. A security alert has been sent to your email.');
     }
 
     res.status(401);
@@ -483,7 +573,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
   if (user.twoFactorEnabled) {
     // Generate code
     const verificationCode = user.generateVerificationCode();
-    await user.save(); // Save code to DB
+    await user.save({ validateBeforeSave: false }); // Save code to DB
 
     // Fetch store logo for email
     let logoUrl;
@@ -557,14 +647,18 @@ const loginCustomer = asyncHandler(async (req, res) => {
 
   // Update last login
   user.lastLoginAt = new Date();
-  await user.save();
+  await user.save({ validateBeforeSave: false });
 
   // Populate cart after save
   await user.populate('cart.product');
 
+  // Verify device fingerprint asynchronously
+  handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+
   // Generate dual tokens
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+  const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
+  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
+  setTokenCookie(res, accessToken);
   setRefreshTokenCookie(res, refreshToken);
 
   console.log('✅ Customer login successful:', email);
@@ -842,10 +936,10 @@ const loginAdmin = asyncHandler(async (req, res) => {
         $set: { loginAttempts: attempts }
       });
 
-      // Lock after 5 failed attempts — 30 minutes
+      // Lock after 5 failed attempts — 1 hour
       if (attempts >= 5) {
         await User.findByIdAndUpdate(user._id, {
-          $set: { lockUntil: Date.now() + (30 * 60 * 1000) }
+          $set: { lockUntil: Date.now() + (60 * 60 * 1000) }
         });
 
         // Send security alert
@@ -860,7 +954,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
             subject: '🚨 ADMIN Security Alert: Account Locked - Rerendet',
             html: getSecurityAlertEmail(
               user.firstName,
-              `Your admin account has been locked for 30 minutes after ${attempts} failed login attempts. If this was not you, contact the Super Admin immediately.`,
+              `Your admin account has been locked for an hour after ${attempts} failed login attempts. If this was not you, contact the Super Admin immediately.`,
               logoUrl
             )
           });
@@ -869,7 +963,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
         }
 
         res.status(423);
-        throw new Error('Too many failed attempts. Admin account locked for 30 minutes. A security alert has been sent.');
+        throw new Error('Too many failed attempts. Admin account locked for an hour. A security alert has been sent.');
       }
 
       const remaining = 5 - attempts;
@@ -894,9 +988,46 @@ const loginAdmin = asyncHandler(async (req, res) => {
 
 
 
+    // Check for 2FA specifically for the admin user
+    if (user.twoFactorEnabled) {
+      // Generate code
+      const verificationCode = user.generateVerificationCode();
+      await user.save({ validateBeforeSave: false }); // Save code to DB securely
+
+      // Fetch store logo for email
+      let logoUrl;
+      try {
+        const settings = await Settings.getSettings();
+        logoUrl = settings?.store?.logo;
+      } catch (error) {
+        console.error('Error fetching settings for email logo:', error);
+      }
+
+      // Send email
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'Admin Login Verification Code - Rerendet',
+          html: getVerificationEmail(user.firstName, verificationCode, logoUrl)
+        });
+        console.log('📧 Admin 2FA code sent to email:', email);
+      } catch (error) {
+        console.error('Failed to send admin 2FA email:', error);
+        res.status(500);
+        throw new Error('Failed to send verification email');
+      }
+
+      return res.json({
+        success: true,
+        message: 'Verification code sent to email',
+        requires2FA: true,
+        email: user.email
+      });
+    }
+
     // Direct Login without 2FA
     user.lastLoginAt = new Date();
-    await user.save();
+    await user.save({ validateBeforeSave: false });
 
     // LOG ACTIVITY
     await logActivity(req, 'LOGIN', `${user.firstName} (Direct)`, user._id, {
@@ -905,9 +1036,13 @@ const loginAdmin = asyncHandler(async (req, res) => {
       email: user.email
     });
 
+    // Verify device fingerprint asynchronously
+    handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+
     // Generate Token
-    const accessToken = generateAccessToken(user._id);
-    const refreshToken = generateRefreshToken(user._id);
+    const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
+    const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
+    setTokenCookie(res, accessToken);
     setRefreshTokenCookie(res, refreshToken);
 
     console.log('✅ Admin login successful (2FA Disabled):', email);
@@ -1002,7 +1137,7 @@ const createAdmin = asyncHandler(async (req, res) => {
             <p><strong>Role:</strong> ${role}</p>
           </div>
           <p>You can now access the admin dashboard.</p>
-          <p><strong>Admin Dashboard:</strong> <a href="${process.env.CLIENT_URL || 'http://localhost:3000'}/admin/login">Access Admin Panel</a></p>
+          <p><strong>Admin Dashboard:</strong> <a href="${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/admin/login">Access Admin Panel</a></p>
         </div>
       </div>
     `;
@@ -1015,7 +1150,7 @@ const createAdmin = asyncHandler(async (req, res) => {
         firstName: firstName,
         permissions: defaultPermissions,
         role: role,
-        adminUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/admin/login`
+        adminUrl: `${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/admin/login`
       }
     });
 
@@ -1051,12 +1186,6 @@ const verifyEmail = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    // Clean up unverified users with expired codes
-    const maybeUser = await User.findOne({ email });
-    if (maybeUser && !maybeUser.isVerified && maybeUser.userType === 'customer') {
-      console.log(`Deleting unverified customer ${email} due to invalid/expired code`);
-      await User.deleteOne({ _id: maybeUser._id });
-    }
     res.status(400);
     throw new Error('Invalid or expired verification code');
   }
@@ -1147,6 +1276,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 // Logout — clears HttpOnly refresh token cookie
 const logout = asyncHandler(async (req, res) => {
+  clearTokenCookie(res);
   clearRefreshTokenCookie(res);
   res.json({
     success: true,
@@ -1224,14 +1354,22 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
 
+  // Anti-Enumeration: Always return success even if user is not found
   if (!user) {
-    res.status(404);
-    throw new Error('User not found with this email');
+    console.log(`🔒 [Anti-Enumeration] Forgot password requested for non-existent email: ${email}`);
+    return res.json({
+      success: true,
+      message: 'If an account exists with that email, a reset code has been sent.'
+    });
   }
 
-  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  user.resetPasswordToken = resetCode;
-  user.resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
+  // Generate 6-char clean secure token (3 bytes hex, e.g. "a2c3f4")
+  const rawToken = crypto.randomBytes(3).toString('hex').toLowerCase();
+  
+  // Store SHA-256 hashed token in DB
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+  user.resetPasswordToken = hashedToken;
+  user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // Strict 15 minutes expiration
   await user.save({ validateBeforeSave: false });
 
   try {
@@ -1244,21 +1382,20 @@ const forgotPassword = asyncHandler(async (req, res) => {
       console.error('Error fetching settings for email logo:', error);
     }
 
-    // Send reset email
-    const emailHtml = getResetPasswordEmail(user.firstName, resetCode, logoUrl);
+    // Send reset email with rawToken
+    const emailHtml = getResetPasswordEmail(user.firstName, rawToken, logoUrl);
 
     await sendEmail({
       to: user.email,
       subject: 'Password Reset Request',
       html: emailHtml
     });
-    console.log('📧 Reset email sent to:', user.email);
+    console.log(`📧 Hashed reset email sent to: ${user.email} | Raw Token: ${rawToken}`);
 
     res.json({
       success: true,
-      message: 'Password reset code sent to your email'
+      message: 'If an account exists with that email, a reset code has been sent.'
     });
-
 
   } catch (error) {
     user.resetPasswordToken = undefined;
@@ -1278,14 +1415,19 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new Error('Email, code, and new password are required');
   }
 
-  if (newPassword.length < 8) {
+  // Validate new password strength using zxcvbn / high entropy validator
+  const strength = checkPasswordStrength(newPassword, email);
+  if (strength.score < 3) {
     res.status(400);
-    throw new Error('Password must be at least 8 characters long');
+    throw new Error(`Password too weak! ${strength.feedback} (Strength Score: ${strength.score}/4)`);
   }
+
+  // Hash received code for matching
+  const hashedCode = crypto.createHash('sha256').update(String(code).toLowerCase().trim()).digest('hex');
 
   const user = await User.findOne({
     email,
-    resetPasswordToken: code,
+    resetPasswordToken: hashedCode,
     resetPasswordExpires: { $gt: Date.now() }
   });
 
@@ -1305,11 +1447,16 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   user.password = newPassword;
   user.passwordChangedAt = Date.now();
-  user.resetPasswordToken = undefined;
+  user.resetPasswordToken = undefined; // Single-use: Delete immediately
   user.resetPasswordExpires = undefined;
+  
   // Clear any active account lock — password reset is the self-service unlock path
   user.loginAttempts = 0;
   user.lockUntil = undefined;
+
+  // Global Logout: Increment tokenVersion to invalidate all older JWT sessions instantly
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+
   await user.save();
 
   // SEND ALERT
@@ -1323,7 +1470,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     await sendEmail({
       to: user.email,
       subject: 'Security Alert: Password Reset',
-      html: getSecurityAlertEmail(user.firstName, 'Password Reset via Recovery Code', logoUrl)
+      html: getSecurityAlertEmail(user.firstName, 'Password Reset via Recovery Code. All other devices have been logged out.', logoUrl)
     });
   } catch (err) { }
 

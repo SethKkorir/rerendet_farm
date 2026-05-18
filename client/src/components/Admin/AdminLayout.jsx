@@ -9,7 +9,8 @@ import {
   FaEnvelope, FaChartBar, FaCog, FaSignOutAlt,
   FaBars, FaTimes, FaBell, FaUserCircle,
   FaInfoCircle, FaExclamationCircle, FaBullhorn, FaAd,
-  FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt
+  FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt,
+  FaCreditCard
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
@@ -37,6 +38,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'orders', label: 'Orders', Icon: FaShoppingBag, path: '/admin/orders', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
       { id: 'products', label: 'Products', Icon: FaBox, path: '/admin/products', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
+      { id: 'payments', label: 'Payments', Icon: FaCreditCard, path: '/admin/payments', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'users', label: 'Users', Icon: FaUsers, path: '/admin/users', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
       { id: 'contacts', label: 'Contacts', Icon: FaEnvelope, path: '/admin/contacts', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
     ],
@@ -119,6 +121,8 @@ const AdminLayout = ({ children }) => {
 
   // ── Inactivity Timeout (Session Guard) ──
   useEffect(() => {
+    if (!user) return; // Don't start timer until user is loaded
+
     let timeout;
     const resetTimer = () => {
       if (timeout) clearTimeout(timeout);
@@ -137,7 +141,7 @@ const AdminLayout = ({ children }) => {
       window.removeEventListener('mousemove', resetTimer);
       window.removeEventListener('keypress', resetTimer);
     };
-  }, []);
+  }, [user]); // Re-run when user changes
 
   const unreadCount = adminNotifications.filter(n => !n.read).length;
 

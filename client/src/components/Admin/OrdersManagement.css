@@ -1331,3 +1331,175 @@
     display: none;
   }
 }
+
+/* ══════════════════════════════════
+   MANUAL OVERRIDES & REFUNDS (PREMIUM GLASSMORPHISM STYLE)
+   ══════════════════════════════════ */
+.om-action-btn-override,
+.om-action-btn-refund {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.25s ease;
+  margin-top: 1rem;
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.om-action-btn-override {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+
+.om-action-btn-override:hover {
+  background: rgba(245, 158, 11, 0.22);
+  border-color: #f59e0b;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.15);
+}
+
+.om-action-btn-refund {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+
+.om-action-btn-refund:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15);
+}
+
+.om-inline-form {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 1.1rem;
+  margin-top: 1.25rem;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+}
+
+.om-inline-form h5 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  margin: 0 0 0.85rem 0;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+}
+
+.om-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.om-inline-form .om-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.om-inline-form .om-form-field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.om-inline-form .om-form-field input,
+.om-inline-form .om-form-field select {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-main);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  outline: none;
+  font-family: 'Outfit', sans-serif;
+  transition: border-color 0.2s;
+}
+
+.om-inline-form .om-form-field input:focus,
+.om-inline-form .om-form-field select:focus {
+  border-color: var(--color-primary);
+}
+
+.om-inline-form .checkbox-field {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.om-inline-form .checkbox-field input {
+  width: auto;
+  cursor: pointer;
+}
+
+.om-inline-form .checkbox-field label {
+  text-transform: none !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  cursor: pointer;
+}
+
+.om-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.om-submit-sub-btn,
+.om-cancel-sub-btn {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: center;
+  border: none;
+  font-family: 'Outfit', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.om-submit-sub-btn.success {
+  background: #10b981;
+  color: white;
+}
+
+.om-submit-sub-btn.success:hover:not(:disabled) {
+  background: #059669;
+}
+
+.om-submit-sub-btn.danger {
+  background: #ef4444;
+  color: white;
+}
+
+.om-submit-sub-btn.danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.om-submit-sub-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.om-cancel-sub-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-main);
+  color: var(--text-muted);
+}
+
+.om-cancel-sub-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}

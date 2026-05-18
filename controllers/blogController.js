@@ -101,17 +101,43 @@ export const createBlog = asyncHandler(async (req, res) => {
 // @route   PUT /api/blogs/:id
 // @access  Private/Admin
 export const updateBlog = asyncHandler(async (req, res) => {
-    const blog = await Blog.findById(req.params.id);
+    // Use .lean() to avoid Mongoose CastError on hydration if the DB has "Admin" as author
+    const blogData = await Blog.findById(req.params.id).lean();
 
-    if (!blog) {
+    if (!blogData) {
         res.status(404);
         throw new Error('Blog not found');
     }
 
-    Object.assign(blog, req.body);
-    await blog.save();
+    // Protected fields that shouldn't be updated via req.body directly
+    const protectedFields = ['author', 'authorName', '_id', 'createdAt', 'updatedAt'];
+    
+    const updateData = {};
+    Object.keys(req.body).forEach(key => {
+        if (!protectedFields.includes(key)) {
+            updateData[key] = req.body[key];
+        }
+    });
 
-    res.json({ success: true, data: blog });
+    // DATA INTEGRITY FIX: If the blog has corrupt "Admin" author or is missing authorName, fix it now
+    if (!blogData.author || blogData.author.toString() === 'Admin' || typeof blogData.author === 'string') {
+        console.log(`🔧 [BLOG_FIX] Restoring missing/corrupt author ID for blog: ${req.params.id}`);
+        updateData.author = req.user._id;
+    }
+
+    if (!blogData.authorName) {
+        console.log(`🔧 [BLOG_FIX] Restoring missing authorName for blog: ${req.params.id}`);
+        updateData.authorName = `${req.user.firstName} ${req.user.lastName}`;
+    }
+
+    // Use findByIdAndUpdate to apply changes
+    const updatedBlog = await Blog.findByIdAndUpdate(
+        req.params.id,
+        { $set: updateData },
+        { new: true, runValidators: true }
+    ).populate('author', 'firstName lastName');
+
+    res.json({ success: true, data: updatedBlog });
 });
 
 // @desc    Delete blog

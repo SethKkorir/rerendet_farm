@@ -2,32 +2,23 @@
 import mongoose from 'mongoose';
 
 const connectDB = async () => {
-  // Check if we have an existing healthy connection
-  if (mongoose.connections[0].readyState === 1) {
-    console.log('✅ Using existing database connection');
+  if (mongoose.connection.readyState === 1) {
+    console.log('[OK] Using existing DB connection');
     return;
   }
 
   try {
-    console.log(`🔗 Connecting to MongoDB...`);
-    
-    const connectOptions = {
-      maxPoolSize: 5,           // Smaller pool for serverless
-      minPoolSize: 0,
+    mongoose.set('strictQuery', false);
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      maxPoolSize: 20, // reduced (50 is overkill unless massive traffic)
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      family: 4,                // Use IPv4
-      retryWrites: true,
-      w: 'majority'
-    };
+    });
 
-    const conn = await mongoose.connect(process.env.MONGO_URI, connectOptions);
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
-    return conn;
+    console.log(`[OK] MongoDB Connected: ${conn.connection.host}`);
   } catch (err) {
-    console.error(`❌ MongoDB Connection Error: ${err.message}`);
-    throw err; // Throw so caller knows connection failed
+    console.error('[ERROR] DB Connection failed:', err.message);
+    process.exit(1);
   }
 };
 

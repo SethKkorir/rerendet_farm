@@ -5,7 +5,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true  // Needed so the HttpOnly refresh cookie is sent
 });
@@ -34,38 +34,66 @@ API.interceptors.request.use(
 );
 
 // ── Response Interceptor — auto-refresh on 401 ───────────────────────────────
+let isRefreshing = false;
+let refreshSubscribers = [];
+
+const subscribeTokenRefresh = (cb) => {
+  refreshSubscribers.push(cb);
+};
+
+const onTokenRefreshed = (token) => {
+  refreshSubscribers.map((cb) => cb(token));
+  refreshSubscribers = [];
+};
+
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
 
-    // If 401 and we haven't already retried this request
+    // Handle 429 Too Many Requests
+    if (error.response?.status === 429) {
+      console.warn('🛑 API Rate limit hit. Cooling down...');
+      return Promise.reject(error);
+    }
+
     if (error.response?.status === 401 && !original._retried) {
       original._retried = true;
 
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token) => {
+            original.headers['Authorization'] = `Bearer ${token}`;
+            resolve(API(original));
+          });
+        });
+      }
+
+      isRefreshing = true;
+
       try {
-        // Only one refresh call at a time — share the promise
-        if (!_refreshPromise) {
-          _refreshPromise = axios.post(
-            `${process.env.REACT_APP_API_URL || '/api'}/auth/refresh`,
-            {},
-            { withCredentials: true }
-          ).finally(() => { _refreshPromise = null; });
-        }
+        console.log('🔄 Attempting token refresh...');
+        // Use the relative path since we are using axios directly here
+        const res = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
 
-        const { data } = await _refreshPromise;
-
-        if (data?.data?.token) {
-          tokenStore.set(data.data.token);
-          original.headers.Authorization = `Bearer ${data.data.token}`;
-          return API(original); // Retry original request with new token
+        if (res.data.success && res.data.data.token) {
+          const newToken = res.data.data.token;
+          tokenStore.set(newToken);
+          
+          // Update original request
+          original.headers['Authorization'] = `Bearer ${newToken}`;
+          
+          isRefreshing = false;
+          onTokenRefreshed(newToken);
+          
+          return API(original);
         }
       } catch (refreshError) {
-        // Refresh failed — user must log in again
+        isRefreshing = false;
+        console.error('❌ Refresh token expired or invalid');
         tokenStore.clear();
-        // Clear any stale localStorage auth key if it exists
-        localStorage.removeItem('auth');
-        if (window.location.pathname.startsWith('/admin')) {
+        
+        if (window.location.pathname.startsWith('/admin') && !window.location.pathname.includes('/login')) {
           window.location.href = '/admin/login';
         }
         return Promise.reject(refreshError);
@@ -148,6 +176,8 @@ export const getPaymentsReport = () => API.get('/admin/reports/payments');
 export const getCustomersReport = () => API.get('/admin/reports/customers');
 export const getInventoryReport = () => API.get('/admin/reports/inventory');
 export const getCouponsReport = () => API.get('/admin/reports/coupons');
+export const getPaymentTransactions = (params) => API.get('/admin/payments', { params });
+export const getReconciliationReport = () => API.get('/admin/reports/reconciliation');
 
 // ---- CSV Exports ----
 export const exportOrdersCSV = (params) => API.get('/admin/export/orders', { params, responseType: 'blob' });

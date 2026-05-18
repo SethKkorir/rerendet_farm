@@ -243,7 +243,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
       // === NEW LIFECYCLE STATE ===
       orderStatus: 'open', // Default open
-      paymentStatus: paymentMethod === 'cod' ? 'pending' : 'paid', // If COD, pending. If not, assume paid for now (until webhook integration)
+      paymentStatus: 'pending', // Always start as pending regardless of method (except specialized flows)
       fulfillmentStatus: 'unfulfilled',
 
       // Initial History
@@ -256,14 +256,12 @@ const createOrder = asyncHandler(async (req, res) => {
       ]
     });
 
-    // Log payment event if auto-paid (simulation for now)
-    if (paymentMethod !== 'cod') {
-      order.orderEvents.push({
-        status: 'PAYMENT_CONFIRMED',
-        note: `Payment simulated via ${paymentMethod}`,
-        user: userId
-      });
-    }
+    // Log creation event
+    order.orderEvents.push({
+      status: 'ORDER_CREATED',
+      note: `Order initiated via ${paymentMethod}`,
+      user: userId
+    });
 
     console.log('📝 Saving order to database...');
 
@@ -336,14 +334,9 @@ const createOrder = asyncHandler(async (req, res) => {
       }
     }
 
-    await session.commitTransaction();
-    session.endSession();
-
-    console.log('✅ Order saved successfully:', savedOrder.orderNumber);
-
-    // ✅ LOYALTY POINTS: Award 1 point per 100 KES
+    // ✅ LOYALTY POINTS: Award 1 point per 100 KES of PRODUCT VALUE (Subtotal)
     try {
-      const pointsEarned = Math.floor(finalTotal / 100);
+      const pointsEarned = Math.floor(finalSubtotal / 100);
       if (pointsEarned > 0) {
         await User.findByIdAndUpdate(userId, { $inc: { loyaltyPoints: pointsEarned } }, { session });
         console.log(`✨ Awarded ${pointsEarned} loyalty points to user ${userId}`);
@@ -351,6 +344,11 @@ const createOrder = asyncHandler(async (req, res) => {
     } catch (loyaltyError) {
       console.error('⚠️ Loyalty points error:', loyaltyError);
     }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    console.log('✅ Order saved successfully:', savedOrder.orderNumber);
 
     // Populate order for response
     const populatedOrder = await Order.findById(savedOrder._id)
@@ -365,7 +363,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // Send order confirmation email
     try {
-      const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/account/orders/${savedOrder._id}`;
+      const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/account/orders/${savedOrder._id}`;
 
       // Prepare email data
       const emailData = {
@@ -396,7 +394,7 @@ const createOrder = asyncHandler(async (req, res) => {
         logoUrl
       );
 
-      sendEmail({
+      await sendEmail({
         to: savedOrder.shippingAddress.email,
         subject: `Order Selection Confirmed - #${savedOrder.orderNumber}`,
         html: emailHtml
@@ -453,10 +451,12 @@ const getUserOrders = asyncHandler(async (req, res) => {
   try {
     const [orders, total] = await Promise.all([
       Order.find({ user: userId })
+        .select('orderNumber items totalAmount paymentStatus fulfillmentStatus createdAt')
         .populate('items.product', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Order.countDocuments({ user: userId })
     ]);
 
@@ -608,10 +608,12 @@ const getOrders = asyncHandler(async (req, res) => {
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
+        .select('orderNumber totalAmount paymentStatus fulfillmentStatus createdAt user shippingAddress.email shippingAddress.phone')
         .populate('user', 'firstName lastName email phone')
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(parseInt(limit)),
+        .limit(parseInt(limit))
+        .lean(),
       Order.countDocuments(filter)
     ]);
 
@@ -922,6 +924,59 @@ const validateCoupon = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Cancel order (Self-service for user before shipping)
+// @route   POST /api/orders/:id/cancel
+// @access  Private
+const cancelOrder = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  // Ensure user owns order
+  if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Not authorized to cancel this order');
+  }
+
+  if (order.orderStatus === 'cancelled') {
+    res.status(400);
+    throw new Error('Order is already cancelled');
+  }
+
+  // Strictly enforce cancellation ONLY before shipping or packed statuses
+  if (['packed', 'shipped', 'delivered', 'returned'].includes(order.fulfillmentStatus)) {
+    res.status(400);
+    throw new Error(`Cannot cancel order because fulfillment status is already '${order.fulfillmentStatus}'`);
+  }
+
+  // Update order status to cancelled
+  order.orderStatus = 'cancelled';
+  order.status = 'cancelled';
+  order.orderEvents.push({
+    status: 'CANCELLED',
+    note: 'Cancelled by customer (Self-Service Dashboard)',
+    user: req.user._id
+  });
+  await order.save();
+
+  // Replenish stock atomically!
+  for (const item of order.items) {
+    await Product.findByIdAndUpdate(item.product, {
+      $inc: { 'inventory.stock': item.quantity },
+      $set: { inStock: true }
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Order cancelled successfully and inventory replenished',
+    data: order
+  });
+});
+
 export {
   createOrder,
   getUserOrders,
@@ -932,5 +987,6 @@ export {
   logAbandonedCheckout,
   getAbandonedCheckouts,
   generateOrderInvoice,
-  validateCoupon
+  validateCoupon,
+  cancelOrder
 };

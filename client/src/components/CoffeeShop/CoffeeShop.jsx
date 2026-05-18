@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import {
@@ -381,7 +381,6 @@ const CoffeeShop = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showBeans, setShowBeans] = useState(false);
   const [activeCategory, setActiveCategory] = useState('all');
-  const headerRef = useRef(null);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -494,32 +493,20 @@ const CoffeeShop = () => {
       <div className="cs-container">
 
         {/* Ad Zone */}
-        <AdPlacement zone="homepage" />
-
-        {/* ── Section Header ── */}
-        <motion.div
-          ref={headerRef}
-          className="cs-header"
-          initial={{ opacity: 0, y: -24 }}
+        <AdPlacement zone="homepage" />        {/* ── Premium Header ── */}
+        <motion.div 
+          className="cs-premium-header"
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="cs-header-eyebrow">
-            <span className="cs-eyebrow-line" />
-            <span>Our Collection</span>
-            <span className="cs-eyebrow-line" />
-          </div>
-          <h2 className="cs-heading">
-            Crafted for the
-            <br />
-            <em className="cs-heading-em">Discerning Palate</em>
+          <div className="cs-header-accent" />
+          <h2 className="cs-premium-title">
+            The <span className="gold">Coffee</span> Shop
           </h2>
-          <p className="cs-subheading">
-            Kenyan single-origin beans, precision-engineered brewing gear, and everything in between.
-          </p>
+          <p className="cs-premium-subtitle">Artisan roasts, delivered from our farm to your cup.</p>
         </motion.div>
-
         {/* ── Category Tabs ── */}
         {categoriesInUse.length > 2 && (
           <motion.div

@@ -1,112 +1,150 @@
 import asyncHandler from 'express-async-handler';
 import Order from '../models/Order.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
-import { logActivity } from '../utils/activityLogger.js';
 
-// @desc    Handle MPESA STK Push Callback
+// @desc    Handle MPESA STK Push Callback (Server-to-Server Webhook)
 // @route   POST /api/webhooks/mpesa
-// @access  Public (Signature verification TODO)
+// @access  Public
 export const handleMpesaWebhook = asyncHandler(async (req, res) => {
-    console.log('📨 [Webhook] Received MPESA Callback');
+    // ✅ SECURITY: Validate secret via header OR query parameter (Safaricom URL query param support)
+    const webhookSecret = req.headers['x-webhook-secret'] || req.query.secret;
+    const configSecret = process.env.WEBHOOK_SECRET || 'rerendet_secure_webhook_2026_key_99';
+
+    if (webhookSecret !== configSecret) {
+        console.error('🚫 [Webhook] Unauthorized MPESA attempt - Invalid Webhook Secret Token');
+        return res.status(401).json({ success: false, message: 'Unauthorized Webhook Access' });
+    }
+
+    console.log('📨 [Webhook] Received Secure M-Pesa Callback payload from Safaricom');
 
     const { Body } = req.body;
-
     if (!Body || !Body.stkCallback) {
-        console.error('❌ [Webhook] Invalid MPESA Payload');
-        return res.status(400).send('Invalid Payload');
+        console.error('❌ [Webhook] Invalid M-Pesa Callback Payload format');
+        return res.status(400).send('Invalid Payload Structure');
     }
 
     const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = Body.stkCallback;
 
-    // 1. Log the raw transaction immediately for safety
-    const transactionLog = new PaymentTransaction({
-        order: null, // Will try to link below
-        provider: 'MPESA',
-        transactionId: CheckoutRequestID,
-        amount: 0, // Placeholder, extract items later
-        status: ResultCode === 0 ? 'SUCCESS' : 'FAILED',
-        rawResponse: req.body,
-        metadata: { ResultDesc }
-    });
+    console.log(`📡 [Webhook] Processing CheckoutRequestID: ${CheckoutRequestID} | ResultCode: ${ResultCode}`);
 
-    // 2. Extract Details if Successful
-    if (ResultCode === 0) {
+    // Find the associated transaction in our database
+    let tx = await PaymentTransaction.findOne({ transactionId: CheckoutRequestID, provider: 'MPESA' });
+    let order = null;
+
+    if (tx) {
+        order = await Order.findById(tx.order);
+    } else {
+        // Fallback: search Order by transactionId directly
+        order = await Order.findOne({ transactionId: CheckoutRequestID });
+    }
+
+    // Initialize/Update transaction details
+    const finalTxStatus = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
+    let finalTxReceipt = CheckoutRequestID; // default fallback
+    let amount = 0;
+
+    // Parse Metadata parameters if payment succeeded
+    if (ResultCode === 0 && CallbackMetadata && Array.isArray(CallbackMetadata.Item)) {
         const items = CallbackMetadata.Item;
         const amountItem = items.find(i => i.Name === 'Amount');
         const receiptItem = items.find(i => i.Name === 'MpesaReceiptNumber');
-        // const phoneItem = items.find(i => i.Name === 'PhoneNumber');
 
-        const amount = amountItem ? amountItem.Value : 0;
-        const receiptNumber = receiptItem ? receiptItem.Value : '';
+        amount = amountItem ? amountItem.Value : (order ? order.total : 0);
+        finalTxReceipt = receiptItem ? receiptItem.Value : CheckoutRequestID;
+    }
 
-        transactionLog.amount = amount;
-        transactionLog.transactionId = receiptNumber; // Update to actual receipt
+    // 1. Update or create the PaymentTransaction Ledger entry (Idempotency Audit Trail)
+    if (tx) {
+        tx.status = finalTxStatus;
+        // Keep the original checkout ID in metadata, but update primary transactionId to Safaricom's official Receipt Number
+        if (ResultCode === 0 && finalTxReceipt !== CheckoutRequestID) {
+            tx.metadata = { ...tx.metadata, checkoutRequestId: CheckoutRequestID, resultDesc: ResultDesc };
+            tx.transactionId = finalTxReceipt; // Official MPESA Receipt Number (e.g. NLK98FD12S)
+        } else {
+            tx.metadata = { ...tx.metadata, resultDesc: ResultDesc };
+        }
+        tx.amount = amount || tx.amount;
+        tx.rawResponse = req.body;
+        await tx.save();
+        console.log(`📝 [Webhook] Updated existing transaction record ${tx._id} to ${finalTxStatus}`);
+    } else {
+        // Create new ledger entry if none existed yet (e.g. out-of-sync flow)
+        tx = await PaymentTransaction.create({
+            order: order ? order._id : null,
+            provider: 'MPESA',
+            transactionId: ResultCode === 0 ? finalTxReceipt : CheckoutRequestID,
+            amount: amount || (order ? order.total : 0),
+            currency: 'KES',
+            status: finalTxStatus,
+            rawResponse: req.body,
+            metadata: { checkoutRequestId: CheckoutRequestID, resultDesc: ResultDesc }
+        });
+        console.log(`📝 [Webhook] Created fresh transaction record ${tx._id} with status ${finalTxStatus}`);
+    }
 
-        // 3. Find the Order
-        // Logic: The Order should have been created with the CheckoutRequestID or we find by Reference
-        // For now, we search for an Order where transactionId MATCHES the CheckoutRequestID (set during initiation)
-        const order = await Order.findOne({ transactionId: CheckoutRequestID });
-
-        if (order) {
-            console.log(`✅ [Webhook] Order Found: ${order.orderNumber}`);
-            transactionLog.order = order._id;
-
-            // 4. Update Order
+    // 2. Process Order state updates
+    if (order) {
+        if (ResultCode === 0) {
             if (order.paymentStatus !== 'paid') {
                 order.paymentStatus = 'paid';
-                order.status = 'confirmed'; // Auto-confirm
-                order.paymentMethod = 'Mpesa'; // Ensure it's set
-                // Keep the original CheckoutRequestID but maybe append the receipt?
-                // order.transactionId = receiptNumber; // Optional: overwrite or keep history
+                order.status = 'confirmed';
+                order.transactionId = finalTxReceipt; // Update with actual receipt number
+                order.orderEvents.push({
+                    status: 'PAYMENT_CONFIRMED',
+                    note: `M-Pesa STK payment confirmed. Receipt: ${finalTxReceipt}. Amount: KES ${amount}`,
+                    user: null
+                });
                 await order.save();
-
-                console.log(`💰 [Webhook] Order ${order.orderNumber} marked as PAID`);
-
-                // Log Activity (System Action)
-                // We construct a fake req object for the logger since it's a webhook
-                const systemReq = { user: { _id: order.user, firstName: 'System', lastName: 'Webhook' }, ip: req.ip };
-                // logActivity(systemReq, 'UPDATE_ORDER', order.orderNumber, order._id, { status: 'paid' });
+                console.log(`💰 [Webhook] Order ${order.orderNumber} successfully marked as PAID`);
+            } else {
+                console.log(`ℹ️ [Webhook] Order ${order.orderNumber} already marked as PAID, ignoring duplicate webhook`);
             }
         } else {
-            console.warn(`⚠️ [Webhook] No matching Order found for CheckoutID: ${CheckoutRequestID}`);
+            // STK failure (cancelled by user or transaction error)
+            if (order.paymentStatus !== 'failed' && order.paymentStatus !== 'paid') {
+                order.paymentStatus = 'failed';
+                order.orderEvents.push({
+                    status: 'PAYMENT_FAILED',
+                    note: `M-Pesa payment failed: ${ResultDesc} (Code: ${ResultCode})`,
+                    user: null
+                });
+                await order.save();
+                console.log(`❌ [Webhook] Order ${order.orderNumber} marked as FAILED`);
+            }
         }
     } else {
-        console.warn(`❌ [Webhook] MPESA Failed: ${ResultDesc}`);
-        transactionLog.status = 'FAILED';
+        console.warn(`⚠️ [Webhook] No matching Order found in system for CheckoutID: ${CheckoutRequestID}`);
     }
 
-    // Save the log (even if order not found, we want the record)
-    // We need a valid Order ID for the schema if strict, but let's make it optional or find a placeholder?
-    // Schema says 'order' is required. If not found, we can't save easily without relaxing schema.
-    // Correction: I should relax the schema validation or create a "Unmatched" logic.
-    // For now, if order is null, I will skip saving OR mock it.
-    if (transactionLog.order) {
-        await transactionLog.save();
-    } else {
-        console.log('⚠️ [Webhook] Transaction log skipped because Order ID missing (Schema constraint)');
-    }
-
-    // Always respond 200 to Safaricom/Stripe to stop retries
-    res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
+    // Safaricom Daraja expects a strict 200 OK containing JSON acknowledging the callback receipt
+    res.status(200).json({ ResultCode: 0, ResultDesc: 'Callback received and processed successfully' });
 });
 
 // @desc    Handle Stripe Webhook
 // @route   POST /api/webhooks/stripe
-// @access  Public (Signature verification required)
+// @access  Public
 export const handleStripeWebhook = asyncHandler(async (req, res) => {
-    const event = req.body;
+    // ✅ SECURITY: Verify webhook secret
+    const webhookSecret = req.headers['x-webhook-secret'];
+    const configSecret = process.env.WEBHOOK_SECRET || 'rerendet_secure_webhook_2026_key_99';
 
-    // In a real app, verify signature here using stripe.webhooks.constructEvent
+    if (webhookSecret !== configSecret) {
+        console.error('🚫 [Webhook] Unauthorized Stripe attempt - Invalid Secret');
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const event = req.body;
+    console.log(`📨 [Webhook] Received Stripe Webhook Event: ${event?.type}`);
 
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
-        const orderId = session.client_reference_id; // Passed during checkout creation
+        const orderId = session.client_reference_id;
 
         console.log(`💰 [Webhook] Stripe Session Completed: ${orderId}`);
 
         if (orderId) {
             const order = await Order.findById(orderId);
-            if (order) {
+            if (order && order.paymentStatus !== 'paid') {
                 order.paymentStatus = 'paid';
                 order.status = 'confirmed';
                 order.transactionId = session.payment_intent;
@@ -118,9 +156,11 @@ export const handleStripeWebhook = asyncHandler(async (req, res) => {
                     provider: 'STRIPE',
                     transactionId: session.payment_intent,
                     amount: session.amount_total / 100,
+                    currency: 'KES',
                     status: 'SUCCESS',
                     rawResponse: session
                 });
+                console.log(`✅ [Webhook] Stripe payment processed successfully for Order ${order.orderNumber}`);
             }
         }
     }

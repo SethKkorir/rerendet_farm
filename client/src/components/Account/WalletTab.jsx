@@ -196,6 +196,31 @@ const WalletTab = () => {
                 </div>
             </div>
 
+            {/* Store Credit & Loyalty Section */}
+            <div className="store-credit-loyalty-section">
+                <div className="credit-card-glow-bg">
+                    <div className="credit-box-header">
+                        <span className="credit-label">Available Store Credit</span>
+                        <span className="premium-glow-tag">Store Credit</span>
+                    </div>
+                    <div className="credit-amount-large">
+                        KES {user?.storeCredit?.toLocaleString() || '0'}
+                    </div>
+                    <p className="credit-usage-note">This balance will be automatically applied as a discount on your next coffee purchase.</p>
+                </div>
+
+                <div className="points-box-glow-bg">
+                    <div className="points-box-header">
+                        <span className="points-label">Loyalty Rewards</span>
+                        <span className="points-rate-tag">Points Balance</span>
+                    </div>
+                    <div className="points-value-large">
+                        {user?.loyaltyPoints?.toLocaleString() || '0'} <span className="points-suffix">PTS</span>
+                    </div>
+                    <p className="points-usage-note">Earn points on every acquisition. Redeemable for premium single-origin bags.</p>
+                </div>
+            </div>
+
             <div className="payment-cards-grid">
                 {/* M-PESA CARD */}
                 <div className={`method-tile ${user?.wallet?.mpesaPhone ? 'active' : ''}`}>

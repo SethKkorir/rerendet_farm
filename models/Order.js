@@ -168,6 +168,11 @@ orderSchema.pre('save', function (next) {
   next();
 });
 
+// Add indexes for performance
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ user: 1 });
+
 const Order = mongoose.model('Order', orderSchema, 'orders');
 
 export default Order;

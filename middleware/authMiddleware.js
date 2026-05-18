@@ -18,12 +18,15 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new Error('Server configuration error - JWT_SECRET missing');
   }
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  // Look for token in HttpOnly cookies first, then in the Auth header
+  if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  if (token) {
     try {
-      token = req.headers.authorization.split(' ')[1];
-
-      token = req.headers.authorization.split(' ')[1];
-
       const decoded = verifyAccessToken(token);
 
       req.user = await User.findById(decoded.id)
@@ -32,6 +35,12 @@ const protect = asyncHandler(async (req, res, next) => {
       if (!req.user) {
         res.status(401);
         throw new Error('Not authorized, user not found');
+      }
+
+      // Check if user has changed their password since token generation or if token version is invalid
+      if (req.user.tokenVersion !== undefined && decoded.tokenVersion !== undefined && req.user.tokenVersion !== decoded.tokenVersion) {
+        res.status(401);
+        throw new Error('Session invalidated. Please log in again.');
       }
 
       // Check if user is active
@@ -50,11 +59,11 @@ const protect = asyncHandler(async (req, res, next) => {
         throw new Error('Invalid authentication token.');
       } else {
         res.status(401);
-        throw new Error('Not authorized, token validation failed');
+        throw new Error(error.message || 'Not authorized, token validation failed');
       }
     }
   } else {
-    console.log('❌ No authorization header or Bearer token');
+    console.log('❌ No token found in cookies or authorization headers');
     res.status(401);
     throw new Error('Not authorized, no token');
   }
@@ -98,10 +107,14 @@ const admin = asyncHandler(async (req, res, next) => {
 const validateToken = asyncHandler(async (req, res) => {
   let token;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    try {
-      token = req.headers.authorization.split(' ')[1];
+  if (req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
+  if (token) {
+    try {
       const decoded = verifyAccessToken(token);
       const user = await User.findById(decoded.id)
         .select('-password -verificationCode -verificationCodeExpires -resetPasswordToken -resetPasswordExpires -loginAttempts -lockUntil');

@@ -1,9 +1,8 @@
-// components/AccountDashboard.jsx - CLEAN & MODERN
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../context/AppContext';
 import {
   FaUser, FaShoppingBag, FaMapMarkerAlt, FaCreditCard,
-  FaSignOutAlt, FaLock, FaTimes, FaHome, FaShieldAlt, FaHistory, FaCheckCircle
+  FaSignOutAlt, FaLock, FaTimes, FaHome, FaShieldAlt, FaHistory, FaCheckCircle, FaLifeRing
 } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,6 +14,7 @@ import AddressesTab from './AddressesTab';
 import WalletTab from './WalletTab';
 import ProfileTab from './ProfileTab';
 import SecurityTab from './SecurityTab';
+import TicketsTab from './TicketsTab';
 
 // Internal Overview Tab
 const OverviewTab = ({ user, orders, onNavigate }) => {
@@ -182,6 +182,7 @@ function AccountDashboard() {
     { id: 'orders', label: 'My Orders', icon: <FaShoppingBag /> },
     { id: 'addresses', label: 'Addresses', icon: <FaMapMarkerAlt /> },
     { id: 'wallet', label: 'Wallet', icon: <FaCreditCard /> },
+    { id: 'tickets', label: 'Support Helpdesk', icon: <FaLifeRing /> },
     { id: 'profile', label: 'Profile', icon: <FaUser /> },
     { id: 'security', label: 'Security', icon: <FaLock /> },
   ];
@@ -320,6 +321,7 @@ function AccountDashboard() {
               {activeTab === 'orders' && 'Orders'}
               {activeTab === 'addresses' && 'Addresses'}
               {activeTab === 'wallet' && 'Wallet'}
+              {activeTab === 'tickets' && 'Support Helpdesk'}
               {activeTab === 'profile' && 'Profile'}
               {activeTab === 'security' && 'Security'}
             </h2>
@@ -327,9 +329,10 @@ function AccountDashboard() {
 
           <div className="dashboard-view-container">
             {activeTab === 'overview' && <OverviewTab user={user} orders={orders} onNavigate={setActiveTab} />}
-            {activeTab === 'orders' && <OrdersTab orders={orders} loading={ordersLoading} />}
+            {activeTab === 'orders' && <OrdersTab orders={orders} loading={ordersLoading} onRefresh={() => loadOrders(true)} />}
             {activeTab === 'addresses' && <AddressesTab />}
             {activeTab === 'wallet' && <WalletTab />}
+            {activeTab === 'tickets' && <TicketsTab />}
             {activeTab === 'profile' && <ProfileTab />}
             {activeTab === 'security' && <SecurityTab />}
           </div>

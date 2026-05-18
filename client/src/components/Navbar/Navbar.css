@@ -26,17 +26,18 @@
 }
 
 .header--scrolled {
-  background: rgba(251, 250, 248, 0.7); /* Light surface, highly transparent */
-  backdrop-filter: blur(35px) saturate(1.5);
-  -webkit-backdrop-filter: blur(35px) saturate(1.5);
+  background: rgba(248, 244, 238, 0.92); /* Rich Creamy Crema Glass background */
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
   height: 4.5rem;
-  border-bottom: 1px solid rgba(212, 175, 55, 0.15);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05), inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(111, 78, 55, 0.15);
+  box-shadow: 0 10px 40px rgba(111, 78, 55, 0.08), inset 0 -1px 0 rgba(255, 255, 255, 0.4);
 }
 
 [data-theme="dark"] .header--scrolled {
-  background: rgba(17, 24, 39, 0.7); /* Dark surface, highly transparent */
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  background: rgba(24, 17, 14, 0.95); /* Deep rich coffee glass background */
+  border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .header__container {

@@ -1,0 +1,13 @@
+import dotenv from 'dotenv';
+console.log('1');
+import express from 'express';
+console.log('2');
+import mongoose from 'mongoose';
+console.log('3');
+import cors from 'cors';
+console.log('4');
+import helmet from 'helmet';
+console.log('5');
+import compression from 'compression';
+console.log('6');
+console.log('DONE');

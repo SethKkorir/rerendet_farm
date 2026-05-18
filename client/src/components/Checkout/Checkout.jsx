@@ -58,6 +58,8 @@ function Checkout() {
   const [mpesaPhone, setMpesaPhone] = useState(user?.wallet?.mpesaPhone || user?.phone || '');
   const [codConfirmed, setCodConfirmed] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState('');
+  const [createdOrderNumber, setCreatedOrderNumber] = useState('');
   const [allCountries, setAllCountries] = useState(['Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'United Arab Emirates', 'United Kingdom']);
   const [cardInfo, setCardInfo] = useState({
     number: '',
@@ -270,6 +272,51 @@ function Checkout() {
     return newErrors;
   };
 
+  const savePendingOrder = async () => {
+    try {
+      const orderData = {
+        shippingAddress: {
+          ...shippingInfo,
+          city: shippingInfo.country === 'Kenya' ? shippingInfo.county : shippingInfo.city
+        },
+        paymentMethod,
+        items: cart.map(item => ({
+          product: item.productId || item._id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          size: item.size,
+          image: item.images?.[0]?.url || item.image || '/default-product.jpg'
+        })),
+        subtotal,
+        shippingCost,
+        totalAmount: total,
+        couponCode: couponData?.code,
+        isSubscription,
+        subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined
+      };
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(orderData)
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.message || 'Order failed');
+      }
+    } catch (error) {
+      showNotification(error.message, 'error');
+      return null;
+    }
+  };
+
   const handlePlaceOrder = async () => {
     const newErrors = validateForm();
 
@@ -286,6 +333,13 @@ function Checkout() {
     }
 
     if (paymentMethod === 'mpesa' || paymentMethod === 'card') {
+      setLoading(true);
+      const pendingOrder = await savePendingOrder();
+      setLoading(false);
+      if (!pendingOrder) return false;
+
+      setCreatedOrderId(pendingOrder._id || pendingOrder.id);
+      setCreatedOrderNumber(pendingOrder.orderNumber);
       setShowPaymentModal(true);
     } else {
       await processOrder();
@@ -399,7 +453,14 @@ function Checkout() {
             paymentMethod={paymentMethod}
             amount={total}
             phone={mpesaPhone}
-            onSuccess={(data) => { setShowPaymentModal(false); processOrder(data); }}
+            orderId={createdOrderId}
+            orderNumber={createdOrderNumber}
+            onSuccess={(data) => {
+              setShowPaymentModal(false);
+              clearCart();
+              showNotification('Order placed and paid successfully! Asante.', 'success');
+              navigate(`/order-confirmation/${createdOrderId}`);
+            }}
             onFailure={(msg) => {
               setShowPaymentModal(false);
               showNotification(msg, 'error');

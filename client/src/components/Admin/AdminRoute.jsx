@@ -15,8 +15,31 @@ const AdminRoute = ({ children, requiredRole = 'admin' }) => {
     requiredRole
   });
 
-  // Check authentication first
+  // Check authentication first with synchronous localStorage fallback to prevent state propagation race conditions
   if (!isAuthenticated || !user) {
+    const storedAuth = localStorage.getItem('auth');
+    if (storedAuth) {
+      try {
+        const parsed = JSON.parse(storedAuth);
+        if (parsed.userType === 'admin' || parsed.user?.role === 'admin' || parsed.user?.role === 'super-admin') {
+          console.log('⏳ Local session matches admin, waiting for React state propagation...');
+          return (
+            <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#121212' }}>
+              <div className="btn-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(212,175,55,0.1)', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+              <style>{`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          );
+        }
+      } catch (e) {
+        console.error('Failed to parse local session:', e);
+      }
+    }
+
     console.log('❌ No user or not authenticated, redirecting to login');
     return <Navigate to="/admin/login" replace />;
   }

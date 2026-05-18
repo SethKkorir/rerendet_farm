@@ -1,25 +1,24 @@
+import cron from 'node-cron';
 import Contact from '../models/Contact.js';
 import AbandonedCheckout from '../models/AbandonedCheckout.js';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
+import Order from '../models/Order.js';
+import PaymentTransaction from '../models/PaymentTransaction.js';
 import sendEmail from './sendEmail.js';
 import { getFraudAlert } from './emailTemplates.js';
-// TODO: Install node-cron package and enable subscription cron
-// import startSubscriptionCron from '../scripts/subscriptionCron.js';
+import { queryMpesaStkStatusService } from '../services/mpesaService.js';
+import { getPayPalOrderService, capturePayPalOrderService } from '../services/paypalService.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const DELETE_AGE_DAYS = 7;
-
-// Fraud detection config
-const FRAUD_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000; // Run every 12 hours
 const FRAUD_WINDOW_HOURS = 72;    // Look at last 72 hours
 const FRAUD_THRESHOLD = 3;     // 3+ failures = suspicious
 
 // ── Contact Cleanup ───────────────────────────────────────────────────────────
 const cleanupRepliedContacts = async () => {
     try {
-        console.log('🧹 [Cron] Running automatic cleanup for replied contacts...');
+        console.log('[Cron] Running automatic cleanup for replied contacts...');
 
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - DELETE_AGE_DAYS);
@@ -30,20 +29,20 @@ const cleanupRepliedContacts = async () => {
         });
 
         if (result.deletedCount > 0) {
-            console.log(`✅ [Cron] Automatically deleted ${result.deletedCount} old replied contacts.`);
+            console.log(`[Cron] Automatically deleted ${result.deletedCount} old replied contacts.`);
         } else {
-            console.log('✨ [Cron] No old replied contacts found to delete.');
+            console.log('[Cron] No old replied contacts found to delete.');
         }
 
     } catch (error) {
-        console.error('❌ [Cron] Error during contact cleanup:', error);
+        console.error('[Cron] Error during contact cleanup:', error);
     }
 };
 
 // ── Card Fraud Detection ──────────────────────────────────────────────────────
 const checkCardFraud = async () => {
     try {
-        console.log('🔍 [FraudCron] Scanning for repeated payment failures...');
+        console.log('[FraudCron] Scanning for repeated payment failures...');
 
         const since = new Date(Date.now() - FRAUD_WINDOW_HOURS * 60 * 60 * 1000);
 
@@ -75,11 +74,11 @@ const checkCardFraud = async () => {
         ]);
 
         if (!suspects.length) {
-            console.log('✅ [FraudCron] No suspicious payment patterns detected.');
+            console.log('[FraudCron] No suspicious payment patterns detected.');
             return;
         }
 
-        console.warn(`⚠️ [FraudCron] ${suspects.length} user(s) flagged for suspicious payment failures!`);
+        console.warn(`[WARN] [FraudCron] ${suspects.length} user(s) flagged for suspicious payment failures!`);
 
         // Fetch super admin emails
         const superAdmins = await User.find({ role: 'super-admin' }).select('email firstName');
@@ -138,24 +137,174 @@ const checkCardFraud = async () => {
     }
 };
 
-// ── Start All Cron Jobs ───────────────────────────────────────────────────────
-export const startCronJobs = () => {
-    console.log(`⏰ [Cron] System initialized. Old contacts (> ${DELETE_AGE_DAYS} days) will be auto-deleted.`);
+// ── Elite Payment Reconciliation Worker (Every 15 mins) ──────────────────────
+export const reconcilePendingOrders = async () => {
+    try {
+        console.log('[ReconciliationWorker] Starting automated gateway audit for pending orders...');
+        
+        // Scan for transactions that are still PENDING and created in the last 24 hours
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const pendingTransactions = await PaymentTransaction.find({
+            status: 'PENDING',
+            createdAt: { $gte: since }
+        });
 
-    // Contact cleanup — run immediately then every 24h
-    cleanupRepliedContacts();
-    setInterval(cleanupRepliedContacts, CLEANUP_INTERVAL_MS);
+        if (pendingTransactions.length === 0) {
+            console.log('[ReconciliationWorker] Clean ledger: Zero pending transactions require verification.');
+            return;
+        }
 
-    // Card fraud detection — run immediately then every 12h
-    setTimeout(() => {
-        checkCardFraud(); // Delay 30s on startup to let DB connect fully
-        setInterval(checkCardFraud, FRAUD_CHECK_INTERVAL_MS);
-    }, 30_000);
+        console.log(`[ReconciliationWorker] Auditing ${pendingTransactions.length} pending transactions...`);
 
-    // Subscription Engine
-    // TODO: Enable when node-cron is installed
-    // startSubscriptionCron();
+        for (const tx of pendingTransactions) {
+            const order = await Order.findById(tx.order);
+            if (!order) {
+                console.warn(`[ReconciliationWorker] Associated order missing for Tx: ${tx._id}`);
+                continue;
+            }
 
-    console.log('✅ [Cron] All jobs started: Contact Cleanup • Fraud Detection • Subscription Engine');
+            // Skip if the order has already been marked paid elsewhere (e.g. manual override or late webhook)
+            if (order.paymentStatus === 'paid') {
+                tx.status = 'SUCCESS';
+                await tx.save();
+                console.log(`[ReconciliationWorker] Auto-aligned transaction ${tx._id} to SUCCESS since Order was already paid.`);
+                continue;
+            }
+
+            // ── A. Process M-Pesa Reconciliation ───────────────────
+            if (tx.provider === 'MPESA') {
+                try {
+                    console.log(`[ReconciliationWorker] Querying Daraja status for checkoutID: ${tx.transactionId}`);
+                    const result = await queryMpesaStkStatusService(tx.transactionId);
+
+                    if (result.ResultCode === '0' || result.ResultCode === 0) {
+                        // Success! Parse metadata if present to fetch receipt, or use checkoutRequestId as fallback
+                        let receiptNumber = tx.transactionId;
+                        if (result.ResultDesc?.includes('Receipt:')) {
+                            // Safaricom sandbox may append receipt number in desc
+                            const parts = result.ResultDesc.split('Receipt:');
+                            if (parts[1]) receiptNumber = parts[1].trim().split(' ')[0];
+                        }
+
+                        // Update ledger status and swap key with official receipt number
+                        tx.status = 'SUCCESS';
+                        tx.transactionId = receiptNumber;
+                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
+                        await tx.save();
+
+                        // Mark Order paid
+                        order.paymentStatus = 'paid';
+                        order.status = 'confirmed';
+                        order.transactionId = receiptNumber;
+                        order.orderEvents.push({
+                            status: 'PAYMENT_CONFIRMED',
+                            note: `Reconciled PAID via M-Pesa automated background worker. Receipt: ${receiptNumber}`,
+                            user: null
+                        });
+                        await order.save();
+                        console.log(`🎉 [ReconciliationWorker] [M-Pesa] Order ${order.orderNumber} successfully recovered and marked PAID`);
+
+                    } else if (['1032', '1037', '2001', '9002'].includes(result.ResultCode?.toString())) {
+                        // Failed at gateway
+                        tx.status = 'FAILED';
+                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
+                        await tx.save();
+
+                        order.paymentStatus = 'failed';
+                        order.orderEvents.push({
+                            status: 'PAYMENT_FAILED',
+                            note: `M-Pesa transaction expired or cancelled. Reason: ${result.ResultDesc}`,
+                            user: null
+                        });
+                        await order.save();
+                        console.log(`❌ [ReconciliationWorker] [M-Pesa] Order ${order.orderNumber} updated to FAILED`);
+                    }
+                } catch (mpesaErr) {
+                    console.error(`[ReconciliationWorker] M-Pesa query failed for Order ${order.orderNumber}:`, mpesaErr.message);
+                }
+            }
+
+            // ── B. Process PayPal Reconciliation ───────────────────
+            else if (tx.provider === 'PAYPAL') {
+                try {
+                    console.log(`[ReconciliationWorker] Querying PayPal status for orderID: ${tx.transactionId}`);
+                    const result = await getPayPalOrderService(tx.transactionId);
+
+                    if (result.status === 'COMPLETED') {
+                        tx.status = 'SUCCESS';
+                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
+                        await tx.save();
+
+                        order.paymentStatus = 'paid';
+                        order.status = 'confirmed';
+                        order.orderEvents.push({
+                            status: 'PAYMENT_CONFIRMED',
+                            note: 'Reconciled PAID via PayPal automated background worker.',
+                            user: null
+                        });
+                        await order.save();
+                        console.log(`🎉 [ReconciliationWorker] [PayPal] Order ${order.orderNumber} recovered and marked PAID`);
+
+                    } else if (result.status === 'APPROVED') {
+                        // Approved but not captured yet! Let's complete the capture right now to secure the payment
+                        console.log(`[ReconciliationWorker] [PayPal] Transaction is APPROVED but not captured. Sending capture query...`);
+                        const captureResult = await capturePayPalOrderService(tx.transactionId);
+
+                        if (captureResult.status === 'COMPLETED') {
+                            tx.status = 'SUCCESS';
+                            tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, captureResult };
+                            await tx.save();
+
+                            order.paymentStatus = 'paid';
+                            order.status = 'confirmed';
+                            order.orderEvents.push({
+                                status: 'PAYMENT_CONFIRMED',
+                                note: 'PayPal Payment JIT Captured & Reconciled via automated background worker.',
+                                user: null
+                            });
+                            await order.save();
+                            console.log(`🎉 [ReconciliationWorker] [PayPal] JIT Capture success for Order ${order.orderNumber}`);
+                        }
+                    } else if (['VOIDED', 'EXPIRED'].includes(result.status)) {
+                        tx.status = 'FAILED';
+                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
+                        await tx.save();
+
+                        order.paymentStatus = 'failed';
+                        order.orderEvents.push({
+                            status: 'PAYMENT_FAILED',
+                            note: `PayPal checkout session was ${result.status.toLowerCase()}.`,
+                            user: null
+                        });
+                        await order.save();
+                        console.log(`❌ [ReconciliationWorker] [PayPal] Order ${order.orderNumber} updated to FAILED`);
+                    }
+                } catch (paypalErr) {
+                    console.error(`[ReconciliationWorker] PayPal check failed for Order ${order.orderNumber}:`, paypalErr.message);
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ [ReconciliationWorker] Error during pending payment reconciliation:', error);
+    }
 };
 
+// ── Start All Cron Jobs ───────────────────────────────────────────────────────
+export const startCronJobs = () => {
+    console.log(`[Cron] System initialized. System cleanups and reconciliation scheduled.`);
+
+    // 1. Contact cleanup — run once a day at midnight
+    cron.schedule('0 0 * * *', cleanupRepliedContacts);
+    cleanupRepliedContacts(); // Run once immediately on startup
+
+    // 2. Card fraud detection — run every 12 hours
+    cron.schedule('0 */12 * * *', checkCardFraud);
+    setTimeout(checkCardFraud, 30_000); // Delayed startup execution (30s)
+
+    // 3. Payment Reconciliation Worker — runs every 15 minutes
+    cron.schedule('*/15 * * * *', reconcilePendingOrders);
+    setTimeout(reconcilePendingOrders, 60_000); // Delayed startup execution (60s) to allow system to warm up
+
+    console.log('✅ [Cron] All node-cron jobs scheduled successfully: Contact Cleanup (Daily) • Fraud Detection (12h) • Payment Reconciliation (15m)');
+};

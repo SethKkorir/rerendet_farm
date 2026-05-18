@@ -1,5 +1,7 @@
+const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173');
+const ADMIN_PANEL_URL = FRONTEND_URL;
+
 const getBaseTemplate = (title, content, options = {}) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const logoUrl = options.logoUrl; // If provided, use it
   const year = new Date().getFullYear();
 
@@ -11,26 +13,161 @@ const getBaseTemplate = (title, content, options = {}) => {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>${title}</title>
       <style>
-        body { margin: 0; padding: 0; background-color: #F9F7F2; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 32px; overflow: hidden; box-shadow: 0 40px 80px rgba(0,0,0,0.12); border: 1px solid #E9EDF2; }
-        .header { background: linear-gradient(135deg, #111827, #020617); padding: 50px 40px; text-align: center; position: relative; }
-        .logo-box { width: 100px; height: 100px; background: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .logo-box img { max-height: 70px; width: auto; }
-        .brand-title { color: #D4AF37; font-size: 28px; font-weight: 800; text-decoration: none; letter-spacing: 2px; text-transform: uppercase; display: block; }
-        .divider { height: 1px; width: 60px; background: #D4AF37; margin: 20px auto; }
-        .content { padding: 50px 40px; color: #111111; line-height: 1.8; font-size: 16px; background: #ffffff; }
-        .content h1 { font-family: Georgia, serif; font-size: 32px; font-weight: 700; margin-bottom: 25px; color: #111111; text-align: center; line-height: 1.2; }
-        .content p { margin-bottom: 20px; color: #444444; }
-        .verification-code-box { background: #F9F7F2; border: 2px solid #D4AF37; border-radius: 20px; padding: 30px; text-align: center; margin: 30px 0; }
-        .code-text { font-size: 42px; font-weight: 800; letter-spacing: 12px; color: #111111; display: block; padding-left: 12px; }
-        .code-caption { display: block; color: #D4AF37; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; margin-top: 10px; }
-        .premium-btn { display: block; width: 100%; max-width: 280px; margin: 30px auto 0; background: #D4AF37; color: #ffffff; padding: 18px 30px; border-radius: 16px; text-decoration: none; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1.5px; box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4); font-size: 14px; }
-        .info-card { background: #F1EBE4; border-radius: 20px; padding: 25px; margin: 30px 0; border: 1px solid #D1D9E6; }
-        .info-card-title { color: #6f4e37; font-weight: 700; text-transform: uppercase; font-size: 13px; margin-bottom: 12px; display: block; }
-        .footer { background-color: #020617; padding: 40px; text-align: center; font-size: 12px; color: #94A3B8; }
-        .footer a { color: #D4AF37; text-decoration: none; margin: 0 8px; font-weight: 600; }
-        .social-tray { margin-bottom: 25px; font-size: 18px; }
-        .unsub-text { opacity: 0.6; margin-top: 25px; display: block; line-height: 1.4; }
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&display=swap');
+        
+        body { 
+          margin: 0; 
+          padding: 0; 
+          background-color: #F4EFEB; 
+          font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+          -webkit-font-smoothing: antialiased; 
+        }
+        .container { 
+          max-width: 600px; 
+          margin: 40px auto; 
+          background-color: #ffffff; 
+          border-radius: 24px; 
+          overflow: hidden; 
+          box-shadow: 0 20px 40px rgba(42, 29, 21, 0.08); 
+          border: 1px solid #E6DDD5; 
+        }
+        .header { 
+          background: linear-gradient(135deg, #1C120C, #2D1E14); 
+          padding: 45px 40px; 
+          text-align: center; 
+          position: relative; 
+        }
+        .logo-box { 
+          width: 84px; 
+          height: 84px; 
+          background: #ffffff; 
+          border-radius: 50%; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          margin: 0 auto 16px; 
+          box-shadow: 0 8px 24px rgba(0,0,0,0.15); 
+        }
+        .logo-box img { 
+          max-height: 52px; 
+          width: auto; 
+        }
+        .brand-title { 
+          color: #D4AF37; 
+          font-family: 'Playfair Display', Georgia, serif; 
+          font-size: 26px; 
+          font-weight: 800; 
+          text-decoration: none; 
+          letter-spacing: 1.5px; 
+          display: block; 
+        }
+        .divider { 
+          height: 1.5px; 
+          width: 40px; 
+          background: #D4AF37; 
+          margin: 16px auto; 
+        }
+        .content { 
+          padding: 45px 40px; 
+          color: #2A1D15; 
+          line-height: 1.8; 
+          font-size: 15px; 
+          background: #ffffff; 
+        }
+        .content h1 { 
+          font-family: 'Playfair Display', Georgia, serif; 
+          font-size: 28px; 
+          font-weight: 700; 
+          margin-bottom: 24px; 
+          color: #1C120C; 
+          text-align: center; 
+          line-height: 1.3; 
+        }
+        .content p { 
+          margin-bottom: 20px; 
+          color: #4A3A30; 
+        }
+        .verification-code-box { 
+          background: #FAF7F4; 
+          border: 1.5px solid #D4AF37; 
+          border-radius: 16px; 
+          padding: 24px; 
+          text-align: center; 
+          margin: 24px 0; 
+        }
+        .code-text { 
+          font-size: 38px; 
+          font-weight: 800; 
+          letter-spacing: 10px; 
+          color: #1C120C; 
+          display: block; 
+          padding-left: 10px; 
+        }
+        .code-caption { 
+          display: block; 
+          color: #D4AF37; 
+          font-size: 11px; 
+          font-weight: 700; 
+          text-transform: uppercase; 
+          letter-spacing: 1.5px; 
+          margin-top: 8px; 
+        }
+        .premium-btn { 
+          display: block; 
+          width: 100%; 
+          max-width: 260px; 
+          margin: 28px auto 0; 
+          background: linear-gradient(135deg, #6F4E37, #533B29); 
+          color: #ffffff !important; 
+          padding: 16px 24px; 
+          border-radius: 12px; 
+          text-decoration: none; 
+          font-weight: 700; 
+          text-align: center; 
+          text-transform: uppercase; 
+          letter-spacing: 1.2px; 
+          box-shadow: 0 8px 20px rgba(111, 78, 55, 0.25); 
+          font-size: 13px; 
+        }
+        .info-card { 
+          background: #FAF6F2; 
+          border-radius: 16px; 
+          padding: 20px; 
+          margin: 24px 0; 
+          border: 1px solid #E6DDD5; 
+        }
+        .info-card-title { 
+          color: #6F4E37; 
+          font-weight: 700; 
+          text-transform: uppercase; 
+          font-size: 12px; 
+          margin-bottom: 10px; 
+          display: block; 
+          letter-spacing: 1px; 
+        }
+        .footer { 
+          background-color: #1C120C; 
+          padding: 40px; 
+          text-align: center; 
+          font-size: 11px; 
+          color: #A6978E; 
+        }
+        .footer a { 
+          color: #D4AF37; 
+          text-decoration: none; 
+          margin: 0 8px; 
+          font-weight: 600; 
+        }
+        .social-tray { 
+          margin-bottom: 20px; 
+          font-size: 16px; 
+        }
+        .unsub-text { 
+          opacity: 0.6; 
+          margin-top: 20px; 
+          display: block; 
+          line-height: 1.5; 
+        }
       </style>
     </head>
     <body>
@@ -39,7 +176,7 @@ const getBaseTemplate = (title, content, options = {}) => {
           <div class="logo-box">
              ${logoUrl ? `<img src="${logoUrl}" alt="Rerendet Logo" />` : '<span style="font-size: 40px;">☕</span>'}
           </div>
-          <a href="${frontendUrl}" class="brand-title">Rerendet Coffee</a>
+          <a href="${FRONTEND_URL}" class="brand-title">Rerendet Coffee</a>
           <div class="divider"></div>
         </div>
         <div class="content">
@@ -51,9 +188,9 @@ const getBaseTemplate = (title, content, options = {}) => {
           </div>
           <p>&copy; ${year} Rerendet Coffees. All rights reserved.</p>
           <div style="margin-top: 15px;">
-             <a href="${frontendUrl}/track-order">Order Status</a>
-             <a href="${frontendUrl}/shipping-policy">Shipping</a>
-             <a href="${frontendUrl}/returns">Returns</a>
+             <a href="${FRONTEND_URL}/track-order">Order Status</a>
+             <a href="${FRONTEND_URL}/shipping-policy">Shipping</a>
+             <a href="${FRONTEND_URL}/returns">Returns</a>
           </div>
           <span class="unsub-text">
             Premium high-altitude coffee, hand-picked and freshly roasted in Kenya. Delivered from our farm to your cup.
@@ -80,7 +217,6 @@ export const getVerificationEmail = (name, code, logoUrl) => {
 };
 
 export const getWelcomeEmail = (name, logoUrl) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1>Welcome to Rerendet Coffee</h1>
     <p>Dear ${name},</p>
@@ -94,13 +230,13 @@ export const getWelcomeEmail = (name, logoUrl) => {
     <div style="background: #eef2ff; border-left: 4px solid #4f46e5; padding: 20px; border-radius: 8px; margin: 30px 0;">
       <h4 style="margin: 0 0 10px 0; color: #1e1b4b; display: flex; align-items: center; gap: 8px;">🛡️ Secure Your Account</h4>
       <p style="margin: 0; font-size: 14px; color: #312e81;">We recommend enabling <strong>Two-Factor Authentication (2FA)</strong> in your settings to add an extra layer of security to your profile.</p>
-      <a href="${frontendUrl}/account" style="display: inline-block; margin-top: 15px; color: #4f46e5; font-weight: 700; text-decoration: none; font-size: 14px;">Setup Security →</a>
+      <a href="${FRONTEND_URL}/account" style="display: inline-block; margin-top: 15px; color: #4f46e5; font-weight: 700; text-decoration: none; font-size: 14px;">Setup Security →</a>
     </div>
  
     <p>Ready for your first brew? Let's get started.</p>
-
+ 
     <div style="text-align: center;">
-      <a href="${frontendUrl}/#coffee-shop" class="premium-btn">Explore Collections</a>
+      <a href="${FRONTEND_URL}/#coffee-shop" class="premium-btn">Explore Collections</a>
     </div>
   `;
   return getBaseTemplate('Welcome to Rerendet Coffee', content, { logoUrl });
@@ -121,8 +257,6 @@ export const getResetPasswordEmail = (name, code, logoUrl) => {
 };
 
 export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, message, logoUrl) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-
   let statusTitle = "Order Update";
   let icon = "📦";
   if (status === 'shipped') { statusTitle = "In Transit"; icon = "🚚"; }
@@ -148,14 +282,13 @@ export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, m
     ` : ''}
  
     <div style="text-align: center;">
-      <a href="${frontendUrl}/track-order" class="premium-btn">Track Order Live</a>
+      <a href="${FRONTEND_URL}/track-order" class="premium-btn">Track Order Live</a>
     </div>
   `;
   return getBaseTemplate(`Order ${statusTitle} - #${orderNumber}`, content, { logoUrl });
 };
 
 export const getOrderConfirmationEmail = (name, orderNumber, items, total, trackingNumber, logoUrl) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1>Order Confirmed</h1>
     <p>Dear ${name},</p>
@@ -183,7 +316,7 @@ export const getOrderConfirmationEmail = (name, orderNumber, items, total, track
 
     <p>You can track your order live at any time using our public portal:</p>
     <div style="text-align: center;">
-      <a href="${frontendUrl}/track-order" class="premium-btn">Track Live Status</a>
+      <a href="${FRONTEND_URL}/track-order" class="premium-btn">Track Live Status</a>
     </div>
   `;
   return getBaseTemplate(`Confirmation #${orderNumber} - Rerendet Coffee`, content, { logoUrl });
@@ -204,7 +337,6 @@ export const getMaintenanceEmail = (message, logoUrl) => {
 };
 
 export const getNewsletterWelcomeEmail = (logoUrl) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1>Welcome to our Newsletter</h1>
     <p>Thank you for subscribing to our updates.</p>
@@ -215,7 +347,7 @@ export const getNewsletterWelcomeEmail = (logoUrl) => {
       <li><strong>Exclusive Offers</strong>: Subscriber-only discounts and early access.</li>
     </ul>
     <div style="text-align: center; margin-top: 30px;">
-      <a href="${frontendUrl}/#coffee-shop" class="premium-btn">Browse Shop</a>
+      <a href="${FRONTEND_URL}/#coffee-shop" class="premium-btn">Browse Shop</a>
     </div>
   `;
   return getBaseTemplate('Welcome to the Journey - Rerendet Coffee', content, { logoUrl });
@@ -235,14 +367,13 @@ export const getRegretEmail = (name, logoUrl) => {
 };
 
 export const getMaintenanceResolvedEmail = (logoUrl) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1>We're Back Online</h1>
     <p>To our valued customers,</p>
     <p>Our website is back online! We've completed our updates and are ready for you to start shopping again.</p>
     
     <div style="text-align: center; margin-top: 30px;">
-      <a href="${frontendUrl}" class="premium-btn">Return to Shop</a>
+      <a href="${FRONTEND_URL}" class="premium-btn">Return to Shop</a>
     </div>
   `;
   return getBaseTemplate('We are Back Online - Rerendet Coffee', content, { logoUrl });
@@ -261,6 +392,7 @@ export const getNewsletterEmail = (title, bodyContent, logoUrl) => {
   `;
   return getBaseTemplate(title, content, { logoUrl });
 };
+
 export const getSecurityAlertEmail = (name, action, logoUrl) => {
   const content = `
     <h1>Security Notification</h1>
@@ -285,7 +417,6 @@ export const getSecurityAlertEmail = (name, action, logoUrl) => {
 
 // ── Admin Misuse Alert (sent to Super Admin) ─────────────────────────────────
 export const getAdminMisuseAlert = ({ adminName, adminEmail, action, entityName, ipAddress, timestamp, details, logoUrl }) => {
-  const adminPanelUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1 style="color: #dc2626;">🚨 Admin Security Alert</h1>
     <p>This is an automated internal security notification. A <strong>high-risk administrative action</strong> was performed and requires your attention.</p>
@@ -305,7 +436,7 @@ export const getAdminMisuseAlert = ({ adminName, adminEmail, action, entityName,
     <p>If this action was expected and authorized, no further steps are required. If this activity looks suspicious, please investigate the admin account immediately.</p>
 
     <div style="text-align: center;">
-      <a href="${adminPanelUrl}/admin" class="premium-btn" style="background: #dc2626;">Review Admin Logs</a>
+      <a href="${ADMIN_PANEL_URL}/admin" class="premium-btn" style="background: #dc2626;">Review Admin Logs</a>
     </div>
   `;
   return getBaseTemplate('🚨 Admin Security Alert - Rerendet', content, { logoUrl });
@@ -313,7 +444,6 @@ export const getAdminMisuseAlert = ({ adminName, adminEmail, action, entityName,
 
 // ── Fraud / Repeated Payment Failure Alert (sent to Super Admin) ─────────────
 export const getFraudAlert = ({ userName, userEmail, userId, failureCount, totalAttempted, paymentMethods, timeWindow, logoUrl }) => {
-  const adminPanelUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
   const content = `
     <h1 style="color: #f59e0b;">🕵️ Fraud Risk Detected</h1>
     <p>Our automated monitoring system has flagged a customer showing signs of <strong>suspicious repeated payment failure activity</strong>.</p>
@@ -340,9 +470,8 @@ export const getFraudAlert = ({ userName, userEmail, userId, failureCount, total
     </div>
 
     <div style="text-align: center;">
-      <a href="${adminPanelUrl}/admin/users" class="premium-btn" style="background: #d97706;">Review Customer Account</a>
+      <a href="${ADMIN_PANEL_URL}/admin/users" class="premium-btn" style="background: #d97706;">Review Customer Account</a>
     </div>
   `;
   return getBaseTemplate('🕵️ Fraud Risk Alert - Rerendet', content, { logoUrl });
 };
-
