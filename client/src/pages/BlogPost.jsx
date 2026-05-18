@@ -10,9 +10,15 @@ import './Blog.css';
 const BlogPost = () => {
     const { slug } = useParams();
     const navigate = useNavigate();
-    const { showNotification } = useContext(AppContext);
+    const { showNotification, publicSettings } = useContext(AppContext);
     const [blog, setBlog] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (publicSettings?.features && publicSettings.features.coffeeAcademy === false) {
+            navigate('/');
+        }
+    }, [publicSettings, navigate]);
 
     useEffect(() => {
         const fetchBlog = async () => {
@@ -23,7 +29,7 @@ const BlogPost = () => {
                 if (data.success) {
                     setBlog(data.data);
                     // Set page title
-                    document.title = `${data.data.title} | Rerendet Coffee Editorial`;
+                    document.title = `${data.data.title} | Rerendet Coffee Academy`;
                 } else {
                     showNotification('Story not found', 'error');
                     navigate('/blog');
@@ -57,7 +63,7 @@ const BlogPost = () => {
             <div className="blog-post-header">
                 <div className="container" style={{ display: 'flex', justifyContent: 'flex-start' }}>
                     <button className="back-btn" onClick={() => navigate('/blog')}>
-                        <FaChevronLeft /> Back to Editorial
+                        <FaChevronLeft /> Back to Academy
                     </button>
                 </div>
             </div>

@@ -129,6 +129,12 @@ function App() {
           <Route path="/account/*" element={<AccountDashboard />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/track-order" element={<TrackOrder />} />
+          <Route path="/order-tracking/:id" element={<OrderTracking />} />
+          <Route path="/privacy-policy" element={<PolicyPage type="privacyPolicy" title="Privacy Policy" />} />
+          <Route path="/terms-conditions" element={<PolicyPage type="termsConditions" title="Terms & Conditions" />} />
+          <Route path="/refund-policy" element={<PolicyPage type="refundPolicy" title="Refund Policy" />} />
+          <Route path="/shipping-policy" element={<PolicyPage type="shippingPolicy" title="Shipping & Delivery" />} />
 
           {/* Admin Routes (Code Splitted Bundle) */}
           <Route path="/admin/login" element={<AdminLogin />} />

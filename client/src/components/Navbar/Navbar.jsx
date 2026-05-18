@@ -92,9 +92,10 @@ function Navbar() {
     setMobileMenuOpen(false);
   };
 
+  const academyEnabled = publicSettings?.features?.coffeeAcademy ?? true;
   const navLinks = [
     { name: 'Shop', href: '#coffee-shop' },
-    { name: 'Blog', href: '/blog' },
+    ...(academyEnabled ? [{ name: 'Coffee Academy', href: '/blog' }] : []),
     { name: 'About', href: '#about' },
     { name: 'Contact', href: '#contact' },
   ];

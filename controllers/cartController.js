@@ -4,16 +4,22 @@ import mongoose from 'mongoose';
 import Cart from '../models/Cart.js';
 import Product from '../models/Product.js';
 
-// Utility function to calculate cart totals
-const calculateCartTotals = (items) => {
+// Utility function to calculate cart totals dynamically from settings
+const calculateCartTotals = async (items) => {
+  const { default: Settings } = await import('../models/Settings.js');
+  const settings = await Settings.getSettings();
+  const taxRate = settings?.payment?.taxRate ?? 0;
+  const standardShipping = settings?.payment?.shippingPrice ?? 500;
+  const freeThreshold = settings?.payment?.freeShippingThreshold ?? 5000;
+
   const subtotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
   const itemsCount = items.reduce((total, item) => total + item.quantity, 0);
   
-  // Free shipping for orders over 5000 KSh
-  const shippingPrice = subtotal >= 5000 ? 0 : 500;
+  // Free shipping check
+  const shippingPrice = subtotal >= freeThreshold ? 0 : standardShipping;
   
-  // 16% VAT
-  const taxPrice = Math.round(subtotal * 0.16);
+  // Dynamic VAT
+  const taxPrice = Math.round(subtotal * taxRate);
   
   const finalPrice = subtotal + shippingPrice + taxPrice;
 
@@ -39,13 +45,13 @@ const getCart = asyncHandler(async (req, res) => {
     if (!cart) {
       cart = await Cart.create({
         user: req.user._id,
-        ...calculateCartTotals([])
+        ...(await calculateCartTotals([]))
       });
     }
 
     const cartData = {
       ...cart.toObject(),
-      ...calculateCartTotals(cart.items)
+      ...(await calculateCartTotals(cart.items))
     };
 
     res.json({
@@ -124,7 +130,7 @@ const addToCart = asyncHandler(async (req, res) => {
       });
     }
 
-    const totals = calculateCartTotals(cart.items);
+    const totals = await calculateCartTotals(cart.items);
     Object.assign(cart, totals);
 
     await cart.save();
@@ -186,7 +192,7 @@ const updateCartItem = asyncHandler(async (req, res) => {
 
     item.quantity = quantity;
 
-    const totals = calculateCartTotals(cart.items);
+    const totals = await calculateCartTotals(cart.items);
     Object.assign(cart, totals);
 
     await cart.save();
@@ -225,7 +231,7 @@ const removeFromCart = asyncHandler(async (req, res) => {
 
     cart.items.pull(itemId);
 
-    const totals = calculateCartTotals(cart.items);
+    const totals = await calculateCartTotals(cart.items);
     Object.assign(cart, totals);
 
     await cart.save();
@@ -252,14 +258,14 @@ const clearCart = asyncHandler(async (req, res) => {
     
     if (cart) {
       cart.items = [];
-      const totals = calculateCartTotals(cart.items);
+      const totals = await calculateCartTotals(cart.items);
       Object.assign(cart, totals);
       await cart.save();
     }
 
     const emptyCart = cart || await Cart.create({
       user: req.user._id,
-      ...calculateCartTotals([])
+      ...(await calculateCartTotals([]))
     });
 
     res.json({
@@ -371,7 +377,7 @@ const mergeCarts = asyncHandler(async (req, res) => {
     }
 
     if (mergedItems) {
-      const totals = calculateCartTotals(userCart.items);
+      const totals = await calculateCartTotals(userCart.items);
       Object.assign(userCart, totals);
       await userCart.save();
     }

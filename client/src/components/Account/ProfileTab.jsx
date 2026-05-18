@@ -4,11 +4,16 @@ import { FaLock, FaUser } from 'react-icons/fa';
 
 const ProfileTab = () => {
     const { user, updateUserProfile, loading, showSuccess, showError } = useContext(AppContext);
+    
     const [formData, setFormData] = useState({
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
-        phone: user?.phone || ''
+        phone: user?.phone || '',
+        gender: user?.gender || '',
+        dateOfBirth: user?.dateOfBirth ? new Date(user.dateOfBirth).toISOString().split('T')[0] : ''
     });
+
+    const [isPhoneFocused, setIsPhoneFocused] = useState(false);
 
     const maskPhone = (phone) => {
         if (!phone) return 'Not set';
@@ -40,6 +45,7 @@ const ProfileTab = () => {
                                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                     required
                                     placeholder="Enter your first name"
+                                    className="premium-input-modern"
                                 />
                             </div>
                             <div className="form-group">
@@ -50,12 +56,55 @@ const ProfileTab = () => {
                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                     required
                                     placeholder="Enter your last name"
+                                    className="premium-input-modern"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="form-grid-2 mt-3" style={{ marginTop: '1rem' }}>
+                            <div className="form-group">
+                                <label>Date of Birth</label>
+                                <input
+                                    type="date"
+                                    value={formData.dateOfBirth}
+                                    onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                                    className="premium-input-modern"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem 1rem',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-card)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-main)'
+                                    }}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Gender</label>
+                                <select
+                                    value={formData.gender}
+                                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                                    className="premium-select-modern"
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.8rem 1rem',
+                                        borderRadius: '8px',
+                                        background: 'var(--bg-card)',
+                                        border: '1px solid var(--border-color)',
+                                        color: 'var(--text-main)'
+                                    }}
+                                >
+                                    <option value="">Select Gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                    <option value="prefer-not-to-say">Prefer not to say</option>
+                                </select>
                             </div>
                         </div>
                     </div>
 
-                    <div className="profile-form-section mt-4">
+                    <div className="profile-form-section mt-4" style={{ marginTop: '1.5rem' }}>
                         <h4>Contact Details</h4>
                         <div className="form-grid-2">
                             <div className="form-group">
@@ -75,31 +124,34 @@ const ProfileTab = () => {
                                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                         placeholder="+254..."
                                         className="premium-input-modern"
+                                        onFocus={() => setIsPhoneFocused(true)}
+                                        onBlur={() => setIsPhoneFocused(false)}
                                     />
-                                    <div className="input-mask-overlay" style={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        width: '100%',
-                                        height: '100%',
-                                        background: 'var(--bg-card)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        padding: '0 1rem',
-                                        pointerEvents: 'none',
-                                        borderRadius: 'inherit',
-                                        color: 'var(--text-main)',
-                                        opacity: document.activeElement === document.querySelector('input[type="tel"]') ? 0 : 1
-                                    }}>
-                                        {maskPhone(formData.phone)}
-                                    </div>
+                                    {!isPhoneFocused && (
+                                        <div className="input-mask-overlay" style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: '100%',
+                                            background: 'var(--bg-card)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '0 1rem',
+                                            pointerEvents: 'none',
+                                            borderRadius: 'inherit',
+                                            color: 'var(--text-main)'
+                                        }}>
+                                            {maskPhone(formData.phone)}
+                                        </div>
+                                    )}
                                 </div>
                                 <small className="form-text-small">Visible only while editing</small>
                             </div>
                         </div>
                     </div>
 
-                    <div className="form-actions mt-4">
+                    <div className="form-actions mt-4" style={{ marginTop: '1.5rem' }}>
                         <button className="btn-primary" disabled={loading}>
                             {loading ? 'Saving Changes...' : 'Save Profile'}
                         </button>

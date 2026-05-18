@@ -10,7 +10,7 @@ import {
   FaBars, FaTimes, FaBell, FaUserCircle,
   FaInfoCircle, FaExclamationCircle, FaBullhorn, FaAd,
   FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt,
-  FaCreditCard
+  FaCreditCard, FaFileInvoiceDollar
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
@@ -39,6 +39,7 @@ const NAV_GROUPS = [
       { id: 'orders', label: 'Orders', Icon: FaShoppingBag, path: '/admin/orders', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
       { id: 'products', label: 'Products', Icon: FaBox, path: '/admin/products', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'payments', label: 'Payments', Icon: FaCreditCard, path: '/admin/payments', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
+      { id: 'analytics', label: 'Analytics & Reports', Icon: FaChartBar, path: '/admin/analytics', color: '#06b6d4', bg: 'rgba(6,182,212,0.18)' },
       { id: 'users', label: 'Users', Icon: FaUsers, path: '/admin/users', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
       { id: 'contacts', label: 'Contacts', Icon: FaEnvelope, path: '/admin/contacts', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
     ],
@@ -50,7 +51,6 @@ const NAV_GROUPS = [
       { id: 'ads', label: 'Ads & Promos', Icon: FaAd, path: '/admin/ads', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'coupons', label: 'Coupons', Icon: FaTicketAlt, path: '/admin/coupons', color: '#fbbf24', bg: 'rgba(251,191,36,0.18)' },
       { id: 'blogs', label: 'Blogs', Icon: FaPenNib, path: '/admin/blogs', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
-      { id: 'analytics', label: 'Analytics', Icon: FaChartBar, path: '/admin/analytics', color: '#06b6d4', bg: 'rgba(6,182,212,0.18)' },
     ],
   },
   {

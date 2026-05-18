@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { FaQuoteLeft, FaChevronLeft, FaChevronRight, FaPen, FaTimes, FaStar } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppContext } from '../../context/AppContext';
+import { getTopReviews, createSiteReview } from '../../api/api';
 import './Testimonials.css';
 
 const Testimonials = () => {
@@ -13,48 +14,21 @@ const Testimonials = () => {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  /* REMOVED MOCK DATA AS REQUESTED */
-  const defaultTestimonials = [
-    {
-      id: "mock-1",
-      text: "The Single Origin beans from Rerendet have a complexity I've only encountered in the highest altitudes of Kenya. A truly transcendent morning ritual.",
-      author: "Julian Vance",
-      role: "Connoisseur",
-      rating: 5
-    },
-    {
-      id: "mock-2",
-      text: "Rerendet isn't just about the caffeine; it's about the heritage. You can taste the volcanic soil and the highland mist in every single brew.",
-      author: "Elena Rossi",
-      role: "Brew Master",
-      rating: 5
-    },
-    {
-      id: "mock-3",
-      text: "From the sustainable packaging to the perfectly balanced roast profile, Rerendet represents the future of ethical luxury coffee.",
-      author: "Marcus Thorne",
-      role: "Lifestyle Critic",
-      rating: 5
-    }
-  ];
 
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const res = await fetch('/api/reviews/top'); // Use top reviews endpoint if available, or just reviews
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.data && data.data.length > 0) {
-            const formatted = data.data.map(r => ({
-              text: r.comment,
-              author: r.name,
-              role: r.isVerifiedPurchase ? "Verified Buyer" : "Customer",
-              rating: r.rating,
-              id: r._id,
-              avatar: r.user?.profilePicture // Assuming populated
-            }));
-            setApiReviews(formatted);
-          }
+        const res = await getTopReviews();
+        if (res.data.success && res.data.data && res.data.data.length > 0) {
+          const formatted = res.data.data.map(r => ({
+            text: r.comment,
+            author: r.name,
+            role: r.isVerifiedPurchase ? "Verified Buyer" : "Customer",
+            rating: r.rating,
+            id: r._id,
+            avatar: r.user?.profilePicture // Assuming populated
+          }));
+          setApiReviews(formatted);
         }
       } catch (err) {
         console.error("Failed to fetch reviews", err);
@@ -63,7 +37,7 @@ const Testimonials = () => {
     fetchReviews();
   }, []);
 
-  const displayTestimonials = apiReviews.length > 0 ? apiReviews : defaultTestimonials;
+  const displayTestimonials = apiReviews;
 
   const nextTestimonial = () => {
     setCurrentTestimonial((prev) => (prev === displayTestimonials.length - 1 ? 0 : prev + 1));
@@ -96,26 +70,35 @@ const Testimonials = () => {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(reviewForm)
-      });
-      const data = await res.json();
-      if (data.success) {
+      const res = await createSiteReview(reviewForm);
+      if (res.data.success) {
         showAlert('Review submitted successfully!', 'success');
         setShowReviewModal(false);
         setReviewForm({ rating: 5, comment: '' });
-        // Optimistically add to list or re-fetch? Let's reload page logic or re-fetch
-        // For now, allow auto-refresh on next visit or we can append it locally
+        // Re-fetch reviews to instantly update the list
+        try {
+          const freshRes = await getTopReviews();
+          if (freshRes.data.success && freshRes.data.data && freshRes.data.data.length > 0) {
+            const formatted = freshRes.data.data.map(r => ({
+              text: r.comment,
+              author: r.name,
+              role: r.isVerifiedPurchase ? "Verified Buyer" : "Customer",
+              rating: r.rating,
+              id: r._id,
+              avatar: r.user?.profilePicture
+            }));
+            setApiReviews(formatted);
+            setCurrentTestimonial(0);
+          }
+        } catch (fetchErr) {
+          console.error("Failed to re-fetch reviews", fetchErr);
+        }
       } else {
-        showAlert(data.message || 'Error submitting review', 'error');
+        showAlert(res.data.message || 'Error submitting review', 'error');
       }
     } catch (err) {
-      showAlert('Server error', 'error');
+      console.error("Submit review error:", err);
+      showAlert(err.response?.data?.message || 'Server error', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -128,8 +111,8 @@ const Testimonials = () => {
     <section className="testimonials">
       <div className="container">
         <div className="testimonials-header">
-          <p>The Rerendet Experience</p>
-          <h2 className="section-title">Voices of Our Community</h2>
+          <p>Reviews</p>
+          <h2 className="section-title">The Rerendet Experience</h2>
           <button className="btn-write-review" onClick={() => setShowReviewModal(true)}>
             <FaPen /> Share Your Story
           </button>

@@ -14,6 +14,8 @@ import sendEmail from '../utils/sendEmail.js';
 import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail } from '../utils/emailTemplates.js';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
+import { invalidateCatalog, redisClient, isRedisConnected } from '../config/redis.js';
+import { emailQueue, subscriptionQueue, retryQueue } from '../queues/index.js';
 // Optimization: Simple in-memory cache for dashboard stats
 let statsCache = {
   data: null,
@@ -190,14 +192,15 @@ const getOrders = asyncHandler(async (req, res) => {
     if (Object.keys(filter.createdAt).length === 0) delete filter.createdAt;
   }
 
-  // 4. Search Filter (Order #, Name, Email, Tracking #)
+  // 4. Search Filter (Order #, Name, Email, Phone, Tracking #)
   if (search) {
     filter.$or = [
       { orderNumber: { $regex: search, $options: 'i' } },
       { trackingNumber: { $regex: search, $options: 'i' } },
       { 'shippingAddress.firstName': { $regex: search, $options: 'i' } },
       { 'shippingAddress.lastName': { $regex: search, $options: 'i' } },
-      { 'shippingAddress.email': { $regex: search, $options: 'i' } }
+      { 'shippingAddress.email': { $regex: search, $options: 'i' } },
+      { 'shippingAddress.phone': { $regex: search, $options: 'i' } }
     ];
   }
 
@@ -584,6 +587,9 @@ const createProduct = asyncHandler(async (req, res) => {
   try {
     const product = new Product(productData);
     const createdProduct = await product.save();
+    
+    // Invalidate product catalog cache
+    await invalidateCatalog();
 
     res.status(201).json({
       success: true,
@@ -782,6 +788,9 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   const updatedProduct = await product.save();
 
+  // Invalidate product catalog cache
+  await invalidateCatalog();
+
   res.json({
     success: true,
     message: 'Product updated successfully',
@@ -823,6 +832,9 @@ const updateProductStock = asyncHandler(async (req, res) => {
   product.inStock = product.inventory.stock > 0;
   const updated = await product.save();
 
+  // Invalidate product catalog cache
+  await invalidateCatalog();
+
   console.log(`📦 Stock updated: ${product.name} → ${product.inventory.stock} units`);
 
   res.json({
@@ -846,6 +858,9 @@ const deleteProduct = asyncHandler(async (req, res) => {
   // Soft delete - set isActive to false
   product.isActive = false;
   await product.save();
+  
+  // Invalidate product catalog cache
+  await invalidateCatalog();
 
   res.json({
     success: true,
@@ -1977,7 +1992,7 @@ const getPaymentTransactions = asyncHandler(async (req, res) => {
   }
 
   try {
-    const [transactions, total] = await Promise.all([
+    const [transactions, total, statsAggregation] = await Promise.all([
       PaymentTransaction.find(filter)
         .populate({
           path: 'order',
@@ -1988,13 +2003,48 @@ const getPaymentTransactions = asyncHandler(async (req, res) => {
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
-      PaymentTransaction.countDocuments(filter)
+      PaymentTransaction.countDocuments(filter),
+      PaymentTransaction.aggregate([
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            volume: { $sum: '$amount' }
+          }
+        }
+      ])
     ]);
+
+    // Format stats matching the frontend requirements
+    const stats = {
+      total: 0,
+      success: 0,
+      pending: 0,
+      failed: 0,
+      totalVolume: 0
+    };
+
+    statsAggregation.forEach(group => {
+      const statusKey = group._id?.toUpperCase();
+      const count = group.count || 0;
+      stats.total += count;
+
+      if (statusKey === 'SUCCESS' || statusKey === 'PAID') {
+        stats.success += count;
+        stats.totalVolume += group.volume || 0;
+      } else if (statusKey === 'PENDING') {
+        stats.pending += count;
+      } else if (statusKey === 'FAILED') {
+        stats.failed += count;
+      }
+    });
 
     res.json({
       success: true,
       data: {
         transactions,
+        stats,
+        totalTransactions: total,
         pagination: {
           current: parseInt(page),
           page: parseInt(page),
@@ -2251,6 +2301,125 @@ const getReconciliationReport = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Get system health, cache status, and background queues telemetry
+// @route   GET /api/admin/system-health
+// @access  Private/Admin
+const getSystemHealth = asyncHandler(async (req, res) => {
+  let cacheStats = {
+    connected: isRedisConnected,
+    client: !!redisClient,
+    totalKeys: 0,
+    catalogKeys: 0,
+    settingsCached: false
+  };
+
+  let queueStats = {
+    emailQueue: { active: 0, waiting: 0, completed: 0, failed: 0 },
+    subscriptionQueue: { active: 0, waiting: 0, completed: 0, failed: 0 },
+    retryQueue: { active: 0, waiting: 0, completed: 0, failed: 0 }
+  };
+
+  // 1. Gather Redis details if connected
+  if (isRedisConnected && redisClient) {
+    try {
+      const keys = await redisClient.keys('*');
+      cacheStats.totalKeys = keys.length;
+
+      const catalogKeys = await redisClient.keys('products:catalog:*');
+      cacheStats.catalogKeys = catalogKeys.length;
+
+      const settingsExist = await redisClient.exists('app:settings');
+      cacheStats.settingsCached = !!settingsExist;
+    } catch (err) {
+      console.error('Failed to query Redis cache stats:', err.message);
+    }
+  }
+
+  // 2. Gather BullMQ queue statistics if Redis is connected
+  if (isRedisConnected && redisClient) {
+    try {
+      queueStats.emailQueue = await emailQueue.getJobCounts('active', 'waiting', 'completed', 'failed');
+      queueStats.subscriptionQueue = await subscriptionQueue.getJobCounts('active', 'waiting', 'completed', 'failed');
+      queueStats.retryQueue = await retryQueue.getJobCounts('active', 'waiting', 'completed', 'failed');
+    } catch (err) {
+      console.error('Failed to query BullMQ stats:', err.message);
+    }
+  }
+
+  // 3. Fetch security webhook block audits or signature validations
+  const recentSecurityAudits = await ActivityLog.find({
+    action: { $in: ['LOGIN', 'SETTINGS_UPDATE', 'MPESA_WEBHOOK_BLOCKED', 'STRIPE_SIGNATURE_ERROR'] }
+  })
+    .sort({ createdAt: -1 })
+    .limit(10);
+
+  // 4. Summarize system resources
+  const memoryUsage = process.memoryUsage();
+  const uptime = process.uptime();
+
+  res.json({
+    success: true,
+    data: {
+      cache: cacheStats,
+      queues: queueStats,
+      security: {
+        recentAudits: recentSecurityAudits,
+        stripeWebhookUrl: process.env.STRIPE_WEBHOOK_SECRET ? 'CONFIGURED' : 'MISSING',
+        mpesaWebhookIpsWhitelisted: ['196.201.212.0/24', '196.201.213.0/24', '196.201.214.0/24']
+      },
+      resources: {
+        uptimeSeconds: Math.floor(uptime),
+        memoryRssMb: Math.round(memoryUsage.rss / (1024 * 1024)),
+        memoryHeapUsedMb: Math.round(memoryUsage.heapUsed / (1024 * 1024)),
+        nodeVersion: process.version
+      }
+    }
+  });
+});
+
+// @desc    Manually clear/invalidate Redis caches (catalog or settings)
+// @route   POST /api/admin/cache/invalidate
+// @access  Private/Admin
+const invalidateCache = asyncHandler(async (req, res) => {
+  const { type } = req.body; // 'catalog' or 'settings' or 'all'
+
+  if (!isRedisConnected || !redisClient) {
+    res.status(400);
+    throw new Error('Redis is not connected or initialized');
+  }
+
+  let clearedCount = 0;
+
+  try {
+    if (type === 'catalog' || type === 'all') {
+      const keys = await redisClient.keys('products:catalog:*');
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+        clearedCount += keys.length;
+      }
+    }
+
+    if (type === 'settings' || type === 'all') {
+      const settingsExist = await redisClient.exists('app:settings');
+      if (settingsExist) {
+        await redisClient.del('app:settings');
+        clearedCount += 1;
+      }
+    }
+
+    // Log the cache clearance action
+    await logActivity(req, 'SETTINGS_UPDATE', `Manually invalidated ${type} cache (${clearedCount} keys removed)`, req.user._id);
+
+    res.json({
+      success: true,
+      message: `Successfully invalidated ${type} cache. Removed ${clearedCount} keys.`
+    });
+  } catch (err) {
+    res.status(500);
+    throw new Error(`Failed to clear cache: ${err.message}`);
+  }
+});
+
 export {
   getDashboardStats,
   getOrders,
@@ -2287,5 +2456,7 @@ export {
   getPaymentTransactions,
   manualPaymentOverride,
   refundOrder,
-  getReconciliationReport
+  getReconciliationReport,
+  getSystemHealth,
+  invalidateCache
 };

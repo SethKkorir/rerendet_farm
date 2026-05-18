@@ -194,7 +194,7 @@ export const reconcilePendingOrders = async () => {
 
                         // Mark Order paid
                         order.paymentStatus = 'paid';
-                        order.status = 'confirmed';
+                        order.orderStatus = 'open'; // Keep lifecycle open until fulfilled; status virtual = 'Confirmed'
                         order.transactionId = receiptNumber;
                         order.orderEvents.push({
                             status: 'PAYMENT_CONFIRMED',
@@ -236,7 +236,7 @@ export const reconcilePendingOrders = async () => {
                         await tx.save();
 
                         order.paymentStatus = 'paid';
-                        order.status = 'confirmed';
+                        order.orderStatus = 'open'; // Keep lifecycle open; status virtual = 'Confirmed'
                         order.orderEvents.push({
                             status: 'PAYMENT_CONFIRMED',
                             note: 'Reconciled PAID via PayPal automated background worker.',
@@ -256,7 +256,7 @@ export const reconcilePendingOrders = async () => {
                             await tx.save();
 
                             order.paymentStatus = 'paid';
-                            order.status = 'confirmed';
+                            order.orderStatus = 'open'; // Keep lifecycle open; status virtual = 'Confirmed'
                             order.orderEvents.push({
                                 status: 'PAYMENT_CONFIRMED',
                                 note: 'PayPal Payment JIT Captured & Reconciled via automated background worker.',
@@ -296,15 +296,15 @@ export const startCronJobs = () => {
 
     // 1. Contact cleanup — run once a day at midnight
     cron.schedule('0 0 * * *', cleanupRepliedContacts);
-    cleanupRepliedContacts(); // Run once immediately on startup
+    setTimeout(cleanupRepliedContacts, 5_000); // Wait 5s for DB to be ready
 
     // 2. Card fraud detection — run every 12 hours
     cron.schedule('0 */12 * * *', checkCardFraud);
-    setTimeout(checkCardFraud, 30_000); // Delayed startup execution (30s)
+    setTimeout(checkCardFraud, 35_000); // 35s delay (after contact cleanup)
 
     // 3. Payment Reconciliation Worker — runs every 15 minutes
     cron.schedule('*/15 * * * *', reconcilePendingOrders);
-    setTimeout(reconcilePendingOrders, 60_000); // Delayed startup execution (60s) to allow system to warm up
+    setTimeout(reconcilePendingOrders, 65_000); // 65s delay to allow system to fully warm up
 
     console.log('✅ [Cron] All node-cron jobs scheduled successfully: Contact Cleanup (Daily) • Fraud Detection (12h) • Payment Reconciliation (15m)');
 };

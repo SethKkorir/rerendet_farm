@@ -15,10 +15,22 @@ const getMpesaBaseUrl = () => {
     : 'https://sandbox.safaricom.co.ke';
 };
 
+let cachedToken = null;
+let tokenExpiryTime = 0;
+
 /**
- * Generates Safaricom Daraja API Access Token.
+ * Generates Safaricom Daraja API Access Token with local memory caching.
  */
 export const getMpesaAccessToken = async () => {
+  const currentTime = Date.now();
+
+  // Reuse cached token if it exists and is valid for at least 5 more minutes (300000ms)
+  if (cachedToken && tokenExpiryTime > currentTime + 300000) {
+    console.log(`🔑 Reusing cached M-Pesa Access Token (valid for ${Math.round((tokenExpiryTime - currentTime) / 1000)}s)`);
+    return cachedToken;
+  }
+
+  console.log('🔑 Generating fresh M-Pesa Access Token from Daraja Gateway...');
   const baseUrl = getMpesaBaseUrl();
   const auth = Buffer.from(`${MPESA_CONFIG.consumerKey}:${MPESA_CONFIG.consumerSecret}`).toString('base64');
 
@@ -27,12 +39,26 @@ export const getMpesaAccessToken = async () => {
       `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
       {
         headers: {
-          Authorization: `Basic ${auth}`
+          'Authorization': `Basic ${auth}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         },
-        timeout: 5000
+        timeout: 10000
       }
     );
-    return response.data.access_token;
+
+    const token = response.data.access_token;
+    const expiresInSeconds = parseInt(response.data.expires_in || '3599');
+
+    // Cache the token
+    cachedToken = token;
+    tokenExpiryTime = currentTime + (expiresInSeconds * 1000);
+
+    console.log(`✅ Fresh M-Pesa Access Token generated successfully. Cache set for ${expiresInSeconds}s`);
+    return token;
   } catch (error) {
     console.error('❌ M-Pesa Access Token Error:', error.response?.data || error.message);
     throw new Error('Failed to generate M-Pesa access token from Daraja Gateway');
@@ -97,8 +123,11 @@ export const initiateMpesaStkPushService = async (phone, amount, orderNumber, cu
       requestBody,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9'
         }
       }
     );
@@ -133,8 +162,11 @@ export const queryMpesaStkStatusService = async (checkoutRequestId) => {
       requestBody,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9'
         }
       }
     );

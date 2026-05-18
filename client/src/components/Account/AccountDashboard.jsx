@@ -20,6 +20,13 @@ import TicketsTab from './TicketsTab';
 const OverviewTab = ({ user, orders, onNavigate }) => {
   const unpaidOrders = orders.filter(o => o.paymentStatus !== 'paid').length;
 
+  const maskPhone = (phone) => {
+    if (!phone) return 'Not set';
+    return phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 ••• $3');
+  };
+
+  const displayPhone = user.wallet?.mpesaPhone || user.phone;
+
   return (
     <div className="overview-tab">
       {!user.twoFactorEnabled && (
@@ -50,6 +57,20 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
           <div className="stat-content">
             <span className="stat-label">Pending</span>
             <span className="stat-value">{unpaidOrders}</span>
+          </div>
+        </div>
+        <div className="overview-stat-card">
+          <div className="stat-icon-wrap" style={{ background: 'rgba(212, 175, 55, 0.1)', color: 'var(--color-primary)' }}><FaCreditCard /></div>
+          <div className="stat-content">
+            <span className="stat-label">Store Credit</span>
+            <span className="stat-value" style={{ color: 'var(--color-primary)' }}>KES {user?.storeCredit?.toLocaleString() || '0'}</span>
+          </div>
+        </div>
+        <div className="overview-stat-card">
+          <div className="stat-icon-wrap" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}><FaUser /></div>
+          <div className="stat-content">
+            <span className="stat-label">Loyalty Rewards</span>
+            <span className="stat-value" style={{ color: '#8b5cf6' }}>{user?.loyaltyPoints?.toLocaleString() || '0'} <span style={{ fontSize: '0.75rem', fontWeight: '500' }}>PTS</span></span>
           </div>
         </div>
         <div className={`overview-stat-card ${user.twoFactorEnabled ? 'security-card' : 'at-risk-card'}`}>
@@ -93,8 +114,8 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
             <div className="mpesa-brand">
               <img src="/M-PESA_LOGO-01.svg.png" alt="M-Pesa" style={{ height: '20px' }} />
             </div>
-            {user.wallet?.mpesaPhone || user.phone ? (
-              <p className="wallet-number">{user.wallet?.mpesaPhone || user.phone}</p>
+            {displayPhone ? (
+              <p className="wallet-number">{maskPhone(displayPhone)}</p>
             ) : (
               <p className="wallet-number-empty">No number linked</p>
             )}
@@ -228,10 +249,20 @@ function AccountDashboard() {
               <span className="membership-badge">Rerendet Member</span>
               <h3>{user.firstName} {user.lastName}</h3>
               <p className="user-email">{user.email}</p>
-              <div className="user-stats-mini">
-                <div className="stat-pill">
-                  <span className="stat-label">Member Since</span>
-                  <span className="stat-value">{user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'New Member'}</span>
+              
+              {/* Dynamic balances shown instantly on the sidebar */}
+              <div className="user-stats-mini" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Credit</span>
+                  <span className="stat-value" style={{ color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: '800' }}>KES {user.storeCredit?.toLocaleString() || '0'}</span>
+                </div>
+                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Rewards</span>
+                  <span className="stat-value" style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: '800' }}>{user.loyaltyPoints?.toLocaleString() || '0'} <span style={{ fontSize: '0.55rem', fontWeight: '500' }}>PTS</span></span>
+                </div>
+                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Orders</span>
+                  <span className="stat-value" style={{ fontSize: '0.75rem', fontWeight: '800' }}>{orders.length}</span>
                 </div>
               </div>
             </div>
@@ -270,23 +301,27 @@ function AccountDashboard() {
                 </div>
                 <div className="mobile-avatar-glow" />
               </div>
-              <div className="mobile-user-info">
+              <div className="mobile-user-info" style={{ width: '100%' }}>
                 <span className="mobile-membership-badge">
                   <FaShieldAlt style={{ fontSize: '0.8rem' }} /> Rerendet Elite
                 </span>
                 <p className="mobile-welcome-text">Welcome back,</p>
                 <h3>{user.firstName} {user.lastName}</h3>
                 <p className="mobile-user-email">{user.email}</p>
-                <div className="mobile-user-stats">
-                  <div className="mobile-stat-pill">
-                    <span className="mobile-stat-label">Member Since</span>
-                    <span className="mobile-stat-value">
-                      {user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'New Member'}
-                    </span>
+                
+                {/* Mobile stats upgraded to show actionable balances */}
+                <div className="mobile-user-stats" style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', width: '100%' }}>
+                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
+                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Store Credit</span>
+                    <span className="mobile-stat-value" style={{ color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: '800' }}>KES {user.storeCredit?.toLocaleString() || '0'}</span>
                   </div>
-                  <div className="mobile-stat-pill">
-                    <span className="mobile-stat-label">Total Orders</span>
-                    <span className="mobile-stat-value">{orders.length}</span>
+                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
+                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Rewards</span>
+                    <span className="mobile-stat-value" style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: '800' }}>{user.loyaltyPoints?.toLocaleString() || '0'} PTS</span>
+                  </div>
+                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
+                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Orders</span>
+                    <span className="mobile-stat-value" style={{ fontSize: '0.75rem', fontWeight: '800' }}>{orders.length}</span>
                   </div>
                 </div>
               </div>

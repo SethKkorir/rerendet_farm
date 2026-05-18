@@ -84,6 +84,8 @@ const userSchema = new mongoose.Schema({
   lockUntil: { type: Date, select: false },
   passwordChangedAt: Date,
   twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorSecret: { type: String, select: false },
+  twoFactorBackupCodes: { type: [String], select: false },
   twoFactorCode: { type: String, select: false },
   twoFactorCodeExpires: { type: Date, select: false },
 

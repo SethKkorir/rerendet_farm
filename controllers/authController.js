@@ -1,6 +1,25 @@
 import asyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { OTP } from 'otplib';
+
+// Compatibility wrapper for otplib v13 breaking changes
+const authenticator = {
+  generateSecret: () => {
+    const otp = new OTP({ strategy: 'totp' });
+    return otp.generateSecret();
+  },
+  keyuri: (email, issuer, secret) => {
+    const otp = new OTP({ strategy: 'totp' });
+    return otp.generateURI({ label: email, issuer, secret });
+  },
+  verify: ({ token, secret }) => {
+    const otp = new OTP({ strategy: 'totp' });
+    return otp.verifySync({ token, secret });
+  }
+};
+import QRCode from 'qrcode';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
 import generateToken, { 
@@ -18,6 +37,52 @@ import ActivityLog from '../models/ActivityLog.js';
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library';
 import { checkPasswordStrength } from '../utils/passwordValidator.js';
+import redisClient from '../config/redis.js';
+
+const createSession = async (res, user) => {
+  const jti = crypto.randomUUID();
+  const accessToken = generateAccessToken(
+    user._id,
+    user.role || 'customer',
+    user.tokenVersion || 0,
+    user.email,
+    user.firstName,
+    user.lastName
+  );
+  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti);
+
+  setTokenCookie(res, accessToken);
+  setRefreshTokenCookie(res, refreshToken);
+
+  if (redisClient && redisClient.status === 'ready') {
+    try {
+      await redisClient.set(`refresh:${user._id}:${jti}`, 'true', 'EX', 7 * 24 * 60 * 60);
+    } catch (err) {
+      console.error('❌ Failed to store refresh token in Redis:', err.message);
+    }
+  }
+
+  return accessToken;
+};
+
+const invalidateAllUserSessions = async (userId) => {
+  if (redisClient && redisClient.status === 'ready') {
+    try {
+      let cursor = '0';
+      const pattern = `refresh:${userId}:*`;
+      do {
+        const [nextCursor, keys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        if (keys.length > 0) {
+          await redisClient.del(...keys);
+        }
+      } while (cursor !== '0');
+      console.log(`🧹 Invalidated all Redis refresh keys for user ${userId}`);
+    } catch (err) {
+      console.error(`❌ Failed to invalidate Redis sessions for user ${userId}:`, err.message);
+    }
+  }
+};
 
 const parseUserAgent = (uaString) => {
   let browser = 'Unknown Browser';
@@ -132,6 +197,9 @@ const verify2FALogin = asyncHandler(async (req, res) => {
   user.lastLoginAt = new Date();
   await user.save({ validateBeforeSave: false });
 
+  // Populate cart after save
+  await user.populate('cart.product');
+
   // LOG ACTIVITY IF ADMIN
   if (isAdmin) {
     await logActivity(req, 'LOGIN', `${user.firstName} (via 2FA)`, user._id, {
@@ -149,10 +217,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
   // Verify device fingerprint asynchronously
   handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
-  const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
-  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
-  setTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  const accessToken = await createSession(res, user);
 
   res.json({
     success: true,
@@ -160,6 +225,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
     data: {
       user: {
         id: user._id,
+        _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
@@ -318,10 +384,16 @@ const registerCustomer = asyncHandler(async (req, res) => {
 });
 
 // Google Login
-// Google Login
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "697141801323-d2uc6n2f7b2kcckpk1kk6he1du30l1kn.apps.googleusercontent.com");
+if (!process.env.GOOGLE_CLIENT_ID) {
+  console.warn('⚠️  GOOGLE_CLIENT_ID not set in .env — Google Login will be disabled.');
+}
+const googleClient = process.env.GOOGLE_CLIENT_ID ? new OAuth2Client(process.env.GOOGLE_CLIENT_ID) : null;
 
 const googleLogin = asyncHandler(async (req, res) => {
+  if (!googleClient) {
+    res.status(503);
+    throw new Error('Google Login is not configured on this server.');
+  }
   const { credential, accessToken } = req.body;
 
   if (!credential && !accessToken) {
@@ -336,7 +408,7 @@ const googleLogin = asyncHandler(async (req, res) => {
       // Flow 1: ID Token (Standard Button)
       const ticket = await googleClient.verifyIdToken({
         idToken: credential,
-        audience: process.env.GOOGLE_CLIENT_ID || "697141801323-d2uc6n2f7b2kcckpk1kk6he1du30l1kn.apps.googleusercontent.com"
+        audience: process.env.GOOGLE_CLIENT_ID
       });
       const payload = ticket.getPayload();
       email = payload.email;
@@ -440,14 +512,12 @@ const googleLogin = asyncHandler(async (req, res) => {
     // Ensure verified if they came from Google
     if (!user.isVerified) user.isVerified = true;
     await user.save();
+    await user.populate('cart.product');
 
     // Verify device fingerprint asynchronously
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
-    const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
-    const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
-    setTokenCookie(res, accessToken);
-    setRefreshTokenCookie(res, refreshToken);
+    const accessToken = await createSession(res, user);
 
     console.log(`✅ Google Login successful for ${email}`);
 
@@ -492,7 +562,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
   console.log('👤 Customer login attempt:', email);
 
   // First, find user by email to do a proper check
-  const user = await User.findOne({ email }).select('+password +isVerified +isActive +loginAttempts +lockUntil +verificationCode +verificationCodeExpires +twoFactorEnabled +userType');
+  const user = await User.findOne({ email }).select('+password +isVerified +isActive +loginAttempts +lockUntil +verificationCode +verificationCodeExpires +twoFactorEnabled +twoFactorSecret +userType');
 
   if (!user) {
     console.log('❌ Customer not found:', email);
@@ -571,6 +641,22 @@ const loginCustomer = asyncHandler(async (req, res) => {
 
   // Check for 2FA specifically for the user (ignoring Google auth flow here, this is email/pass)
   if (user.twoFactorEnabled) {
+    if (user.twoFactorSecret) {
+      // Modern TOTP Flow: generate a 5-minute pre-auth token
+      const tempToken = jwt.sign(
+        { tempUserId: user._id, mfaRequired: true },
+        process.env.JWT_SECRET || 'fallback_secret',
+        { expiresIn: '5m' }
+      );
+      return res.json({
+        success: true,
+        requires2FA: true,
+        mfaType: 'totp',
+        tempToken
+      });
+    }
+
+    // Fallback Legacy Email-based 2FA Flow
     // Generate code
     const verificationCode = user.generateVerificationCode();
     await user.save({ validateBeforeSave: false }); // Save code to DB
@@ -601,6 +687,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
       success: true,
       message: 'Verification code sent to email',
       requires2FA: true,
+      mfaType: 'email',
       email: user.email
     });
   }
@@ -656,10 +743,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
   handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
   // Generate dual tokens
-  const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
-  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
-  setTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  const accessToken = await createSession(res, user);
 
   console.log('✅ Customer login successful:', email);
 
@@ -752,7 +836,6 @@ const updateProfile = asyncHandler(async (req, res) => {
         role: updatedUser.role,
         isVerified: updatedUser.isVerified,
         profilePicture: updatedUser.profilePicture,
-        profilePicture: updatedUser.profilePicture,
         shippingInfo: updatedUser.shippingInfo,
         wallet: updatedUser.wallet,
         twoFactorEnabled: updatedUser.twoFactorEnabled,
@@ -799,7 +882,12 @@ const changePassword = asyncHandler(async (req, res) => {
   if (await bcrypt.compare(currentPassword, user.password)) {
     user.password = newPassword;
     user.passwordChangedAt = Date.now();
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+
+    await invalidateAllUserSessions(user._id);
+    clearTokenCookie(res);
+    clearRefreshTokenCookie(res);
 
     // 2. SEND SECURITY EMAIL ALERT
     try {
@@ -902,7 +990,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const user = await User.findOne({
       email,
       userType: 'admin'
-    }).select('+password +adminPermissions +role +isVerified +isActive +loginAttempts +lockUntil');
+    }).select('+password +adminPermissions +role +isVerified +isActive +loginAttempts +lockUntil +twoFactorEnabled +twoFactorSecret');
 
     if (!user) {
       console.log('❌ Admin not found:', email);
@@ -990,6 +1078,22 @@ const loginAdmin = asyncHandler(async (req, res) => {
 
     // Check for 2FA specifically for the admin user
     if (user.twoFactorEnabled) {
+      if (user.twoFactorSecret) {
+        // Modern TOTP Flow: generate a 5-minute pre-auth token
+        const tempToken = jwt.sign(
+          { tempUserId: user._id, mfaRequired: true },
+          process.env.JWT_SECRET || 'fallback_secret',
+          { expiresIn: '5m' }
+        );
+        return res.json({
+          success: true,
+          requires2FA: true,
+          mfaType: 'totp',
+          tempToken
+        });
+      }
+
+      // Fallback Legacy Email-based 2FA Flow
       // Generate code
       const verificationCode = user.generateVerificationCode();
       await user.save({ validateBeforeSave: false }); // Save code to DB securely
@@ -1021,6 +1125,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
         success: true,
         message: 'Verification code sent to email',
         requires2FA: true,
+        mfaType: 'email',
         email: user.email
       });
     }
@@ -1040,10 +1145,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
     // Generate Token
-    const accessToken = generateAccessToken(user._id, user.tokenVersion || 0);
-    const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0);
-    setTokenCookie(res, accessToken);
-    setRefreshTokenCookie(res, refreshToken);
+    const accessToken = await createSession(res, user);
 
     console.log('✅ Admin login successful (2FA Disabled):', email);
 
@@ -1194,10 +1296,9 @@ const verifyEmail = asyncHandler(async (req, res) => {
   user.verificationCode = undefined;
   user.verificationCodeExpires = undefined;
   await user.save();
+  await user.populate('cart.product');
 
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
-  setRefreshTokenCookie(res, refreshToken);
+  const accessToken = await createSession(res, user);
 
   // Send welcome email
   try {
@@ -1256,7 +1357,8 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     role: user.role,
     isVerified: user.isVerified,
     profilePicture: user.profilePicture,
-    shippingInfo: user.shippingInfo || {}
+    shippingInfo: user.shippingInfo || {},
+    cart: user.cart || []
   };
 
   const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
@@ -1274,8 +1376,25 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 // Update user profile
 
 
-// Logout — clears HttpOnly refresh token cookie
+// Logout — clears active Redis refresh keys & cookies
 const logout = asyncHandler(async (req, res) => {
+  // Statelessly read from access token req.user or directly from refresh token
+  const cookieToken = req.cookies?.refreshToken;
+  if (cookieToken) {
+    try {
+      const decoded = verifyRefreshToken(cookieToken);
+      if (decoded && decoded.userId) {
+        await invalidateAllUserSessions(decoded.userId);
+        await User.findByIdAndUpdate(decoded.userId, { $inc: { tokenVersion: 1 } });
+      }
+    } catch (err) {
+      // Ignore token verification errors during logout
+    }
+  } else if (req.user && req.user._id) {
+    await invalidateAllUserSessions(req.user._id);
+    await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+  }
+
   clearTokenCookie(res);
   clearRefreshTokenCookie(res);
   res.json({
@@ -1284,11 +1403,10 @@ const logout = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Silent token refresh — reads HttpOnly cookie, issues new access token
+// @desc    Silent token refresh — reads HttpOnly cookie, checks Redis, rotates token
 // @route   POST /api/auth/refresh
 // @access  Public (uses HttpOnly cookie)
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const { verifyRefreshToken } = await import('../utils/generateToken.js');
   const cookieToken = req.cookies?.refreshToken;
 
   if (!cookieToken) {
@@ -1305,17 +1423,52 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new Error('Refresh token invalid or expired — please log in again.');
   }
 
-  const user = await User.findById(decoded.id).select('_id isActive');
+  const { userId, tokenVersion, jti } = decoded;
+
+  // Check if jti is present and registered in Redis
+  if (jti && redisClient && redisClient.status === 'ready') {
+    try {
+      const exists = await redisClient.get(`refresh:${userId}:${jti}`);
+      if (!exists) {
+        clearRefreshTokenCookie(res);
+        res.status(401);
+        throw new Error('Session has been revoked or rotated. Please log in again.');
+      }
+    } catch (err) {
+      console.error('❌ Redis check failed during refresh:', err.message);
+    }
+  }
+
+  // Query MongoDB (only endpoint doing so during session lifecycle validation)
+  const user = await User.findById(userId).select('_id isActive role tokenVersion email firstName lastName');
   if (!user || user.isActive === false) {
+    if (jti && redisClient && redisClient.status === 'ready') {
+      await redisClient.del(`refresh:${userId}:${jti}`);
+    }
     clearRefreshTokenCookie(res);
     res.status(401);
     throw new Error('Account not found or deactivated.');
   }
 
-  // Issue fresh access token + rotate refresh token
-  const newAccessToken = generateAccessToken(user._id);
-  const newRefreshToken = generateRefreshToken(user._id);
-  setRefreshTokenCookie(res, newRefreshToken);
+  // Verify token version matches database
+  if (user.tokenVersion !== undefined && tokenVersion !== undefined && user.tokenVersion !== tokenVersion) {
+    if (jti && redisClient && redisClient.status === 'ready') {
+      await redisClient.del(`refresh:${userId}:${jti}`);
+    }
+    clearRefreshTokenCookie(res);
+    res.status(401);
+    throw new Error('Session expired due to credential changes. Please log in again.');
+  }
+
+  // Delete old jti to prevent reuse
+  if (jti && redisClient && redisClient.status === 'ready') {
+    try {
+      await redisClient.del(`refresh:${userId}:${jti}`);
+    } catch (err) {}
+  }
+
+  // Issue rotated tokens
+  const newAccessToken = await createSession(res, user);
 
   res.json({
     success: true,
@@ -1458,6 +1611,8 @@ const resetPassword = asyncHandler(async (req, res) => {
   user.tokenVersion = (user.tokenVersion || 0) + 1;
 
   await user.save();
+
+  await invalidateAllUserSessions(user._id);
 
   // SEND ALERT
   try {
@@ -1693,6 +1848,340 @@ const unlockUserAccount = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Initiate TOTP 2FA Setup
+// @route   POST /api/auth/2fa/setup
+// @access  Private
+const setup2FA = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Generate a cryptographically secure key and OTP Auth URI
+  const secret = authenticator.generateSecret();
+  const otpauthUrl = authenticator.keyuri(user.email, 'Rerendet Coffee', secret);
+
+  // Convert the URI to a premium QR code PNG (base64 Data URL)
+  const qrCode = await QRCode.toDataURL(otpauthUrl);
+
+  // Generate 8 premium 10-character cryptographically random backup codes
+  const backupCodes = Array.from({ length: 8 }, () => {
+    return crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 characters
+  });
+
+  // Temporarily store the secret and raw backup codes (protected under select: false)
+  user.twoFactorSecret = secret;
+  user.twoFactorBackupCodes = backupCodes;
+  await user.save({ validateBeforeSave: false });
+
+  res.json({
+    success: true,
+    data: {
+      secret,
+      qrCode,
+      backupCodes
+    }
+  });
+});
+
+// @desc    Confirm TOTP 2FA Setup
+// @route   POST /api/auth/2fa/confirm
+// @access  Private
+const confirm2FASetup = asyncHandler(async (req, res) => {
+  const { code } = req.body;
+  const user = await User.findById(req.user._id).select('+twoFactorSecret');
+
+  if (!user || !user.twoFactorSecret) {
+    res.status(400);
+    throw new Error('MFA setup is not initialized. Please initiate setup first.');
+  }
+
+  // Cryptographically verify the OTP code
+  const isValid = authenticator.verify({
+    token: code,
+    secret: user.twoFactorSecret
+  });
+
+  if (!isValid) {
+    res.status(400);
+    throw new Error('Invalid verification code. Please check your authenticator application.');
+  }
+
+  user.twoFactorEnabled = true;
+  await user.save({ validateBeforeSave: false });
+
+  // Log administrative activity if admin/super-admin
+  const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
+  if (isAdmin) {
+    await logActivity(req, 'SETTINGS_UPDATE', 'Activated Two-Factor Authentication', user._id);
+  }
+
+  // Send security alert email
+  try {
+    let logoUrl;
+    try {
+      const settings = await Settings.getSettings();
+      logoUrl = settings?.store?.logo;
+    } catch (_) {}
+    await sendEmail({
+      to: user.email,
+      subject: 'Security Alert: Two-Factor Authentication Enabled',
+      html: getSecurityAlertEmail(user.firstName, 'Two-Factor Authentication (MFA/TOTP) has been successfully activated on your account.', logoUrl)
+    });
+  } catch (emailErr) {
+    console.error('Failed to send 2FA enabled alert:', emailErr.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Two-Factor Authentication activated successfully'
+  });
+});
+
+// @desc    Disable TOTP 2FA
+// @route   POST /api/auth/2fa/disable
+// @access  Private
+const disable2FA = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  const user = await User.findById(req.user._id).select('+password');
+
+  if (!await user.comparePassword(password)) {
+    res.status(401);
+    throw new Error('Incorrect password');
+  }
+
+  user.twoFactorEnabled = false;
+  user.twoFactorSecret = undefined;
+  user.twoFactorBackupCodes = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  // Log administrative activity if admin/super-admin
+  const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
+  if (isAdmin) {
+    await logActivity(req, 'SETTINGS_UPDATE', 'Deactivated Two-Factor Authentication', user._id);
+  }
+
+  // Send security alert email
+  try {
+    let logoUrl;
+    try {
+      const settings = await Settings.getSettings();
+      logoUrl = settings?.store?.logo;
+    } catch (_) {}
+    await sendEmail({
+      to: user.email,
+      subject: 'Security Alert: Two-Factor Authentication Disabled',
+      html: getSecurityAlertEmail(user.firstName, 'Two-Factor Authentication (MFA/TOTP) has been deactivated on your account.', logoUrl)
+    });
+  } catch (emailErr) {
+    console.error('Failed to send 2FA disabled alert:', emailErr.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Two-Factor Authentication deactivated successfully'
+  });
+});
+
+// @desc    Verify TOTP Code to Login
+// @route   POST /api/auth/2fa/verify
+// @access  Public
+const verify2FATOTP = asyncHandler(async (req, res) => {
+  const { tempToken, code } = req.body;
+
+  if (!tempToken || !code) {
+    res.status(400);
+    throw new Error('Missing parameter: tempToken and code are required');
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(tempToken, process.env.JWT_SECRET || 'fallback_secret');
+  } catch (err) {
+    res.status(401);
+    throw new Error('Invalid or expired temporary session token');
+  }
+
+  if (!decoded.mfaRequired || !decoded.tempUserId) {
+    res.status(400);
+    throw new Error('Malformed temporary session token');
+  }
+
+  const user = await User.findById(decoded.tempUserId).select(
+    '+twoFactorSecret +role +userType +isVerified +wallet +shippingInfo +cart +twoFactorEnabled +adminPermissions'
+  );
+
+  if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+    res.status(400);
+    throw new Error('Two-Factor Authentication is not active on this account');
+  }
+
+  // Verify code cryptographically
+  const isValid = authenticator.verify({
+    token: code,
+    secret: user.twoFactorSecret
+  });
+
+  if (!isValid) {
+    res.status(400);
+    throw new Error('Invalid verification code');
+  }
+
+  // Reset login attempts
+  await User.findByIdAndUpdate(user._id, {
+    $set: { loginAttempts: 0 },
+    $unset: { lockUntil: 1 }
+  });
+
+  user.lastLoginAt = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  // Populate cart
+  await user.populate('cart.product');
+
+  // Verify device fingerprint asynchronously
+  const { handleDeviceFingerprint } = await import('./authController.js'); // Self-reference or invoke inline
+  try {
+    handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+  } catch (_) {}
+
+  const accessToken = await createSession(res, user);
+
+  // Log action
+  const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
+  if (isAdmin) {
+    await logActivity(req, 'LOGIN', `${user.firstName} (via TOTP)`, user._id, {
+      method: 'TOTP_VERIFICATION',
+      ip: req.ip,
+      email: user.email
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    data: {
+      user: {
+        id: user._id,
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        userType: user.userType,
+        role: user.role,
+        isVerified: user.isVerified,
+        profilePicture: user.profilePicture,
+        shippingInfo: user.shippingInfo || {},
+        wallet: user.wallet || {},
+        cart: user.cart || [],
+        twoFactorEnabled: user.twoFactorEnabled,
+        permissions: user.adminPermissions
+      },
+      token: accessToken
+    }
+  });
+});
+
+// @desc    Verify 2FA Single-Use Backup Code to Login
+// @route   POST /api/auth/2fa/verify-backup
+// @access  Public
+const verify2FABackup = asyncHandler(async (req, res) => {
+  const { tempToken, backupCode } = req.body;
+
+  if (!tempToken || !backupCode) {
+    res.status(400);
+    throw new Error('Missing parameter: tempToken and backupCode are required');
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(tempToken, process.env.JWT_SECRET || 'fallback_secret');
+  } catch (err) {
+    res.status(401);
+    throw new Error('Invalid or expired temporary session token');
+  }
+
+  if (!decoded.mfaRequired || !decoded.tempUserId) {
+    res.status(400);
+    throw new Error('Malformed temporary session token');
+  }
+
+  const user = await User.findById(decoded.tempUserId).select(
+    '+twoFactorBackupCodes +role +userType +isVerified +wallet +shippingInfo +cart +twoFactorEnabled +adminPermissions'
+  );
+
+  if (!user || !user.twoFactorEnabled || !user.twoFactorBackupCodes || user.twoFactorBackupCodes.length === 0) {
+    res.status(400);
+    throw new Error('No active backup codes found for this account');
+  }
+
+  const cleanCode = String(backupCode).trim().toUpperCase();
+  const codeIndex = user.twoFactorBackupCodes.indexOf(cleanCode);
+
+  if (codeIndex === -1) {
+    res.status(400);
+    throw new Error('Invalid backup code');
+  }
+
+  // Remove the used backup code (one-time use only!)
+  user.twoFactorBackupCodes.splice(codeIndex, 1);
+  user.lastLoginAt = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  // Reset login attempts
+  await User.findByIdAndUpdate(user._id, {
+    $set: { loginAttempts: 0 },
+    $unset: { lockUntil: 1 }
+  });
+
+  // Populate cart
+  await user.populate('cart.product');
+
+  // Verify device fingerprint asynchronously
+  try {
+    handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
+  } catch (_) {}
+
+  const accessToken = await createSession(res, user);
+
+  // Log action
+  const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
+  if (isAdmin) {
+    await logActivity(req, 'LOGIN', `${user.firstName} (via Backup Code)`, user._id, {
+      method: 'BACKUP_CODE_VERIFICATION',
+      ip: req.ip,
+      email: user.email
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Login successful',
+    data: {
+      user: {
+        id: user._id,
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        userType: user.userType,
+        role: user.role,
+        isVerified: user.isVerified,
+        profilePicture: user.profilePicture,
+        shippingInfo: user.shippingInfo || {},
+        wallet: user.wallet || {},
+        cart: user.cart || [],
+        twoFactorEnabled: user.twoFactorEnabled,
+        permissions: user.adminPermissions
+      },
+      token: accessToken
+    }
+  });
+});
+
 export {
   // Customer auth
   registerCustomer,
@@ -1723,5 +2212,12 @@ export {
   getMyLogs,
   verifyPassword,
   unlockUserAccount,
-  refreshAccessToken
+  refreshAccessToken,
+
+  // Two-Factor Authentication (MFA)
+  setup2FA,
+  confirm2FASetup,
+  disable2FA,
+  verify2FATOTP,
+  verify2FABackup
 };

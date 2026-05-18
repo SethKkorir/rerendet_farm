@@ -145,6 +145,7 @@ const Settings = () => {
   const [notifyCustomers, setNotifyCustomers] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [twoFactorForm, setTwoFactorForm] = useState({ password: '' });
+  const [countySearch, setCountySearch] = useState('');
 
   // 🛡️ Super Gate States
   const [magicLink, setMagicLink] = useState(null);
@@ -433,6 +434,15 @@ const Settings = () => {
                     </div>
                   </Section>
 
+                  <Section title="Academy Control" subtitle="Enable or disable the public Coffee Academy page" icon={<FaAward />} accent="#ec4899">
+                    <ToggleRow
+                      label="Coffee Academy Enabled"
+                      description="When enabled, the Coffee Academy link is visible in the navigation and public pages are accessible."
+                      checked={s.features?.coffeeAcademy ?? true}
+                      onChange={v => set('features', 'coffeeAcademy', v)}
+                    />
+                  </Section>
+
                   <Section title="Social Media Links" subtitle="Your official social profiles" icon={<FaGlobe />} accent="#8b5cf6">
                     <div className="st-grid-2">
                       <div className="st-field">
@@ -510,9 +520,57 @@ const Settings = () => {
                           <option value="GBP">🇬🇧 British Pound (GBP)</option>
                         </select>
                       </Field>
-                      <Input type="number" label="VAT / Tax Rate (%)" hint="e.g. 16 for 16% VAT" value={(s.payment?.taxRate * 100 || 16).toFixed(0)} onChange={v => set('payment', 'taxRate', parseFloat(v) / 100)} min="0" max="100" />
-                      <Input type="number" label="Standard Shipping Fee (KES)" value={s.payment?.shippingPrice || 500} onChange={v => set('payment', 'shippingPrice', parseInt(v))} />
-                      <Input type="number" label="Free Shipping Above (KES)" hint="Orders above this amount get free shipping" value={s.payment?.freeShippingThreshold || 5000} onChange={v => set('payment', 'freeShippingThreshold', parseInt(v))} />
+                      <Input type="number" label="VAT / Tax Rate (%)" hint="e.g. 16 for 16% VAT" value={s.payment?.taxRate !== undefined && s.payment?.taxRate !== null ? (s.payment.taxRate * 100).toFixed(0) : '0'} onChange={v => set('payment', 'taxRate', v === '' ? 0 : parseFloat(v) / 100)} min="0" max="100" />
+                      <Input type="number" label="Standard Shipping Fee (KES)" value={s.payment?.shippingPrice !== undefined && s.payment?.shippingPrice !== null ? s.payment.shippingPrice : 500} onChange={v => set('payment', 'shippingPrice', v === '' ? 0 : parseInt(v))} />
+                      <Input type="number" label="Free Shipping Above (KES)" hint="Orders above this amount get free shipping" value={s.payment?.freeShippingThreshold !== undefined && s.payment?.freeShippingThreshold !== null ? s.payment.freeShippingThreshold : 5000} onChange={v => set('payment', 'freeShippingThreshold', v === '' ? 0 : parseInt(v))} />
+                    </div>
+                  </Section>
+                  
+                  <Section title="County-Level Shipping Rates (Kenya)" subtitle="Configure custom delivery pricing per county. Set to 0 for free delivery." icon={<FaTruck />} accent="#10b981">
+                    <div style={{ marginBottom: '1rem' }}>
+                      <input 
+                        type="text" 
+                        className="st-input" 
+                        placeholder="🔍 Search counties..." 
+                        value={countySearch} 
+                        onChange={e => setCountySearch(e.target.value)} 
+                        style={{ maxWidth: '400px' }}
+                      />
+                    </div>
+                    
+                    <div className="st-county-scroll-grid" style={{ maxHeight: '380px', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem', paddingRight: '0.5rem', border: '1px solid var(--border-glass)', borderRadius: '12px', padding: '1rem', background: 'rgba(0,0,0,0.1)' }}>
+                      {(s.countyShipping || [])
+                        .filter(item => item.county.toLowerCase().includes(countySearch.toLowerCase()))
+                        .map(item => (
+                          <div key={item.county} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--text-main)' }}>{item.county}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <input
+                                type="number"
+                                className="st-input"
+                                style={{ height: '32px', fontSize: '0.8rem', padding: '0.25rem 0.5rem' }}
+                                value={item.price !== undefined ? item.price : 500}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setSettings(prev => {
+                                    const updatedList = (prev.countyShipping || []).map(c => 
+                                      c.county === item.county ? { ...c, price: val === '' ? 0 : parseInt(val) } : c
+                                    );
+                                    return { ...prev, countyShipping: updatedList };
+                                  });
+                                }}
+                                min="0"
+                              />
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>KES</span>
+                            </div>
+                          </div>
+                        ))
+                      }
+                      {(s.countyShipping || []).filter(item => item.county.toLowerCase().includes(countySearch.toLowerCase())).length === 0 && (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                          No matching counties found.
+                        </div>
+                      )}
                     </div>
                   </Section>
 

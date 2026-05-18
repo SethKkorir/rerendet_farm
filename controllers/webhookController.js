@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Order from '../models/Order.js';
 import PaymentTransaction from '../models/PaymentTransaction.js';
+import Stripe from 'stripe';
 
 // @desc    Handle MPESA STK Push Callback (Server-to-Server Webhook)
 // @route   POST /api/webhooks/mpesa
@@ -124,17 +125,30 @@ export const handleMpesaWebhook = asyncHandler(async (req, res) => {
 // @route   POST /api/webhooks/stripe
 // @access  Public
 export const handleStripeWebhook = asyncHandler(async (req, res) => {
-    // ✅ SECURITY: Verify webhook secret
-    const webhookSecret = req.headers['x-webhook-secret'];
-    const configSecret = process.env.WEBHOOK_SECRET || 'rerendet_secure_webhook_2026_key_99';
+    const sig = req.headers['stripe-signature'];
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-    if (webhookSecret !== configSecret) {
-        console.error('🚫 [Webhook] Unauthorized Stripe attempt - Invalid Secret');
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    if (!sig) {
+        console.error('🚫 [Webhook] Stripe signature header missing');
+        return res.status(400).send('Webhook Error: Stripe signature header missing');
     }
 
-    const event = req.body;
-    console.log(`📨 [Webhook] Received Stripe Webhook Event: ${event?.type}`);
+    if (!endpointSecret) {
+        console.error('🚫 [Webhook] STRIPE_WEBHOOK_SECRET is not configured');
+        return res.status(500).send('Server Configuration Error - Webhook Secret missing');
+    }
+
+    let event;
+    try {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+        // req.body is the raw Buffer since we routed it through express.raw
+        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+        console.error(`🚫 [Webhook] Stripe signature verification failed: ${err.message}`);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    console.log(`📨 [Webhook] Cryptographically Verified Stripe Event: ${event?.type}`);
 
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
@@ -150,7 +164,7 @@ export const handleStripeWebhook = asyncHandler(async (req, res) => {
                 order.transactionId = session.payment_intent;
                 await order.save();
 
-                // Log transaction
+                // Log transaction in Ledger
                 await PaymentTransaction.create({
                     order: order._id,
                     provider: 'STRIPE',

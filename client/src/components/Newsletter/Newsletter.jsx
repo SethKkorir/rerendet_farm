@@ -16,7 +16,7 @@ const Newsletter = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/newsletter/subscribe', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/subscribers/subscribe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

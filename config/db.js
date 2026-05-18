@@ -13,6 +13,7 @@ const connectDB = async () => {
       maxPoolSize: 20, // reduced (50 is overkill unless massive traffic)
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      family: 4, // Force IPv4 to fix SRV ECONNREFUSED issues on some networks
     });
 
     console.log(`[OK] MongoDB Connected: ${conn.connection.host}`);

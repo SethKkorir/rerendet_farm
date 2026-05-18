@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
+
 dotenv.config();
 
 const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || 'rerendet_access_secret_fallback';
@@ -8,21 +10,39 @@ const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || 'rerendet_refresh
 if (!process.env.JWT_SECRET) console.warn('⚠️ JWT_SECRET not set. Using fallback (UNSAFE).');
 if (!process.env.JWT_REFRESH_SECRET) console.warn('⚠️ JWT_REFRESH_SECRET not set. Using fallback (UNSAFE).');
 
-// ── Access Token — short-lived, lives in memory / cookies ────────────────────
-export const generateAccessToken = (userId, tokenVersion = 0) => {
+// ── Access Token — short-lived (15 minutes), lives in HttpOnly cookie / auth header ────────────────────
+export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6) => {
+  let role = 'customer';
+  let tokenVersion = 0;
+  let email = '';
+  let firstName = '';
+  let lastName = '';
+
+  if (typeof arg2 === 'string') {
+    // New signature: (userId, role, tokenVersion, email, firstName, lastName)
+    role = arg2;
+    tokenVersion = arg3 || 0;
+    email = arg4 || '';
+    firstName = arg5 || '';
+    lastName = arg6 || '';
+  } else {
+    // Old/legacy signature: (userId, tokenVersion)
+    tokenVersion = arg2 || 0;
+  }
+
   return jwt.sign(
-    { id: userId, type: 'access', tokenVersion },
+    { userId, role, tokenVersion, email, firstName, lastName, type: 'access' },
     ACCESS_TOKEN_SECRET,
-    { expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m' }
+    { expiresIn: '15m' }
   );
 };
 
-// ── Refresh Token — long-lived, lives in HttpOnly cookie ─────────────────────
-export const generateRefreshToken = (userId, tokenVersion = 0) => {
+// ── Refresh Token — long-lived (7 days), lives in HttpOnly cookie ─────────────────────
+export const generateRefreshToken = (userId, tokenVersion = 0, jti = crypto.randomUUID()) => {
   return jwt.sign(
-    { id: userId, type: 'refresh', tokenVersion },
+    { userId, tokenVersion, jti, type: 'refresh' },
     REFRESH_TOKEN_SECRET,
-    { expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d' }
+    { expiresIn: '7d' }
   );
 };
 
@@ -64,7 +84,7 @@ export const setRefreshTokenCookie = (res, refreshToken) => {
     secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
     sameSite: 'strict',     // No cross-site requests
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
-    path: '/api/auth/refresh' // Cookie only sent to the refresh endpoint
+    path: '/' // Global route access for logout and refresh endpoint
   });
 };
 
@@ -74,10 +94,10 @@ export const clearRefreshTokenCookie = (res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
-    path: '/api/auth/refresh'
+    path: '/'
   });
 };
 
 // ── Legacy — kept for compatibility ──────────────────────────────────────────
-const generateToken = (userId, tokenVersion = 0) => generateAccessToken(userId, tokenVersion);
+const generateToken = (userId, tokenVersion = 0) => generateAccessToken(userId, 'customer', tokenVersion);
 export default generateToken;

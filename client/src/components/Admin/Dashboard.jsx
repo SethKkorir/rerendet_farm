@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ActivityLogs from './ActivityLogs';
+import SystemTelemetry from './SystemTelemetry';
 import { AppContext } from '../../context/AppContext';
 import {
   FaShoppingBag, FaDollarSign, FaUsers, FaBox,
@@ -10,7 +11,7 @@ import {
   FaShippingFast, FaExclamationTriangle, FaFire,
   FaClock, FaBell, FaClipboardList, FaThList,
   FaChartBar, FaTruck, FaCreditCard, FaMobileAlt,
-  FaLeaf
+  FaLeaf, FaServer
 } from 'react-icons/fa';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -224,6 +225,7 @@ const Dashboard = () => {
             {[
               { id: 'overview', label: 'Overview', icon: <FaChartLine /> },
               { id: 'reports', label: 'Reports', icon: <FaChartBar /> },
+              { id: 'telemetry', label: 'Telemetry', icon: <FaServer /> },
               isSuperAdmin && { id: 'logs', label: 'Logs', icon: <FaThList /> },
             ].filter(Boolean).map(t => (
               <button key={t.id} className={`db-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
@@ -602,6 +604,15 @@ const Dashboard = () => {
         {activeTab === 'logs' && isSuperAdmin && (
           <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <ActivityLogs />
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════
+            TELEMETRY TAB
+         ══════════════════════════════════ */}
+        {activeTab === 'telemetry' && (
+          <motion.div key="telemetry" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <SystemTelemetry />
           </motion.div>
         )}
 

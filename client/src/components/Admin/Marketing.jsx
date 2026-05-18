@@ -103,7 +103,7 @@ const Marketing = () => {
     const fetchSubscribers = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/newsletter', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/subscribers`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -126,7 +126,7 @@ const Marketing = () => {
 
         setSending(true);
         try {
-            const res = await fetch('/api/newsletter/send', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/subscribers/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(formData)

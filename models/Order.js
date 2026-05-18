@@ -149,11 +149,11 @@ orderSchema.pre('save', function (next) {
       this.orderNumber = `ORD-${timestamp}-${random}`;
     }
 
-    // 2. Generate Tracking Number (5 chars total: RC + 3 random)
+    // 2. Generate Tracking Number (8 chars total: RC + 6 random)
     if (!this.trackingNumber) {
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded I, O, 0, 1 for clarity
       let randomPart = '';
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 6; i++) {
         randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
       }
       this.trackingNumber = `RC${randomPart}`;

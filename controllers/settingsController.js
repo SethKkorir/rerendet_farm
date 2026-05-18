@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import crypto from 'crypto';
 import sendEmail from '../utils/sendEmail.js';
 import { getMaintenanceEmail, getMaintenanceResolvedEmail } from '../utils/emailTemplates.js';
+import settingsService from '../services/settingsService.js';
 
 // @desc    Get settings
 // @route   GET /api/admin/settings
@@ -12,7 +13,7 @@ const getSettings = asyncHandler(async (req, res) => {
   try {
     console.log('🔧 Fetching settings...');
 
-    const settings = await Settings.getSettings();
+    const settings = await settingsService.getSettings();
 
     console.log('✅ Settings fetched successfully');
 
@@ -51,6 +52,9 @@ const updateSettings = asyncHandler(async (req, res) => {
     );
 
     console.log('✅ Settings updated successfully');
+
+    // Invalidate settings cache
+    await settingsService.invalidateSettings();
 
 
     // Handle Maintenance Mode Notification & Audit (Enterprise Super Gate)
@@ -190,6 +194,9 @@ const uploadLogo = asyncHandler(async (req, res) => {
     settings.store.logo = logoUrl;
     await settings.save();
 
+    // Invalidate settings cache
+    await settingsService.invalidateSettings();
+
     res.json({
       success: true,
       message: 'Logo uploaded successfully',
@@ -210,7 +217,7 @@ const uploadLogo = asyncHandler(async (req, res) => {
 // @access  Public
 const getPublicSettings = asyncHandler(async (req, res) => {
   try {
-    const settings = await Settings.getSettings();
+    const settings = await settingsService.getSettings();
 
     // Return only public information
     const publicSettings = {
@@ -226,7 +233,8 @@ const getPublicSettings = asyncHandler(async (req, res) => {
       seo: settings.seo,
       policies: settings.policies,
       maintenance: settings.maintenance,
-      about: settings.about
+      about: settings.about,
+      features: settings.features
     };
 
     res.json({
@@ -261,6 +269,9 @@ const generateMaintenanceMagicLink = asyncHandler(async (req, res) => {
   settings.maintenance.magicLinkToken = hashedToken;
   settings.maintenance.magicLinkExpires = Date.now() + 60 * 60 * 1000; // 1 hour
   await settings.save();
+
+  // Invalidate settings cache
+  await settingsService.invalidateSettings();
 
   const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
   const magicLink = `${backendUrl}/api/settings/super-gate/${token}`;
@@ -317,6 +328,9 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
   });
 
   await settings.save();
+
+  // Invalidate settings cache
+  await settingsService.invalidateSettings();
 
   // 3. Dispatch Async Notifications
   const notifyUsers = async () => {

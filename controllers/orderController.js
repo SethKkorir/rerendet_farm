@@ -361,46 +361,52 @@ const createOrder = asyncHandler(async (req, res) => {
       data: populatedOrder
     });
 
-    // Send order confirmation email
-    try {
-      const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/account/orders/${savedOrder._id}`;
-
-      // Prepare email data
-      const emailData = {
-        order: {
-          ...savedOrder.toObject(),
-          formattedDate: new Date(savedOrder.createdAt).toLocaleDateString(),
-          items: orderItems,
-        },
-        dashboardUrl
-      };
-
-      // Fetch store logo
-      let logoUrl;
+    // Send order confirmation email only if paid or Cash on Delivery
+    if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
       try {
-        const { default: Settings } = await import('../models/Settings.js');
-        const settings = await Settings.getSettings();
-        logoUrl = settings?.store?.logo;
-      } catch (e) {
-        // ignore
+        const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/account/orders/${savedOrder._id}`;
+
+        // Prepare email data
+        const emailData = {
+          order: {
+            ...savedOrder.toObject(),
+            formattedDate: new Date(savedOrder.createdAt).toLocaleDateString(),
+            items: orderItems,
+          },
+          dashboardUrl
+        };
+
+        // Fetch store logo
+        let logoUrl;
+        try {
+          const { default: Settings } = await import('../models/Settings.js');
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (e) {
+          // ignore
+        }
+
+        const emailHtml = getOrderConfirmationEmail(
+          savedOrder.shippingAddress.firstName,
+          savedOrder.orderNumber,
+          orderItems,
+          finalTotal,
+          savedOrder.trackingNumber,
+          logoUrl
+        );
+
+        await sendEmail({
+          to: savedOrder.shippingAddress.email,
+          subject: `Order Selection Confirmed - #${savedOrder.orderNumber}`,
+          html: emailHtml
+        });
+
+        console.log(`📧 Confirmation email sent to ${savedOrder.shippingAddress.email}`);
+      } catch (emailError) {
+        console.error('❌ Failed to send confirmation email:', emailError);
       }
-
-      const emailHtml = getOrderConfirmationEmail(
-        savedOrder.shippingAddress.firstName,
-        savedOrder.orderNumber,
-        orderItems,
-        finalTotal,
-        savedOrder.trackingNumber,
-        logoUrl
-      );
-
-      await sendEmail({
-        to: savedOrder.shippingAddress.email,
-        subject: `Order Selection Confirmed - #${savedOrder.orderNumber}`,
-        html: emailHtml
-      });
-    } catch (emailError) {
-      console.error('📧 Background email sending error:', emailError);
+    } else {
+      console.log(`⏳ Payment pending for order #${savedOrder.orderNumber}. Confirmation email deferred until payment completion.`);
     }
 
   } catch (error) {
@@ -809,7 +815,44 @@ const calculateShippingCost = asyncHandler(async (req, res) => {
   }
 
   try {
-    const shippingCost = calculateShipping({ country, county });
+    const { default: Settings } = await import('../models/Settings.js');
+    const settings = await Settings.getSettings();
+    const baseShippingPrice = settings?.payment?.shippingPrice ?? 500;
+
+    let shippingCost = baseShippingPrice;
+
+    if (country.toLowerCase() !== 'kenya') {
+      shippingCost = 2000; // International Rate
+    } else {
+      // Check if admin has configured a custom county price
+      const customRate = settings?.countyShipping?.find(
+        item => item.county.toLowerCase() === county.trim().toLowerCase()
+      );
+
+      if (customRate !== undefined && customRate !== null) {
+        shippingCost = customRate.price;
+      } else {
+        const { getShippingZone } = await import('../utils/kenyaLocations.js');
+        const zone = getShippingZone(county);
+
+        if (baseShippingPrice <= 50) {
+          // Flat rate mode for nominal/promotional fees
+          shippingCost = baseShippingPrice;
+        } else {
+          // Premium Adaptive Zone Scaling (relative to base standard fee)
+          if (zone === 'Nairobi') {
+            shippingCost = Math.max(0, baseShippingPrice - 300);
+          } else if (zone === 'Metropolitan') {
+            shippingCost = Math.max(0, baseShippingPrice - 150);
+          } else if (zone === 'Major City') {
+            shippingCost = Math.max(0, baseShippingPrice - 50);
+          } else {
+            // Rest of Kenya
+            shippingCost = Math.max(0, baseShippingPrice + 100);
+          }
+        }
+      }
+    }
 
     res.json({
       success: true,
@@ -977,6 +1020,60 @@ const cancelOrder = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Public order tracking
+// @route   GET /api/orders/track/:id
+// @access  Public
+const trackOrderPublic = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  
+  let order;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    order = await Order.findById(id).lean();
+  }
+  
+  if (!order) {
+    order = await Order.findOne({
+      $or: [
+        { orderNumber: id },
+        { trackingNumber: id }
+      ]
+    }).lean();
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found. Please check your order number or tracking ID.'
+    });
+  }
+
+  // Mask sensitive PII for public access
+  const maskedAddress = order.shippingAddress ? {
+    ...order.shippingAddress,
+    address: '*** (Hidden for privacy)',
+    phone: '***-***-' + (order.shippingAddress.phone?.slice(-4) || '****'),
+    email: '***@***.***'
+  } : {};
+
+  const safeOrderData = {
+    _id: order._id,
+    orderNumber: order.orderNumber,
+    trackingNumber: order.trackingNumber,
+    orderStatus: order.orderStatus,
+    fulfillmentStatus: order.fulfillmentStatus,
+    paymentStatus: order.paymentStatus,
+    trackingHistory: order.trackingHistory,
+    estimatedDeliveryDate: order.estimatedDeliveryDate,
+    shippingAddress: maskedAddress,
+    createdAt: order.createdAt
+  };
+
+  res.json({
+    success: true,
+    data: safeOrderData
+  });
+});
+
 export {
   createOrder,
   getUserOrders,
@@ -988,5 +1085,6 @@ export {
   getAbandonedCheckouts,
   generateOrderInvoice,
   validateCoupon,
-  cancelOrder
+  cancelOrder,
+  trackOrderPublic
 };

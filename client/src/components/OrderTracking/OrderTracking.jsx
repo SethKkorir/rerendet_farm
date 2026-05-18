@@ -39,9 +39,8 @@ const OrderTracking = () => {
     const fetchOrderDetails = async (isInitial = false) => {
         try {
             if (isInitial) setLoading(true);
-            const response = await fetch(`/api/orders/${id}`, {
+            const response = await fetch(`/api/orders/track/${id}`, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });

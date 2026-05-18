@@ -1081,6 +1081,26 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Listen for session expiration events from API layer to cleanly log out
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      console.warn('⚠️ Session expired event received. Clearing authentication...');
+      clearAuth();
+      showWarning('Your session has expired. Please log in again.');
+      setShowAuthModal(true);
+      setAuthView('login');
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('auth-expired', handleAuthExpired);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('auth-expired', handleAuthExpired);
+      }
+    };
+  }, [clearAuth, showWarning]);
+
   // Ref to track if initialization has already run
   const hasInitialized = useRef(false);
 

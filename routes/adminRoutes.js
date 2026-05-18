@@ -40,7 +40,9 @@ import {
   getPaymentTransactions,
   manualPaymentOverride,
   refundOrder,
-  getReconciliationReport
+  getReconciliationReport,
+  getSystemHealth,
+  invalidateCache
 } from '../controllers/adminController.js';
 
 import {
@@ -50,6 +52,8 @@ import {
   toggleCouponStatus,
   deleteCoupon
 } from '../controllers/couponController.js';
+
+import { getStatementReport } from '../controllers/statementController.js';
 
 const router = express.Router();
 
@@ -107,6 +111,8 @@ router.post('/upload/logo', adminAuth(['settings:manage']), upload.single('logo'
 router.get('/analytics/sales', adminAuth(['analytics:view']), getSalesAnalytics);
 router.get('/logs', adminAuth(['logs:view']), getActivityLogs);
 router.get('/payments', adminAuth(['logs:view']), getPaymentTransactions);
+router.get('/system-health', adminAuth(['logs:view']), getSystemHealth);
+router.post('/cache/invalidate', adminAuth(['settings:manage']), invalidateCache);
 
 // ==================== EXTENDED REPORTS ====================
 router.get('/reports/abandoned-carts', adminAuth(['analytics:view']), getAbandonedCartsReport);
@@ -115,6 +121,7 @@ router.get('/reports/customers', adminAuth(['analytics:view']), getCustomersRepo
 router.get('/reports/inventory', adminAuth(['analytics:view']), getInventoryReport);
 router.get('/reports/coupons', adminAuth(['analytics:view']), getCouponsReport);
 router.get('/reports/reconciliation', adminAuth(['analytics:view']), getReconciliationReport);
+router.get('/reports/statement', adminAuth(['analytics:view']), getStatementReport);
 
 // ==================== COUPON MANAGEMENT ====================
 router.get('/coupons', adminAuth(['marketing:manage']), getCoupons);

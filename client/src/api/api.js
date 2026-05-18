@@ -93,6 +93,11 @@ API.interceptors.response.use(
         console.error('❌ Refresh token expired or invalid');
         tokenStore.clear();
         
+        // Dispatch custom event to notify AppContext to clear authentication
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('auth-expired'));
+        }
+        
         if (window.location.pathname.startsWith('/admin') && !window.location.pathname.includes('/login')) {
           window.location.href = '/admin/login';
         }
@@ -143,6 +148,8 @@ export const updateProduct = (id, payload) => API.put(`/admin/products/${id}`, p
 export const deleteProduct = (id) => API.delete(`/admin/products/${id}`);
 export const updateProductStock = (id, payload) => API.patch(`/admin/products/${id}/stock`, payload);
 export const unlockUserAccount = (id) => API.put(`/auth/admin/unlock/${id}`);
+export const getSystemHealth = () => API.get('/admin/system-health');
+export const invalidateCache = (payload) => API.post('/admin/cache/invalidate', payload);
 
 // ---- Profile ----
 export const getProfile = () => API.get('/auth/me');
@@ -178,9 +185,14 @@ export const getInventoryReport = () => API.get('/admin/reports/inventory');
 export const getCouponsReport = () => API.get('/admin/reports/coupons');
 export const getPaymentTransactions = (params) => API.get('/admin/payments', { params });
 export const getReconciliationReport = () => API.get('/admin/reports/reconciliation');
+export const getStatementReport = (params) => API.get('/admin/reports/statement', { params });
 
 // ---- CSV Exports ----
 export const exportOrdersCSV = (params) => API.get('/admin/export/orders', { params, responseType: 'blob' });
 export const exportCustomersCSV = () => API.get('/admin/export/customers', { responseType: 'blob' });
+
+// ---- Reviews ----
+export const getTopReviews = () => API.get('/reviews/top');
+export const createSiteReview = (payload) => API.post('/reviews', payload);
 
 export default API;

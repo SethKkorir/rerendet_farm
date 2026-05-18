@@ -28,7 +28,12 @@ import {
   getMyLogs,
   verifyPassword,
   unlockUserAccount,
-  refreshAccessToken
+  refreshAccessToken,
+  setup2FA,
+  confirm2FASetup,
+  disable2FA,
+  verify2FATOTP,
+  verify2FABackup
 } from '../controllers/authController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import rateLimit from 'express-rate-limit';
@@ -78,6 +83,10 @@ router.post('/resend-verification', resendVerification);
 // Silent token refresh — reads HttpOnly refresh cookie, returns new access token
 router.post('/refresh', refreshAccessToken);
 
+// Modern 2FA Verification Routes
+router.post('/2fa/verify', loginLimiter, verify2FATOTP);
+router.post('/2fa/verify-backup', loginLimiter, verify2FABackup);
+
 // ==================== PROTECTED ROUTES ====================
 
 // Protected User Routes
@@ -87,6 +96,11 @@ router.delete('/profile', protect, deleteAccount);
 router.put('/change-password', protect, changePassword);
 router.post('/verify-password', protect, verifyPassword);
 router.get('/activity', protect, getMyLogs);
+
+// Modern 2FA Setup/Manage Routes (Protected)
+router.post('/2fa/setup', protect, setup2FA);
+router.post('/2fa/confirm', protect, confirm2FASetup);
+router.post('/2fa/disable', protect, disable2FA);
 
 // Cart Routes
 router.get('/cart', protect, getCart);

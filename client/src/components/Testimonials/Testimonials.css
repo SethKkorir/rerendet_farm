@@ -9,22 +9,7 @@
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-/* Subtle background decorative element - reduced size */
-.testimonials::before {
-  content: "VOICES";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-family: var(--font-heading, "Playfair Display", serif);
-  font-size: 12rem;
-  font-weight: 900;
-  color: var(--color-primary);
-  opacity: 0.04;
-  pointer-events: none;
-  z-index: 0;
-  letter-spacing: 15px;
-}
+
 
 .testimonials .container {
   position: relative;
@@ -53,6 +38,8 @@
   font-weight: 700;
   margin-bottom: 1rem;
 }
+
+
 
 .btn-write-review {
   background: var(--bg-glass);

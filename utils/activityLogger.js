@@ -48,7 +48,7 @@ export const logActivity = async (req, action, entityName, entityId = null, deta
             entityName,
             entityId: entityId ? entityId.toString() : null,
             details,
-            ipAddress: req.ip || req.connection?.remoteAddress,
+            ipAddress: req.ip || req.socket?.remoteAddress,
             userAgent: req.headers['user-agent']
         });
 
@@ -62,7 +62,7 @@ export const logActivity = async (req, action, entityName, entityId = null, deta
                 adminUser: actor,
                 action,
                 entityName,
-                ip: req.ip || req.connection?.remoteAddress,
+                ip: req.ip || req.socket?.remoteAddress,
                 details
             }).catch(err => console.error('[ERROR] [ActivityLog] Background alert failed:', err.message));
         }
@@ -84,10 +84,15 @@ const alertSuperAdmin = async ({ adminUser, action, entityName, ip, details }) =
     try {
         const superAdmins = await User.find({ role: 'super-admin' }).select('email firstName');
 
-        // ALWAYS include your designated developer/owner email for security alerts
-        const primaryAlertEmail = process.env.SUPER_ADMIN_EMAIL || 'zsethkipchumba179@gmail.com';
-        if (!superAdmins.some(admin => admin.email === primaryAlertEmail)) {
+        // Use SUPER_ADMIN_EMAIL from env as additional recipient
+        const primaryAlertEmail = process.env.SUPER_ADMIN_EMAIL;
+        if (primaryAlertEmail && !superAdmins.some(admin => admin.email === primaryAlertEmail)) {
             superAdmins.push({ email: primaryAlertEmail, firstName: 'System Owner' });
+        }
+
+        if (!superAdmins.length) {
+            console.error('[SecurityAlert] No SUPER_ADMIN_EMAIL set and no super-admin users found. Cannot send security alert.');
+            return;
         }
 
         let logoUrl;

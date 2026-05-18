@@ -10,7 +10,8 @@ import {
   validateCoupon,
   logAbandonedCheckout,
   getAbandonedCheckouts,
-  cancelOrder
+  cancelOrder,
+  trackOrderPublic
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { checkoutLimiter } from '../middleware/checkoutRateLimit.js';
@@ -19,6 +20,7 @@ const router = express.Router();
 
 // Public routes
 router.post('/shipping-cost', calculateShippingCost);
+router.get('/track/:id', trackOrderPublic);
 
 // Protected routes
 router.use(protect);

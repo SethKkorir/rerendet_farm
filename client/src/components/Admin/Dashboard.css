@@ -365,6 +365,7 @@
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   padding-bottom: 1rem;
+  position: relative;
 }
 
 .db-chart-main {

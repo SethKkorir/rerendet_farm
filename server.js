@@ -1,4 +1,16 @@
 console.log("🏁 server.js execution started AT TOP");
+import * as Sentry from '@sentry/node';
+
+// Gracefully load Sentry CPU Profiling bindings (Node v25 Windows compatibility fallback)
+let nodeProfilingIntegration;
+try {
+  const profilingModule = await import('@sentry/profiling-node');
+  nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
+} catch (profilingErr) {
+  console.warn('⚠️  [Sentry] CPU Profiler bindings not found for this platform. Profiling disabled.');
+}
+import pinoHttp from 'pino-http';
+import logger from './config/logger.js';
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -26,11 +38,53 @@ import blogRoutes from './routes/blogRoutes.js';
 import subscriberRoutes from './routes/subscriberRoutes.js';
 import marketingRoutes from './routes/marketingRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
 import { startCronJobs } from './utils/cronJobs.js';
+import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import maintenanceMode from './middleware/maintenanceMiddleware.js';
+import { startEmailWorker } from './workers/emailWorker.js';
+import { startSubscriptionWorker } from './workers/subscriptionWorker.js';
+import { startRetryWorker } from './workers/retryWorker.js';
+import { redisClient, isRedisConnected } from './config/redis.js';
 
 dotenv.config();
 
+// Initialize Sentry before any other middleware or routes
+if (process.env.SENTRY_DSN) {
+  console.log('🛡️  [Sentry] Initializing Sentry monitoring...');
+  const integrations = [];
+  if (nodeProfilingIntegration) {
+    integrations.push(nodeProfilingIntegration());
+  }
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    integrations,
+    tracesSampleRate: 1.0,
+    profilesSampleRate: nodeProfilingIntegration ? 1.0 : undefined,
+  });
+} else {
+  console.warn('⚠️  Sentry DSN not found. Monitoring disabled.');
+}
+
+// Validate critical environment variables at startup
+const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET'];
+const missing = REQUIRED_ENV.filter(key => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`❌ FATAL: Missing required environment variables: ${missing.join(', ')}`);
+  process.exit(1);
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  console.warn('⚠️  JWT_REFRESH_SECRET not set. Using fallback (UNSAFE for production).');
+}
+if (!process.env.ENCRYPTION_KEY) {
+  console.warn('⚠️  ENCRYPTION_KEY not set. Phone/wallet data encryption will use insecure fallback.');
+}
+
 const app = express();
+
+// Register pino-http logger as the first global middleware
+const httpLogger = pinoHttp({ logger });
+app.use(httpLogger);
 
 console.log("🏁 server.js execution started");
 // ================= DB =================
@@ -83,6 +137,9 @@ app.use(cors({
 // Compression (only large responses)
 app.use(compression({ threshold: 1024 }));
 
+// Webhooks router registered BEFORE global body parsers to preserve raw stream for Stripe signature validation
+app.use('/api/webhooks', webhookRoutes);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -127,11 +184,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // ================= ROUTES =================
+app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
-app.use('/api/webhooks', webhookRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/reviews', reviewRoutes);
@@ -140,6 +197,7 @@ app.use('/api/blogs', blogRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ================= HEALTH =================
 app.get('/api/health', (req, res) => {
@@ -150,9 +208,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // ================= ERROR =================
-app.use((req, res) => {
-  res.status(404).json({ message: 'Not Found' });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 // ================= START =================
 const PORT = process.env.PORT || 5000;
@@ -161,4 +218,18 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   // Boot up automated system-wide background jobs (Cleanups, Fraud scans, Payment Reconciliations)
   startCronJobs();
+  
+  // Boot up BullMQ asynchronous workers only if Redis is active
+  if (redisClient && (isRedisConnected || process.env.NODE_ENV === 'production')) {
+    try {
+      startEmailWorker();
+      startSubscriptionWorker();
+      startRetryWorker();
+      console.log('✅ [BullMQ] All background workers started successfully!');
+    } catch (workerErr) {
+      console.error('❌ [BullMQ] Failed to start background workers:', workerErr.message);
+    }
+  } else {
+    console.warn('⚠️  [BullMQ] Redis is offline. Asynchronous workers will not be started.');
+  }
 });

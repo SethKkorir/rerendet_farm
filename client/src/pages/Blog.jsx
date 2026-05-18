@@ -8,13 +8,19 @@ import Footer from '../components/Footer/Footer';
 import './Blog.css';
 
 const Blog = () => {
-    const { showNotification } = useContext(AppContext);
+    const { showNotification, publicSettings } = useContext(AppContext);
     const [blogs, setBlogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [categories, setCategories] = useState([]);
     const [activeCategory, setActiveCategory] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (publicSettings?.features && publicSettings.features.coffeeAcademy === false) {
+            navigate('/');
+        }
+    }, [publicSettings, navigate]);
 
     useEffect(() => {
         const fetchBlogs = async () => {
@@ -56,7 +62,7 @@ const Blog = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
                     >
-                        The Rerendet <span>Editorial</span>
+                        Rerendet Coffee <span>Academy</span>
                     </motion.h1>
                     <motion.p
                         initial={{ opacity: 0, y: 20 }}

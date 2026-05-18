@@ -22,6 +22,7 @@ import {
   exportOrdersCSV,
   exportCustomersCSV
 } from '../../api/api';
+import ReportsManagement from './ReportsManagement';
 import './Analytics.css';
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
@@ -52,6 +53,7 @@ const TABS = [
   { id: 'inventory', label: '📦 Inventory' },
   { id: 'abandoned', label: '🛒 Abandoned' },
   { id: 'coupons', label: '🏷️ Coupons' },
+  { id: 'statements', label: '🧾 Statements' },
 ];
 
 const TTP = {
@@ -79,7 +81,7 @@ const downloadBlob = (data, fn) => {
 // CRITICAL: Recharts needs a parent with an explicit pixel height.
 // We set it on the wrapper div directly — NOT via flex-stretch.
 const ChartBox = ({ height = 300, children }) => (
-  <div style={{ width: '100%', height: `${height}px` }}>
+  <div style={{ width: '100%', height: `${height}px`, position: 'relative' }}>
     <ResponsiveContainer width="100%" height="100%">
       {children}
     </ResponsiveContainer>
@@ -1018,6 +1020,19 @@ const Analytics = () => {
                 )}
               </>
             )}
+          </motion.div>
+        )}
+
+        {/* ══ STATEMENTS ══ */}
+        {activeTab === 'statements' && (
+          <motion.div
+            key="st"
+            className="an-section"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <ReportsManagement />
           </motion.div>
         )}
 

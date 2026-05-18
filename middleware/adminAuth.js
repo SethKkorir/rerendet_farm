@@ -64,14 +64,16 @@ export const adminAuth = (requiredPermissions = []) => {
       user.role === 'admin' ||
       user.role === 'super-admin';
 
-    console.log('🔍 Admin Auth Check:', {
-      userId: user._id,
-      email: user.email,
-      userType: user.userType,
-      role: user.role,
-      isAdmin: isAdmin,
-      requiredPermissions: requiredPermissions
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 Admin Auth Check:', {
+        userId: user._id,
+        email: user.email,
+        userType: user.userType,
+        role: user.role,
+        isAdmin: isAdmin,
+        requiredPermissions: requiredPermissions
+      });
+    }
 
     if (!isAdmin) {
       res.status(403);

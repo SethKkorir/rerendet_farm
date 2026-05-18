@@ -143,6 +143,19 @@ const settingsSchema = new mongoose.Schema({
     shippingPolicy: { type: String, default: '' }
   },
 
+  // Features toggle
+  features: {
+    coffeeAcademy: { type: Boolean, default: true }
+  },
+
+  // County-level shipping prices
+  countyShipping: [
+    {
+      county: { type: String, required: true },
+      price: { type: Number, default: 500 }
+    }
+  ],
+
   // Maintenance Settings (Enterprise Super Gate)
   maintenance: {
     enabled: { type: Boolean, default: false },
@@ -173,6 +186,23 @@ settingsSchema.statics.getSettings = async function () {
     settings = new this();
     await settings.save();
   }
+
+  // Seed default 47 counties if countyShipping is empty or missing
+  const COUNTIES = [
+    'Nairobi', 'Mombasa', 'Kwale', 'Kilifi', 'Tana River', 'Lamu', 'Taita Taveta', 
+    'Garissa', 'Wajir', 'Mandera', 'Marsabit', 'Isiolo', 'Meru', 'Tharaka-Nithi', 
+    'Embu', 'Kitui', 'Machakos', 'Makueni', 'Nyandarua', 'Nyeri', 'Kirinyaga', 
+    'Mur\'ang\'a', 'Kiambu', 'Turkana', 'West Pokot', 'Samburu', 'Trans Nzoia', 
+    'Uasin Gishu', 'Elgeyo Marakwet', 'Nandi', 'Baringo', 'Laikipia', 'Nakuru', 
+    'Narok', 'Kajiado', 'Kericho', 'Bomet', 'Kakamega', 'Vihiga', 'Bungoma', 
+    'Busia', 'Siaya', 'Kisumu', 'Homa Bay', 'Migori', 'Kisii', 'Nyamira'
+  ];
+
+  if (!settings.countyShipping || settings.countyShipping.length === 0) {
+    settings.countyShipping = COUNTIES.map(c => ({ county: c, price: 500 }));
+    await settings.save();
+  }
+
   return settings;
 };
 

@@ -1,103 +1,35 @@
 // utils/sendEmail.js
-import nodemailer from 'nodemailer';
-import Settings from '../models/Settings.js';
+import { emailQueue } from '../queues/index.js';
+import realSendEmail from './realSendEmail.js';
+import redisClient from '../config/redis.js';
 
 const sendEmail = async (options) => {
+  const isRedisConnected = redisClient && redisClient.status === 'ready';
+
+  if (!isRedisConnected) {
+    console.warn('⚠️ [BullMQ] Redis is offline. Falling back to direct synchronous SMTP transmission.');
+    return realSendEmail(options);
+  }
+
   try {
-    console.log('[EMAIL] Attempting to send email to:', options.email || options.to);
-
-    // Fetch dynamic settings from DB
-    const settings = await Settings.getSettings();
-    const emailConfig = settings.email;
-    const isMock = options.mock || false;
-
-    // Determine config source: DB or ENV
-    let transporterConfig = null;
-    let fromEmail = process.env.EMAIL_FROM || '"Rerendet Coffee" <noreply@rerendetcoffee.com>';
-
-    if (emailConfig && emailConfig.enabled && emailConfig.host) {
-      // Use DB Settings
-      console.log('🔧 Using DB SMTP Configuration:', emailConfig.host);
-      transporterConfig = {
-        host: emailConfig.host,
-        port: emailConfig.port,
-        secure: emailConfig.secure, // true for 465, false for other ports
-        auth: {
-          user: emailConfig.auth.user,
-          pass: emailConfig.auth.pass,
-        },
-      };
-      if (emailConfig.from) {
-        fromEmail = emailConfig.from;
+    console.log('📬 [BullMQ] Enqueueing email job for:', options.to || options.email);
+    
+    // Add job to emailQueue
+    const job = await emailQueue.add('sendMail', options, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000
       }
-    } else if (process.env.EMAIL_USER && process.env.EMAIL_PASSWORD) {
-      // Use ENV Fallback (Gmail default)
-      console.log('🔧 Using ENV SMTP Configuration (Gmail Fallback)');
-      transporterConfig = {
-        service: 'gmail',
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      };
-    } else {
-      // No config available
-      console.warn('⚠️ No email credentials found (DB or ENV).');
-      transporterConfig = null;
-    }
+    });
 
-    if (!transporterConfig || isMock) {
-      // MOCK MODE
-      console.log('📝 [MOCK EMAIL]');
-      console.log('   From:', fromEmail);
-      console.log('   To:', options.to || options.email);
-      console.log('   Subject:', options.subject);
-
-      const codeMatch = options.html ? options.html.match(/>(\d{6})</) : null;
-      if (codeMatch) {
-        console.log('   🔑 Verification Code:', codeMatch[1]);
-      }
-
-      console.log('✅ Mock email "sent" successfully.');
-      return { messageId: 'mock-email-id-123' };
-    }
-
-    // Create Transporter
-    const transporter = nodemailer.createTransport(transporterConfig);
-
-    // Verify connection only if not verified recently (optimization)
-    // await transporter.verify(); 
-
-    const mailOptions = {
-      from: fromEmail,
-      to: options.to || options.email,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-      attachments: options.attachments, // Add support for attachments
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ REAL EMAIL SENT SUCCESSFULLY!');
-    console.log('📧 Message ID:', info.messageId);
-
-    return info;
+    console.log(`✅ [BullMQ] Email job enqueued successfully. Job ID: ${job.id}`);
+    return { messageId: `bullmq-job-${job.id}` };
 
   } catch (error) {
-    console.error('❌ EMAIL FAILED:', error.message);
-
-    // Fallback: Log the code to console if email fails AND in development
-    if (options.html && process.env.NODE_ENV === 'development') {
-      const codeMatch = options.html.match(/>(\d{6})</);
-      if (codeMatch) {
-        console.log('\n----------------------------------------');
-        console.log('🔢 FALLBACK 2FA CODE (Terminal Only):', codeMatch[1]);
-        console.log('----------------------------------------\n');
-      }
-    }
-
-    // Rethrow to let caller handle failure but we've logged the code if in dev
-    throw new Error(process.env.NODE_ENV === 'production' ? 'Email service currently unavailable' : error.message);
+    console.error('❌ [BullMQ] Failed to enqueue email job:', error.message);
+    console.log('🔄 [BullMQ] Falling back to direct synchronous SMTP delivery.');
+    return realSendEmail(options);
   }
 };
 

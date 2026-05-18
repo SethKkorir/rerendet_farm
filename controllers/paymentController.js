@@ -4,6 +4,7 @@ import PaymentTransaction from '../models/PaymentTransaction.js';
 import { initiateMpesaStkPushService, queryMpesaStkStatusService } from '../services/mpesaService.js';
 import { createPayPalOrderService, capturePayPalOrderService } from '../services/paypalService.js';
 import { convertKEStoUSD } from '../utils/currencyConverter.js';
+import { sendOrderConfirmationEmailHelper } from '../utils/orderEmailSender.js';
 
 // @desc    Initiate M-Pesa Express (STK Push)
 // @route   POST /api/payments/mpesa/stk
@@ -63,6 +64,23 @@ export const processMpesaPayment = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ M-Pesa payment initiation failed:', error.message);
+    
+    // Trigger automatic background retry queue with 2-minute delay (Attempt 1)
+    try {
+      const { retryQueue } = await import('../queues/index.js');
+      await retryQueue.add('stkRetry', {
+        phoneNumber,
+        amount: order.total,
+        orderNumber: order.orderNumber,
+        attempt: 1
+      }, {
+        delay: 2 * 60 * 1000 // 2 minutes delay
+      });
+      console.log(`📬 [M-Pesa Payment] Failed push enqueued to Retry Queue with 2-minute delay for Order #${order.orderNumber}`);
+    } catch (retryErr) {
+      console.error('❌ Failed to enqueue failed STK Push to retryQueue:', retryErr.message);
+    }
+
     res.status(500).json({
       success: false,
       message: error.message || 'M-Pesa STK Push initiation failed'
@@ -112,6 +130,7 @@ export const checkMpesaPaymentStatus = asyncHandler(async (req, res) => {
           });
           await order.save();
           console.log(`✅ Self-Healed: Order ${order.orderNumber} successfully marked as PAID`);
+          sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
         }
       } else if (['1032', '1037', '2001', '9002'].includes(response.ResultCode?.toString())) {
         // Known cancellation/failure codes: 1032 (Canceled by user), 1037 (Timeout), 2001 (Wrong PIN)
@@ -261,6 +280,7 @@ export const capturePayPalOrder = asyncHandler(async (req, res) => {
       await order.save();
 
       console.log(`✅ PayPal Order ${order.orderNumber} captured successfully!`);
+      sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
       res.json({
         success: true,
         message: 'PayPal payment processed successfully',
@@ -345,6 +365,7 @@ export const processCardPayment = asyncHandler(async (req, res) => {
   await order.save();
 
   console.log(`✅ Order ${order.orderNumber} PAID via simulated card.`);
+  sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
   res.json({
     success: true,
     message: 'Card payment processed successfully',
@@ -394,6 +415,7 @@ export const simulateMpesaWebhook = asyncHandler(async (req, res) => {
         user: null
       });
       await order.save();
+      sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
     }
     return res.json({ success: true, message: 'Simulated payment processed successfully' });
   } else {

@@ -1,6 +1,7 @@
 // controllers/productController.js
 import asyncHandler from 'express-async-handler';
 import Product from '../models/Product.js';
+import { redisClient, isRedisConnected, invalidateCatalog } from '../config/redis.js';
 
 // Cache for high-traffic public endpoints
 let productCache = {
@@ -56,6 +57,26 @@ const getProducts = asyncHandler(async (req, res) => {
     filter.inStock = true;
   }
 
+  // Check Redis Cache only if it's a standard catalog browsing request (no active text search or custom query)
+  const isStandardCatalog = !search && featured !== 'true' && inStock !== 'true' && sort === '-createdAt';
+  const cacheKey = `products:catalog:${category || 'all'}:${page || '1'}`;
+  const isCacheReady = redisClient && isRedisConnected;
+
+  if (isStandardCatalog && isCacheReady) {
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        return res.json({
+          success: true,
+          data: JSON.parse(cached),
+          cached: true
+        });
+      }
+    } catch (err) {
+      console.error('❌ Product Cache get error:', err.message);
+    }
+  }
+
   // 3. Optimized parallel execution with projection
   // Only fetch fields needed for the shop grid to reduce data transfer
   const publicProjection = 'name category sizes images inStock isFeatured badge inventory.stock seo.slug ratings';
@@ -77,18 +98,28 @@ const getProducts = asyncHandler(async (req, res) => {
     categories = await Product.distinct('category', { isActive: true });
   }
 
+  const responseData = {
+    products,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages: Math.ceil(total / limit)
+    },
+    categories: categories.length > 0 ? categories : undefined
+  };
+
+  if (isStandardCatalog && isCacheReady) {
+    try {
+      await redisClient.set(cacheKey, JSON.stringify(responseData), 'EX', 120);
+    } catch (err) {
+      console.error('❌ Product Cache set error:', err.message);
+    }
+  }
+
   res.json({
     success: true,
-    data: {
-      products,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
-      },
-      categories: categories.length > 0 ? categories : undefined
-    }
+    data: responseData
   });
 });
 
@@ -237,6 +268,7 @@ const createProduct = asyncHandler(async (req, res) => {
 
   const createdProduct = await product.save();
   clearProductCache();
+  await invalidateCatalog();
 
   res.status(201).json({
     success: true,
@@ -331,6 +363,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   const updatedProduct = await product.save();
   clearProductCache();
+  await invalidateCatalog();
 
   res.json({
     success: true,
@@ -354,6 +387,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
   product.isActive = false;
   await product.save();
   clearProductCache();
+  await invalidateCatalog();
 
   res.json({
     success: true,
@@ -386,6 +420,9 @@ const updateProductStock = asyncHandler(async (req, res) => {
     message: 'Product stock updated successfully',
     data: product
   });
+  
+  // Invalidate product catalog cache
+  await invalidateCatalog();
 });
 
 // @desc    Upload product images
@@ -411,6 +448,7 @@ const uploadProductImages = asyncHandler(async (req, res) => {
 
   product.images = [...product.images, ...newImages];
   await product.save();
+  await invalidateCatalog();
 
   res.json({
     success: true,
@@ -433,6 +471,7 @@ const deleteProductImage = asyncHandler(async (req, res) => {
 
   product.images = product.images.filter(img => img.url !== imageUrl);
   await product.save();
+  await invalidateCatalog();
 
   res.json({
     success: true,

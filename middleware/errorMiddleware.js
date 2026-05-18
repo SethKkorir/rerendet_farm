@@ -1,6 +1,13 @@
+import * as Sentry from '@sentry/node';
+
 const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
+
+  // Capture server-side 5xx exceptions to Sentry securely
+  if (statusCode >= 500) {
+    Sentry.captureException(err);
+  }
 
   // Handle Mongoose Duplicate Key Error (E11000)
   if (err.code === 11000) {
