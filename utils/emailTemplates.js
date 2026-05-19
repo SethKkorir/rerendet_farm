@@ -1,4 +1,4 @@
-const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000');
+const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000');
 const ADMIN_PANEL_URL = FRONTEND_URL;
 
 const getBaseTemplate = (title, content, options = {}) => {

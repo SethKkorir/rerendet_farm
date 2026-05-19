@@ -136,46 +136,56 @@ export const checkMpesaPaymentStatus = asyncHandler(async (req, res) => {
 
   // 3. JIT Self-Healing: If DB is still pending, pull status from Daraja in case webhook failed
   if (tx.status === 'PENDING') {
-    try {
-      console.log(`⏳ DB status is PENDING. Querying Safaricom Gateway for CheckoutID: ${checkoutRequestId}`);
-      const response = await queryMpesaStkStatusService(checkoutRequestId);
+    const POLL_INTERVAL_MS = 15000;
+    const timeSinceLastQuery = tx.lastQueriedAt ? (Date.now() - new Date(tx.lastQueriedAt).getTime()) : Infinity;
 
-      // ResultCode === '0' means transaction was processed successfully
-      if (response.ResultCode === '0' || response.ResultCode === 0) {
-        tx.status = 'SUCCESS';
-        tx.rawResponse = { ...tx.rawResponse, queryResult: response };
+    if (timeSinceLastQuery < POLL_INTERVAL_MS) {
+      console.log(`ℹ️ Skipping M-Pesa gateway query for CheckoutID: ${checkoutRequestId} to prevent Spike Arrest (last queried ${Math.round(timeSinceLastQuery / 1000)}s ago).`);
+    } else {
+      try {
+        console.log(`⏳ DB status is PENDING. Querying Safaricom Gateway for CheckoutID: ${checkoutRequestId}`);
+        tx.lastQueriedAt = Date.now();
         await tx.save();
 
-        if (order.paymentStatus !== 'paid') {
-          order.paymentStatus = 'paid';
-          order.orderEvents.push({
-            status: 'PAYMENT_CONFIRMED',
-            note: `M-Pesa payment verified via JIT query. CheckoutRequestID: ${checkoutRequestId}`,
-            user: null
-          });
-          await order.save();
-          console.log(`✅ Self-Healed: Order ${order.orderNumber} successfully marked as PAID`);
-          sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
-        }
-      } else if (['1032', '1037', '2001', '9002'].includes(response.ResultCode?.toString())) {
-        // Known cancellation/failure codes: 1032 (Canceled by user), 1037 (Timeout), 2001 (Wrong PIN)
-        tx.status = 'FAILED';
-        tx.rawResponse = { ...tx.rawResponse, queryResult: response };
-        await tx.save();
+        const response = await queryMpesaStkStatusService(checkoutRequestId);
 
-        if (order.paymentStatus !== 'failed') {
-          order.paymentStatus = 'failed';
-          order.orderEvents.push({
-            status: 'PAYMENT_FAILED',
-            note: `M-Pesa payment failed: ${response.ResultDesc} (Code: ${response.ResultCode})`,
-            user: null
-          });
-          await order.save();
-          console.log(`❌ Order ${order.orderNumber} updated to FAILED based on JIT query`);
+        // ResultCode === '0' means transaction was processed successfully
+        if (response.ResultCode === '0' || response.ResultCode === 0) {
+          tx.status = 'SUCCESS';
+          tx.rawResponse = { ...tx.rawResponse, queryResult: response };
+          await tx.save();
+
+          if (order.paymentStatus !== 'paid') {
+            order.paymentStatus = 'paid';
+            order.orderEvents.push({
+              status: 'PAYMENT_CONFIRMED',
+              note: `M-Pesa payment verified via JIT query. CheckoutRequestID: ${checkoutRequestId}`,
+              user: null
+            });
+            await order.save();
+            console.log(`✅ Self-Healed: Order ${order.orderNumber} successfully marked as PAID`);
+            sendOrderConfirmationEmailHelper(order).catch(err => console.error('Error sending payment-triggered email:', err));
+          }
+        } else if (['1032', '1037', '2001', '9002'].includes(response.ResultCode?.toString())) {
+          // Known cancellation/failure codes: 1032 (Canceled by user), 1037 (Timeout), 2001 (Wrong PIN)
+          tx.status = 'FAILED';
+          tx.rawResponse = { ...tx.rawResponse, queryResult: response };
+          await tx.save();
+
+          if (order.paymentStatus !== 'failed') {
+            order.paymentStatus = 'failed';
+            order.orderEvents.push({
+              status: 'PAYMENT_FAILED',
+              note: `M-Pesa payment failed: ${response.ResultDesc} (Code: ${response.ResultCode})`,
+              user: null
+            });
+            await order.save();
+            console.log(`❌ Order ${order.orderNumber} updated to FAILED based on JIT query`);
+          }
         }
+      } catch (queryErr) {
+        console.warn(`⚠️ M-Pesa status query failed during polling check: ${queryErr.message}`);
       }
-    } catch (queryErr) {
-      console.warn(`⚠️ M-Pesa status query failed during polling check: ${queryErr.message}`);
     }
   }
 

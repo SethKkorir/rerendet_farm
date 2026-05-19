@@ -1329,7 +1329,7 @@ const createAdmin = asyncHandler(async (req, res) => {
             <p><strong>Role:</strong> ${role}</p>
           </div>
           <p>You can now access the admin dashboard.</p>
-          <p><strong>Admin Dashboard:</strong> <a href="${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/admin/login">Access Admin Panel</a></p>
+          <p><strong>Admin Dashboard:</strong> <a href="${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173')}/admin/login">Access Admin Panel</a></p>
         </div>
       </div>
     `;
@@ -1342,7 +1342,7 @@ const createAdmin = asyncHandler(async (req, res) => {
         firstName: firstName,
         permissions: defaultPermissions,
         role: role,
-        adminUrl: `${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/admin/login`
+        adminUrl: `${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173')}/admin/login`
       }
     });
 
@@ -1571,7 +1571,18 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: { token: newAccessToken }
+    data: {
+      token: newAccessToken,
+      user: {
+        id: user._id,
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role || 'customer',
+        userType: (user.role === 'admin' || user.role === 'super-admin') ? 'admin' : 'customer'
+      }
+    }
   });
 });
 
@@ -1633,7 +1644,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   );
 
   // Construct reset URL
-  const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000');
+  const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000');
   const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
 
   try {

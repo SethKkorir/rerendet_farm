@@ -95,8 +95,8 @@ const admin = asyncHandler(async (req, res, next) => {
     req.user.role === 'super-admin';
 
   if (isAdmin) {
-    // Mandate 2FA TOTP for administrative actions
-    if (!req.user.twoFactorEnabled) {
+    // Mandate 2FA TOTP for administrative actions unless explicitly disabled
+    if (!req.user.twoFactorEnabled && process.env.DISABLE_MFA_REQUIREMENT !== 'true') {
       console.warn(`🚨 [2FA MANDATORY LOCKOUT] Blocked administrative access attempt for: ${req.user.email} because Two-Factor Authentication is disabled.`);
       return res.status(403).json({
         success: false,

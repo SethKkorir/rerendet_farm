@@ -10,7 +10,8 @@ const ALLOWED_ORIGINS = new Set([
   'https://rerendet.com',
   'https://rerendet-website-two.vercel.app',
   'https://rerendet.vercel.app',
-  'https://rerendet.coffee'
+  'https://rerendet.coffee',
+  'https://rerendet-farm.vercel.app'
 ]);
 
 /**

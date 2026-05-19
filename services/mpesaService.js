@@ -6,7 +6,7 @@ const MPESA_CONFIG = {
   shortCode: process.env.MPESA_SHORTCODE || '174379', // Lipa Na M-Pesa Online sandbox shortcode
   passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Sandbox passkey
   environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
-  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://rerendet-coffee.com/api/webhooks/mpesa'
+  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://rerendet-farm.vercel.app/api/webhooks/mpesa'
 };
 
 const getMpesaBaseUrl = () => {

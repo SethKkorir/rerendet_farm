@@ -364,7 +364,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // Send order confirmation email only if paid or Cash on Delivery
     if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
       try {
-        const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000')}/account/orders/${savedOrder._id}`;
+        const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000')}/account/orders/${savedOrder._id}`;
 
         // Prepare email data
         const emailData = {

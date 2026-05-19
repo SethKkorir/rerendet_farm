@@ -34,6 +34,9 @@ const paymentTransactionSchema = new mongoose.Schema({
     },
     metadata: {
         type: Object // Flexible field for any extra provider-specific info
+    },
+    lastQueriedAt: {
+        type: Date
     }
 }, {
     timestamps: true

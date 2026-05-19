@@ -280,7 +280,7 @@ const rotateAndEmailMagicLink = async (settings, customHost = null) => {
   // Invalidate settings cache
   await settingsService.invalidateSettings();
 
-  const baseUrl = process.env.BACKEND_URL || (customHost ? `http://${customHost}` : 'https://rerendet-coffee.com');
+  const baseUrl = process.env.BACKEND_URL || (customHost ? `http://${customHost}` : 'https://rerendet-farm.vercel.app');
   const magicLink = `${baseUrl}/api/settings/super-gate/${token}`;
 
   // Silent SMTP email dispatch to super admin zsethkipchumba179@gmail.com

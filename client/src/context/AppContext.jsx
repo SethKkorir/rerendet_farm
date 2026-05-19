@@ -1138,9 +1138,13 @@ export function AppProvider({ children }) {
                 console.log('✅ Session refreshed successfully');
               }
             } catch (refreshErr) {
-              console.log('ℹ️ Silent refresh unavailable, using cached session');
-              // Validate the cached token if refresh failed
-              if (cachedToken) {
+              console.log('ℹ️ Silent refresh unavailable:', refreshErr.message);
+              // Clear cache if the backend explicitly rejected the session
+              if (refreshErr.response?.status === 401) {
+                console.warn('🚨 Server explicitly invalidated session. Clearing cached credentials.');
+                clearAuth();
+              } else if (cachedToken) {
+                // Otherwise fall back to cached session for offline/network issues
                 setAuth(cachedUser, cachedToken, cachedType);
               }
             }

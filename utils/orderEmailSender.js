@@ -8,7 +8,7 @@ import Settings from '../models/Settings.js';
  */
 export const sendOrderConfirmationEmailHelper = async (order) => {
   try {
-    const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000')}/account/orders/${order._id}`;
+    const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000')}/account/orders/${order._id}`;
 
     // Fetch store logo
     let logoUrl;

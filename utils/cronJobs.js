@@ -173,8 +173,19 @@ export const reconcilePendingOrders = async () => {
 
             // ── A. Process M-Pesa Reconciliation ───────────────────
             if (tx.provider === 'MPESA') {
+                const POLL_INTERVAL_MS = 15000;
+                const timeSinceLastQuery = tx.lastQueriedAt ? (Date.now() - new Date(tx.lastQueriedAt).getTime()) : Infinity;
+
+                if (timeSinceLastQuery < POLL_INTERVAL_MS) {
+                    console.log(`[ReconciliationWorker] Skipping Daraja query for checkoutID: ${tx.transactionId} to prevent Spike Arrest (last queried ${Math.round(timeSinceLastQuery / 1000)}s ago)`);
+                    continue;
+                }
+
                 try {
                     console.log(`[ReconciliationWorker] Querying Daraja status for checkoutID: ${tx.transactionId}`);
+                    tx.lastQueriedAt = Date.now();
+                    await tx.save();
+
                     const result = await queryMpesaStkStatusService(tx.transactionId);
 
                     if (result.ResultCode === '0' || result.ResultCode === 0) {

@@ -78,8 +78,8 @@ export const createPayPalOrderService = async (amountInUSD, orderNumber, returnU
       brand_name: 'Rerendet Coffee',
       landing_page: 'LOGIN',
       user_action: 'PAY_NOW',
-      return_url: returnUrl || 'http://localhost:3000/checkout/success',
-      cancel_url: cancelUrl || 'http://localhost:3000/checkout/cancel'
+      return_url: returnUrl || 'https://rerendet-farm.vercel.app/checkout/success',
+      cancel_url: cancelUrl || 'https://rerendet-farm.vercel.app/checkout/cancel'
     }
   };
 
