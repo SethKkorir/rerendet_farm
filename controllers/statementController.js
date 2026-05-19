@@ -137,11 +137,23 @@ export const getStatementReport = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please provide both startDate and endDate' });
     }
 
-    // 1. Fetch Owner Profile Info
-    let ownerName = 'Rerendet Farm Master Account';
-    let ownerEmail = 'finance@rerendetfarm.com';
-    let ownerPhone = '+254 700 123 456';
+    // 1. Fetch Dynamic Store Settings
+    let ownerName = 'Rerendet Coffee Master Account';
+    let ownerEmail = 'info@rerendetcoffee.com';
+    let ownerPhone = '+254 700 000 000';
     let ownerType = 'store';
+
+    try {
+      const { default: Settings } = await import('../models/Settings.js');
+      const settings = await Settings.getSettings();
+      if (settings?.store) {
+        ownerName = `${settings.store.name || 'Rerendet Coffee'} Master Account`;
+        ownerEmail = settings.store.email || 'info@rerendetcoffee.com';
+        ownerPhone = settings.store.phone || '+254700000000';
+      }
+    } catch (e) {
+      console.error('Error loading settings in statement:', e);
+    }
 
     if (userId) {
       const client = await User.findById(userId);
@@ -186,24 +198,25 @@ export const getStatementReport = async (req, res) => {
     const W = 595.28;
     const H = 841.89;
 
-    // --- Premium Brand Safaricom Green Accent Colors ---
-    const GREEN_DARK = '#145A32';   // Deep Forest Green
-    const GREEN_BRAND = '#1E8449';  // Safaricom Vivid Green
-    const GREEN_LIGHT = '#D4EFDF';  // Very light green border/background tint
-    const TEXT_DARK = '#1C2833';
-    const TEXT_MID = '#566573';
-    const BORDER_COLOR = '#D5D8DC';
+    // --- Premium Brand Rerendet Coffee Theme Colors ---
+    const COFFEE_DARK = '#2C1810';   // Deep Roast Coffee Dark
+    const GOLD_BRAND = '#D4AF37';    // Rerendet Premium Gold
+    const GOLD_LIGHT = '#FDFAF6';    // Light cream parchment background
+    const TEXT_DARK = '#1C1816';
+    const TEXT_MID = '#6F4E37';      // Warm coffee brown
+    const BORDER_COLOR = '#E8DDD4';
+    const GOLD_TINT = '#F5E6B3';     // Light gold border/background tint
 
     // 1. Header background
-    doc.rect(0, 0, W, 120).fill(GREEN_DARK);
-    doc.rect(0, 120, W, 3).fill(GREEN_BRAND);
+    doc.rect(0, 0, W, 120).fill(COFFEE_DARK);
+    doc.rect(0, 120, W, 3).fill(GOLD_BRAND);
 
     // Header Content
-    doc.font('Helvetica-Bold').fontSize(18).fillColor('#FFFFFF')
-       .text('RERENDET FARM & TRADING LTD', 30, 25);
+    doc.font('Helvetica-Bold').fontSize(18).fillColor(GOLD_BRAND)
+       .text('RERENDET COFFEE', 30, 25);
     doc.font('Helvetica').fontSize(9).fillColor('rgba(255,255,255,0.75)')
-       .text('High-Quality Fresh Farm Produce & General Supplies', 30, 48)
-       .text('P.O. Box 4820-00100, Nairobi, Kenya | accounts@rerendet.com', 30, 60)
+       .text('Premium Fresh Coffee · Nairobi, Kenya', 30, 48)
+       .text('P.O. Box 4820-00100, Nairobi, Kenya | info@rerendetcoffee.com', 30, 60)
        .text('Generated: ' + moment().format('DD MMM YYYY, hh:mm A'), 30, 72);
 
     // "STATEMENT" watermark text in header
@@ -212,8 +225,8 @@ export const getStatementReport = async (req, res) => {
 
     // 2. Owner Profile Section
     const profileY = 135;
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(GREEN_BRAND).text('ACCOUNT DETAILS', 30, profileY);
-    doc.moveTo(30, profileY + 12).lineTo(W - 30, profileY + 12).strokeColor(GREEN_BRAND).lineWidth(1).stroke();
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(TEXT_MID).text('ACCOUNT DETAILS', 30, profileY);
+    doc.moveTo(30, profileY + 12).lineTo(W - 30, profileY + 12).strokeColor(GOLD_BRAND).lineWidth(1).stroke();
 
     doc.font('Helvetica-Bold').fontSize(9.5).fillColor(TEXT_DARK)
        .text('Name / Owner:', 30, profileY + 20)
@@ -242,10 +255,10 @@ export const getStatementReport = async (req, res) => {
        .font('Helvetica').fillColor(TEXT_MID)
        .text(`STMT-${moment(startDate).format('YYMM')}-${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`, rightColX + 90, profileY + 34);
 
-    // 3. Financial Summary cards box (The Safaricom M-Pesa style block)
+    // 3. Financial Summary cards box (The Rerendet style block)
     const summaryY = 210;
-    doc.rect(30, summaryY, W - 60, 52).fill(GREEN_LIGHT);
-    doc.rect(30, summaryY, W - 60, 52).strokeColor(GREEN_BRAND).lineWidth(0.8).stroke();
+    doc.rect(30, summaryY, W - 60, 52).fill(GOLD_TINT);
+    doc.rect(30, summaryY, W - 60, 52).strokeColor(GOLD_BRAND).lineWidth(0.8).stroke();
 
     // Summary Labels & values
     const itemWidth = (W - 60) / 4;
@@ -255,8 +268,8 @@ export const getStatementReport = async (req, res) => {
     doc.font('Helvetica-Bold').fontSize(11).fillColor(TEXT_DARK).text(`KES ${reportData.startingBalance.toLocaleString()}`, 35, summaryY + 26, { width: itemWidth, align: 'center' });
 
     // Column 2: Total Money In
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GREEN_BRAND).text('TOTAL MONEY IN (+)', 35 + itemWidth, summaryY + 10, { width: itemWidth, align: 'center' });
-    doc.font('Helvetica-Bold').fontSize(11).fillColor(GREEN_BRAND).text(`KES ${reportData.totalMoneyIn.toLocaleString()}`, 35 + itemWidth, summaryY + 26, { width: itemWidth, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COFFEE_DARK).text('TOTAL MONEY IN (+)', 35 + itemWidth, summaryY + 10, { width: itemWidth, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(COFFEE_DARK).text(`KES ${reportData.totalMoneyIn.toLocaleString()}`, 35 + itemWidth, summaryY + 26, { width: itemWidth, align: 'center' });
 
     // Column 3: Total Money Out
     doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#B03A2E').text('TOTAL MONEY OUT (-)', 35 + itemWidth * 2, summaryY + 10, { width: itemWidth, align: 'center' });
@@ -294,35 +307,38 @@ export const getStatementReport = async (req, res) => {
       x: 30,
       y: tableY,
       columnsSize: [75, 60, 175, 45, 55, 55, 70],
-      headerColor: GREEN_BRAND,
+      headerColor: TEXT_MID,
       rowBgColor: '#FFFFFF',
-      altRowBgColor: '#F2F9F4', // Premium light green stripe
+      altRowBgColor: '#FAF6F1', // Premium light warm gold/brown stripe
       border: { size: 0.2, color: BORDER_COLOR }
     });
 
     // 5. Signature and Footer
     const footerOffset = doc.y > H - 100 ? doc.addPage().y + 50 : doc.y + 40;
     
+    // Draw signature
+    doc.font('Times-Italic').fontSize(16).fillColor('#6F4E37').text('Rerendet Coffee CEO', 45, footerOffset - 25);
+    
     // Draw signature line
     doc.moveTo(30, footerOffset).lineTo(180, footerOffset).strokeColor(TEXT_DARK).lineWidth(0.8).stroke();
-    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(TEXT_DARK).text('Authorised Corporate Signatory', 30, footerOffset + 6);
-    doc.font('Helvetica').fontSize(7.5).fillColor(TEXT_MID).text('Rerendet Farm Accounts Board', 30, footerOffset + 17);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(TEXT_DARK).text('Rerendet Coffee CEO', 30, footerOffset + 6);
+    doc.font('Helvetica').fontSize(7.5).fillColor(TEXT_MID).text('Corporate Signatory Authority', 30, footerOffset + 17);
 
     // Corporate Stamp circle outline (pure vector draw)
     const stampX = W - 100;
     const stampY = footerOffset + 10;
-    doc.circle(stampX, stampY, 28).strokeColor('rgba(30,132,73,0.35)').lineWidth(1).stroke();
-    doc.font('Helvetica-Bold').fontSize(6).fillColor('rgba(30,132,73,0.4)')
-       .text('ACCOUNTS DEPT', stampX - 25, stampY - 10, { width: 50, align: 'center' })
+    doc.circle(stampX, stampY, 28).strokeColor('rgba(212, 175, 55, 0.4)').lineWidth(1).stroke();
+    doc.font('Helvetica-Bold').fontSize(6).fillColor('rgba(212, 175, 55, 0.6)')
+       .text('REVENUE DEPT', stampX - 25, stampY - 10, { width: 50, align: 'center' })
        .text('APPROVED', stampX - 25, stampY + 2, { width: 50, align: 'center' });
 
     // Page number count footer (dynamic)
     const pages = doc.bufferedPageRange();
     for (let i = 0; i < pages.count; i++) {
       doc.switchToPage(i);
-      doc.rect(0, H - 40, W, 40).fill(GREEN_DARK);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#FFFFFF')
-         .text('Thank you for choosing Rerendet Farm', 30, H - 28);
+      doc.rect(0, H - 40, W, 40).fill(COFFEE_DARK);
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GOLD_BRAND)
+         .text('Thank you for choosing Rerendet Coffee', 30, H - 28);
       doc.font('Helvetica').fontSize(8).fillColor('rgba(255,255,255,0.7)')
          .text(`Page ${i + 1} of ${pages.count}`, W - 100, H - 28, { width: 70, align: 'right' });
     }

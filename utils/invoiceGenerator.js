@@ -227,6 +227,25 @@ export const generateInvoice = (order, res = null) => {
                 { bold: true, large: true, highlight: true });
 
             // ════════════════════════════════════════════════════════════
+            // 5.5 OWNER SIGNATURE & STAMP
+            // ════════════════════════════════════════════════════════════
+            const sigY = H - 122;
+            // Draw signature
+            doc.font('Times-Italic').fontSize(16).fillColor(C.coffeeMid).text('Rerendet Coffee CEO', M, sigY);
+            // Draw signature line
+            doc.moveTo(M, sigY + 18).lineTo(M + 140, sigY + 18).strokeColor(C.textDark).lineWidth(0.8).stroke();
+            doc.font('Helvetica-Bold').fontSize(8).fillColor(C.textDark).text('Rerendet Coffee CEO', M, sigY + 23);
+            doc.font('Helvetica').fontSize(7).fillColor(C.textLight).text('Corporate Signatory Authority', M, sigY + 32);
+
+            // Corporate Stamp circle outline (pure vector draw)
+            const stampX = M + 190;
+            const stampY = sigY + 14;
+            doc.circle(stampX, stampY, 24).strokeColor('rgba(212, 175, 55, 0.4)').lineWidth(1).stroke();
+            doc.font('Helvetica-Bold').fontSize(5.5).fillColor('rgba(212, 175, 55, 0.6)')
+               .text('REVENUE DEPT', stampX - 22, stampY - 8, { width: 44, align: 'center' })
+               .text('APPROVED', stampX - 22, stampY + 2, { width: 44, align: 'center' });
+
+            // ════════════════════════════════════════════════════════════
             // 6. FOOTER
             // ════════════════════════════════════════════════════════════
             // Gold bottom stripe
@@ -238,7 +257,7 @@ export const generateInvoice = (order, res = null) => {
             doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C.gold)
                 .text('Thank you for choosing Rerendet Coffee', 0, H - 42, { align: 'center', width: W });
             doc.font('Helvetica').fontSize(7.5).fillColor('rgba(255,255,255,0.5)')
-                .text('This is a computer-generated document. No signature is required.', 0, H - 28, { align: 'center', width: W })
+                .text('This document is verified and signed by Rerendet Coffee Board.', 0, H - 28, { align: 'center', width: W })
                 .text('For queries contact orders@rerendetcoffee.com', 0, H - 17, { align: 'center', width: W });
 
             // ════════════════════════════════════════════════════════════
