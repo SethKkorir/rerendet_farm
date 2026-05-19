@@ -3430,3 +3430,169 @@ input:checked+.slider:before {
   border-style: dashed !important;
 }
 
+/* ══════════════════════════════════
+   MOBILE DESIGN POLISH & COLLISION PREVENTIONS
+   ══════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Layout container constraints */
+  .modern-dashboard-container {
+    padding: 0 1rem 4rem;
+    height: auto;
+    overflow: visible;
+  }
+  
+  /* Mobile Header Profile Card spacing */
+  .dashboard-mobile-header {
+    margin-bottom: 1.5rem;
+  }
+  
+  .mobile-user-card {
+    padding: 1.5rem 1rem !important;
+  }
+  
+  /* Prevent stat pills from colliding or wrapping text awkwardly */
+  .mobile-user-stats {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    justify-content: center;
+    width: 100% !important;
+  }
+  
+  .mobile-stat-pill {
+    flex: 1 1 90px !important; /* Allow growing and wrapping */
+    min-width: 80px !important;
+    padding: 6px 8px !important;
+    border-radius: 10px !important;
+    align-items: center !important;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.02) !important;
+  }
+  
+  .mobile-stat-label {
+    font-size: 0.52rem !important;
+    white-space: nowrap;
+  }
+  
+  .mobile-stat-value {
+    font-size: 0.72rem !important;
+  }
+  
+  /* Tab Headers spacing */
+  .tab-header {
+    margin-bottom: 1.5rem;
+    text-align: center;
+  }
+  
+  .tab-header h2 {
+    font-size: 1.8rem !important;
+  }
+}
+
+@media (max-width: 580px) {
+  /* Order Card Headers Collision Prevention */
+  .order-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    margin-bottom: 1.25rem !important;
+  }
+  
+  .order-meta {
+    text-align: left;
+  }
+  
+  .order-amount {
+    text-align: left !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-light);
+    padding-top: 0.5rem;
+  }
+  
+  .amount {
+    font-size: 1.4rem !important;
+  }
+  
+  .status-badges {
+    justify-content: flex-end !important;
+    margin-top: 0 !important;
+  }
+  
+  /* Stepper / Tracking stepper collision fixes */
+  .order-tracking-preview {
+    margin: 1.5rem 0 !important;
+    gap: 1rem !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    text-align: center;
+  }
+  
+  .track-step {
+    gap: 0.35rem !important;
+  }
+  
+  .step-dot {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 0.8rem !important;
+  }
+  
+  .step-label {
+    font-size: 0.55rem !important;
+    letter-spacing: 0.5px !important;
+  }
+  
+  .track-line {
+    display: none !important; /* Hide line connector in narrow grid */
+  }
+  
+  /* Order action button wrap & stack prevention */
+  .order-actions-modern {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+    justify-content: stretch !important;
+    margin-top: 1.25rem !important;
+  }
+  
+  .order-actions-modern button,
+  .order-actions-modern a {
+    flex: 1 1 100px !important; /* Flexibly grow and wrap */
+    min-width: 100px !important;
+    padding: 0.65rem 0.75rem !important;
+    font-size: 0.78rem !important;
+    justify-content: center;
+  }
+  
+  /* Ticket list responsive spacing */
+  .ticket-card-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+  
+  .ticket-status-badge {
+    align-self: flex-start !important;
+  }
+}
+
+/* Sidebar mini stat values color accents */
+.stat-value.credit-val,
+.mobile-stat-value.credit-val {
+  color: var(--color-primary, #D4AF37) !important;
+}
+
+.stat-value.rewards-val,
+.mobile-stat-value.rewards-val {
+  color: #8b5cf6 !important;
+}
+
+/* Sticky horizontal scrollbar nav position correction to prevent overlap with standard fixed top headers */
+@media (max-width: 1100px) {
+  .mobile-tabs-scroll-nav {
+    top: 79px !important; /* Precisely beneath the 80px main site header */
+  }
+}
+
+

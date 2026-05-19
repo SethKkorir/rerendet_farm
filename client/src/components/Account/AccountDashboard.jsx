@@ -251,18 +251,18 @@ function AccountDashboard() {
               <p className="user-email">{user.email}</p>
               
               {/* Dynamic balances shown instantly on the sidebar */}
-              <div className="user-stats-mini" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
-                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Credit</span>
-                  <span className="stat-value" style={{ color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: '800' }}>KES {user.storeCredit?.toLocaleString() || '0'}</span>
+              <div className="user-stats-mini">
+                <div className="stat-pill">
+                  <span className="stat-label">Credit</span>
+                  <span className="stat-value credit-val">KES {user.storeCredit?.toLocaleString() || '0'}</span>
                 </div>
-                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Rewards</span>
-                  <span className="stat-value" style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: '800' }}>{user.loyaltyPoints?.toLocaleString() || '0'} <span style={{ fontSize: '0.55rem', fontWeight: '500' }}>PTS</span></span>
+                <div className="stat-pill">
+                  <span className="stat-label">Rewards</span>
+                  <span className="stat-value rewards-val">{user.loyaltyPoints?.toLocaleString() || '0'} <span className="pts-suffix">PTS</span></span>
                 </div>
-                <div className="stat-pill" style={{ flex: '1', minWidth: '75px', padding: '6px 10px', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>Orders</span>
-                  <span className="stat-value" style={{ fontSize: '0.75rem', fontWeight: '800' }}>{orders.length}</span>
+                <div className="stat-pill">
+                  <span className="stat-label">Orders</span>
+                  <span className="stat-value">{orders.length}</span>
                 </div>
               </div>
             </div>
@@ -301,7 +301,7 @@ function AccountDashboard() {
                 </div>
                 <div className="mobile-avatar-glow" />
               </div>
-              <div className="mobile-user-info" style={{ width: '100%' }}>
+              <div className="mobile-user-info">
                 <span className="mobile-membership-badge">
                   <FaShieldAlt style={{ fontSize: '0.8rem' }} /> Rerendet Elite
                 </span>
@@ -310,18 +310,18 @@ function AccountDashboard() {
                 <p className="mobile-user-email">{user.email}</p>
                 
                 {/* Mobile stats upgraded to show actionable balances */}
-                <div className="mobile-user-stats" style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', width: '100%' }}>
-                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
-                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Store Credit</span>
-                    <span className="mobile-stat-value" style={{ color: 'var(--color-primary)', fontSize: '0.75rem', fontWeight: '800' }}>KES {user.storeCredit?.toLocaleString() || '0'}</span>
+                <div className="mobile-user-stats">
+                  <div className="mobile-stat-pill">
+                    <span className="mobile-stat-label">Store Credit</span>
+                    <span className="mobile-stat-value credit-val">KES {user.storeCredit?.toLocaleString() || '0'}</span>
                   </div>
-                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
-                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Rewards</span>
-                    <span className="mobile-stat-value" style={{ color: '#8b5cf6', fontSize: '0.75rem', fontWeight: '800' }}>{user.loyaltyPoints?.toLocaleString() || '0'} PTS</span>
+                  <div className="mobile-stat-pill">
+                    <span className="mobile-stat-label">Rewards</span>
+                    <span className="mobile-stat-value rewards-val">{user.loyaltyPoints?.toLocaleString() || '0'} PTS</span>
                   </div>
-                  <div className="mobile-stat-pill" style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'var(--bg-deep)', border: '1px solid var(--border-main)', padding: '6px', borderRadius: '10px' }}>
-                    <span className="mobile-stat-label" style={{ fontSize: '0.55rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: '700' }}>Orders</span>
-                    <span className="mobile-stat-value" style={{ fontSize: '0.75rem', fontWeight: '800' }}>{orders.length}</span>
+                  <div className="mobile-stat-pill">
+                    <span className="mobile-stat-label">Orders</span>
+                    <span className="mobile-stat-value">{orders.length}</span>
                   </div>
                 </div>
               </div>
