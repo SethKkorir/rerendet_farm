@@ -47,7 +47,7 @@ const connectDB = async () => {
     console.error('Initial DB Connection failed:', err.message);
     console.error('If you are seeing an IP whitelist error, make sure your current public IP is whitelisted in your MongoDB Atlas dashboard.');
     console.error('-------------------------------------------\n');
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
       process.exit(1);
     }
   }

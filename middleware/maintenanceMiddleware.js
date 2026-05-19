@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Settings from '../models/Settings.js';
+import connectDB from '../config/db.js';
 
 /**
  * Middleware to check if maintenance mode is enabled.
@@ -25,6 +26,13 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
         return next();
     }
 
+    // Ensure database connection is fully ready (critical for Vercel serverless environment on cold starts)
+    try {
+        await connectDB();
+    } catch (dbErr) {
+        console.error('⚠️ Critical: Database connection could not be established in maintenance middleware:', dbErr.message);
+    }
+
     // 2. Fetch settings to check if maintenance is ON
     // CACHE SETTINGS: Avoid DB roundtrip on every request
     let settings = maintenanceMode.cache?.data;
@@ -36,7 +44,7 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
             maintenanceMode.cache = { data: settings, timestamp: Date.now() };
         } catch (err) {
             // FAIL-CLOSED: If we can't fetch settings (DB down?), act as if maintenance is ON for security
-            console.error('⚠️ Critical: Could not fetch settings for maintenance check. Failing closed.');
+            console.error('⚠️ Critical: Could not fetch settings for maintenance check. Failing closed. Error:', err.message || err);
             return res.status(503).json({
                 success: false,
                 maintenance: true,
