@@ -4,8 +4,17 @@
 // On 401, we auto-call /auth/refresh to silently get a new access token.
 import axios from 'axios';
 
+let apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
+
+// Self-healing fallback: If hosted on Vercel/production but baseURL points to localhost, force relative routing
+if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+  if (apiBaseUrl.includes('localhost') || apiBaseUrl.includes('127.0.0.1')) {
+    apiBaseUrl = '/api';
+  }
+}
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: apiBaseUrl,
   headers: { 
     'Content-Type': 'application/json',
     'X-Requested-With': 'XMLHttpRequest'
