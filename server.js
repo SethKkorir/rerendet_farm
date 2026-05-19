@@ -85,6 +85,9 @@ if (!process.env.ENCRYPTION_KEY) {
 
 const app = express();
 
+// Trust Vercel's proxy headers for accurate client IP rate-limiting
+app.set('trust proxy', 1);
+
 // Register pino-http logger as the first global middleware
 const httpLogger = pinoHttp({ logger });
 app.use(httpLogger);
