@@ -3593,6 +3593,24 @@ input:checked+.slider:before {
   .mobile-tabs-scroll-nav {
     top: 79px !important; /* Precisely beneath the 80px main site header */
   }
+  
+  /* Natural window body scrolling on mobile - prevent lock */
+  .modern-account-dashboard {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+  
+  .modern-dashboard-container {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 1rem 4rem !important;
+  }
+  
+  .modern-main-content {
+    height: auto !important;
+    overflow: visible !important;
+  }
 }
 
 

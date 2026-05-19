@@ -31,11 +31,20 @@
 ══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
 
-    /* Push content up to leave room for bottom bar */
+    /* Push content up to leave room for bottom bar and unlock mobile viewports scrolling */
+    .admin-main {
+        height: auto !important;
+        min-height: 100vh !important;
+        overflow: visible !important;
+    }
+
     .admin-content {
         padding: 1rem 0.9rem calc(72px + 1rem);
         /* bottom safe area */
         padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px) + 1rem);
+        height: auto !important;
+        overflow-y: visible !important;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* Header — slimmer on mobile */
