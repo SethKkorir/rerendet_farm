@@ -108,7 +108,7 @@ export const initiateMpesaStkPushService = async (phone, amount, orderNumber, cu
     Password: password,
     Timestamp: timestamp,
     TransactionType: 'CustomerPayBillOnline',
-    Amount: Math.round(amount),
+    Amount: Math.max(1, Math.round(amount)),
     PartyA: formattedPhone,
     PartyB: MPESA_CONFIG.shortCode,
     PhoneNumber: formattedPhone,
@@ -133,8 +133,13 @@ export const initiateMpesaStkPushService = async (phone, amount, orderNumber, cu
     );
     return response.data; // Includes CheckoutRequestID, MerchantRequestID, CustomerMessage
   } catch (error) {
-    console.error('❌ M-Pesa STK Push Service Error:', error.response?.data || error.message);
-    throw new Error(error.response?.data?.errorMessage || 'M-Pesa STK Push initiation failed');
+    const safaricamData = error.response?.data;
+    console.error('❌ M-Pesa STK Push Service Error:', safaricamData || error.message);
+    // Attach Safaricom error code so controller can classify the failure type
+    const err = new Error(safaricamData?.errorMessage || 'M-Pesa STK Push initiation failed');
+    err.safaricomCode = safaricamData?.errorCode || null;
+    err.isGatewayBusy = safaricamData?.errorCode === '500.003.02';
+    throw err;
   }
 };
 

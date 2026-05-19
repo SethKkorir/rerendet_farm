@@ -89,7 +89,7 @@ const initiateMpesaPayment = asyncHandler(async (req, res) => {
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
-      Amount: Math.round(order.totalPrice),
+      Amount: Math.max(1, Math.round(order.total || order.totalPrice || 1)),
       PartyA: formattedPhone,
       PartyB: MPESA_CONFIG.shortCode,
       PhoneNumber: formattedPhone,
@@ -116,7 +116,7 @@ const initiateMpesaPayment = asyncHandler(async (req, res) => {
       order: orderId,
       user: req.user._id,
       paymentMethod: 'mpesa',
-      amount: order.totalPrice,
+      amount: order.total || order.totalPrice || 0,
       status: 'pending',
       mpesaPhoneNumber: formattedPhone,
       referenceNumber: transactionRef
@@ -140,7 +140,7 @@ const initiateMpesaPayment = asyncHandler(async (req, res) => {
       order: orderId,
       user: req.user._id,
       paymentMethod: 'mpesa',
-      amount: order.totalPrice,
+      amount: order.total || order.totalPrice || 0,
       status: 'failed',
       mpesaPhoneNumber: formattedPhone,
       failureReason: error.response?.data?.errorMessage || 'M-Pesa payment initiation failed'

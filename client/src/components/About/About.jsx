@@ -1,4 +1,5 @@
 import React, { useContext, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { AppContext } from '../../context/AppContext';
 import './About.css';
@@ -10,10 +11,10 @@ const RingMark = ({ size = 120, opacity = 0.06, className = '' }) => (
     style={{ width: size, height: size, opacity }}
   />
 );
-
 const About = () => {
   const { publicSettings, showNotification } = useContext(AppContext);
   const containerRef = useRef(null);
+  const navigate = useNavigate();
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -154,32 +155,10 @@ const About = () => {
 
             <button
               className="btn-ghost-premium btn-editorial"
-              onClick={() =>
-                showNotification(
-                  'The Rerendet Coffee Editorial is coming soon. Stay tuned for highland stories!',
-                  'info'
-                )
-              }
+              onClick={() => navigate('/blog')}
             >
               Discover Our Process
             </button>
-
-            {/* Process timeline pills */}
-            <div className="about-process-strip">
-              {['Hand-Picked', 'Sun-Dried', 'Stone-Milled', 'Slow-Roasted'].map((step, i) => (
-                <motion.div
-                  key={step}
-                  className="process-pill"
-                  initial={{ opacity: 0, y: 12 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.3 + i * 0.08 }}
-                >
-                  <span className="process-pill-num">{String(i + 1).padStart(2, '0')}</span>
-                  {step}
-                </motion.div>
-              ))}
-            </div>
 
             {/* Stats */}
             {hasStats && (

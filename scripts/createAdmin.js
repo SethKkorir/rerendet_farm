@@ -22,9 +22,9 @@ const createAdmin = async () => {
     } else {
       // Create admin user
       const adminUser = await User.create({
-        firstName: 'Super',
-        lastName: 'Admin',
-        email: 'admin@rerendetcoffee.com',
+        firstName: 'Seth',
+        lastName: 'Kipchumba',
+        email: 'zsethkipchumba179@gmail.com',
         password: 'Admin123!', // You'll need to change this after first login
         phone: '+254700000000',
         userType: 'admin',
@@ -40,7 +40,7 @@ const createAdmin = async () => {
       });
       
       console.log('✅ Default admin user created successfully!');
-      console.log('📧 Email: admin@rerendetcoffee.com');
+      console.log('📧 Email: zsethkipchumba179@gmail.com');
       console.log('🔑 Password: Admin123!');
       console.log('👤 User Type: admin');
       console.log('🎯 Role: super-admin');

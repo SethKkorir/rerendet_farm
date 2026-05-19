@@ -1,6 +1,6 @@
 // components/OrderTracking/OrderTracking.jsx
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -138,9 +138,9 @@ const OrderTracking = () => {
             {/* Dynamic Header */}
             <header className="ot-header">
                 <div className="ot-header-nav">
-                    <button className="ot-back-link" onClick={() => navigate('/account')}>
+                    <Link to="/account" className="ot-back-link">
                         <FaChevronLeft /> <span>Back to Dashboard</span>
-                    </button>
+                    </Link>
                     <div className="ot-live-pulse-container">
                         <span className="ot-pulse-indicator"></span>
                         <span className="ot-live-text">Live Order Tracker</span>
@@ -308,7 +308,7 @@ const OrderTracking = () => {
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             className="ot-actions-btn"
-                            onClick={() => navigate(`/orders/${id || order?._id}`)}
+                            onClick={() => navigate(`/order-confirmation/${id || order?._id}`)}
                         >
                             <FaFileAlt />
                             <span>Digital Receipt</span>

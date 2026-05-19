@@ -89,8 +89,10 @@ const deleteReview = asyncHandler(async (req, res) => {
         throw new Error('Not authorized to delete this review');
     }
 
+
+
     const productId = review.product;
-    await review.remove();
+    await review.deleteOne();
 
     // Recalculate product rating
     const reviews = await Review.find({ product: productId });
@@ -157,7 +159,7 @@ const getTopReviews = asyncHandler(async (req, res) => {
                     lastName,
                     email,
                     password: 'SystemSeededPassword123!',
-                    userType: 'user',
+                    userType: 'customer',
                     isVerified: true
                 });
             }

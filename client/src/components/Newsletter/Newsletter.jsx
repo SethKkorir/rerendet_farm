@@ -19,7 +19,8 @@ const Newsletter = () => {
       const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/subscribers/subscribe`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify({ email })
       });

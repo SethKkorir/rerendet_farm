@@ -915,6 +915,23 @@ const getUsers = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const updateUserRole = asyncHandler(async (req, res) => {
   const { role } = req.body;
+
+  // STRICT LEAST-PRIVILEGE: Only Super Admin can change user roles
+  if (req.user.role !== 'super-admin') {
+    // Log unauthorized role escalation attempt
+    await logActivity(req, 'UPDATE_ROLE', `UNAUTHORIZED ATTEMPT to promote ${req.params.id} to ${role}`, req.user._id, {
+      attemptedRole: role,
+      targetUserId: req.params.id,
+      ip: req.ip,
+      email: req.user.email,
+      severity: 'HIGH_RISK_ACTION'
+    });
+
+    console.warn(`🚨 [ROLE ESCALATION ATTEMPT] Admin ${req.user.email} attempted unauthorized role update to ${role} on user ${req.params.id}!`);
+    res.status(403);
+    throw new Error('Access Denied: Only Super Admin is authorized to change user roles.');
+  }
+
   const user = await User.findById(req.params.id);
 
   if (!user) {
@@ -922,8 +939,7 @@ const updateUserRole = asyncHandler(async (req, res) => {
     throw new Error('User not found');
   }
 
-  // Prevent changing role of super-admin unless it's another super-admin or itself?
-  // For now, simple role update
+  const oldRole = user.role;
   user.role = role;
 
   // Also update userType based on role to ensure authentication logic works correctly
@@ -934,6 +950,31 @@ const updateUserRole = asyncHandler(async (req, res) => {
   }
 
   await user.save();
+
+  // Dispatch Security Alert on Role Change
+  if (oldRole !== role) {
+    import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+      dispatchSecurityAlert({
+        eventTitle: 'User Role Changed',
+        eventDescription: `User **${user.email}** had their role updated from **${oldRole}** to **${role}** by admin **${req.user.email}**.`,
+        ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        userAccount: user.email,
+        severity: 'WARNING',
+        metadata: {
+          'Old Role': oldRole,
+          'New Role': role,
+          'Admin Actor': req.user.email
+        }
+      });
+    }).catch(e => console.error('Alert error:', e));
+  }
+
+  // Log successful role change (this triggers HIGH_RISK_ACTIONS alerting because action is 'UPDATE_ROLE')
+  await logActivity(req, 'UPDATE_ROLE', `Role updated for ${user.email} from ${oldRole} to ${role}`, user._id, {
+    oldRole,
+    newRole: role,
+    actor: req.user.email
+  });
 
   res.json({
     success: true,
@@ -2086,7 +2127,6 @@ const manualPaymentOverride = asyncHandler(async (req, res) => {
 
   // 1. Update order payment status
   order.paymentStatus = 'paid';
-  order.status = 'confirmed';
   order.transactionId = overrideTxId;
   order.orderEvents.push({
     status: 'PAYMENT_CONFIRMED',
@@ -2335,8 +2375,8 @@ const getSystemHealth = asyncHandler(async (req, res) => {
     }
   }
 
-  // 2. Gather BullMQ queue statistics if Redis is connected
-  if (isRedisConnected && redisClient) {
+  // 2. Gather BullMQ queue statistics
+  if (emailQueue && subscriptionQueue && retryQueue) {
     try {
       queueStats.emailQueue = await emailQueue.getJobCounts('active', 'waiting', 'completed', 'failed');
       queueStats.subscriptionQueue = await subscriptionQueue.getJobCounts('active', 'waiting', 'completed', 'failed');

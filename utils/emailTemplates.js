@@ -1,8 +1,8 @@
-const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173');
+const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000');
 const ADMIN_PANEL_URL = FRONTEND_URL;
 
 const getBaseTemplate = (title, content, options = {}) => {
-  const logoUrl = options.logoUrl; // If provided, use it
+  const logoUrl = options.logoUrl || `${FRONTEND_URL}/rerendet-logo.png`;
   const year = new Date().getFullYear();
 
   return `
@@ -174,7 +174,8 @@ const getBaseTemplate = (title, content, options = {}) => {
       <div class="container">
         <div class="header">
           <div class="logo-box">
-             ${logoUrl ? `<img src="${logoUrl}" alt="Rerendet Logo" />` : '<span style="font-size: 40px;">☕</span>'}
+             <img src="${logoUrl}" alt="Rerendet Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" style="display: block; max-height: 52px; margin: auto;" />
+             <span style="font-size: 40px; display: none; margin: auto; text-align: center;">☕</span>
           </div>
           <a href="${FRONTEND_URL}" class="brand-title">Rerendet Coffee</a>
           <div class="divider"></div>
@@ -242,16 +243,25 @@ export const getWelcomeEmail = (name, logoUrl) => {
   return getBaseTemplate('Welcome to Rerendet Coffee', content, { logoUrl });
 };
 
-export const getResetPasswordEmail = (name, code, logoUrl) => {
+export const getResetPasswordEmail = (name, code, logoUrl, resetUrl = '') => {
   const content = `
     <h1>Password Reset Request</h1>
     <p>Dear ${name},</p>
-    <p>We received a request to reset your password. Please use the reset code below to proceed:</p>
+    <p>We received a request to reset your password. Please click the button below to reset your password:</p>
+    ${resetUrl ? `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetUrl}" class="premium-btn" style="color: #ffffff !important;">Reset Password</a>
+      </div>
+      <p style="font-size: 12px; color: #6F4E37; text-align: center; word-break: break-all; margin: 20px 0;">
+        Or copy and paste this link in your browser: <br/>
+        <a href="${resetUrl}" style="color: #D4AF37; text-decoration: underline;">${resetUrl}</a>
+      </p>
+    ` : ''}
     <div class="verification-code-box">
       <span class="code-text">${code}</span>
-      <span class="code-caption">Reset Code</span>
+      <span class="code-caption">Or enter this manual Reset Code</span>
     </div>
-    <p>If you did not request this, please update your security settings immediately.</p>
+    <p>If you did not request this, please update your security settings immediately. This code and link will expire in 15 minutes.</p>
   `;
   return getBaseTemplate('Reset Your Password', content, { logoUrl });
 };

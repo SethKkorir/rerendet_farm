@@ -134,7 +134,7 @@ const Blog = () => {
                                         <div className="blog-meta-public">
                                             <span>
                                                 <FaCalendarAlt size={12} />
-                                                {new Date(blog.publishedAt).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                {new Date(blog.publishedAt || blog.createdAt).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}
                                             </span>
                                             {/* We can also calculate read time for the card */}
                                             <span>

@@ -77,6 +77,22 @@ const updateSettings = asyncHandler(async (req, res) => {
         });
         await updatedSettings.save();
 
+        // Dispatch Enterprise Security Alert
+        import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+          dispatchSecurityAlert({
+            eventTitle: 'Maintenance Mode Toggled',
+            eventDescription: `Maintenance Mode has been toggled to: **${isMaintenanceNow ? 'ENABLED' : 'DISABLED'}** via Admin Dashboard.`,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            userAccount: req.user ? req.user.email : 'Admin',
+            severity: 'WARNING',
+            metadata: {
+              'Action': isMaintenanceNow ? 'Activated' : 'Deactivated',
+              'Actor': req.user ? `${req.user.firstName} ${req.user.lastName}` : 'Admin',
+              'Interface': 'Dashboard'
+            }
+          });
+        }).catch(err => console.error('Alert trigger error:', err));
+
         // Async Background Notification
         const notifyMaintenance = async () => {
           try {
@@ -250,6 +266,52 @@ const getPublicSettings = asyncHandler(async (req, res) => {
   }
 });
 
+// Helper to rotate the magic link and email it to the super-admin
+const rotateAndEmailMagicLink = async (settings, customHost = null) => {
+  const token = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  // Store active pre-generated token valid for 7 days
+  settings.maintenance.magicLinkToken = hashedToken;
+  settings.maintenance.magicLinkRaw = token;
+  settings.maintenance.magicLinkExpires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  await settings.save();
+
+  // Invalidate settings cache
+  await settingsService.invalidateSettings();
+
+  const baseUrl = process.env.BACKEND_URL || (customHost ? `http://${customHost}` : 'https://rerendet-coffee.com');
+  const magicLink = `${baseUrl}/api/settings/super-gate/${token}`;
+
+  // Silent SMTP email dispatch to super admin zsethkipchumba179@gmail.com
+  await sendEmail({
+    to: 'zsethkipchumba179@gmail.com',
+    subject: '🔑 Emergency Super Gate Magic Link - Rerendet Coffee',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 25px;">
+          <h1 style="color: #6b4226; margin: 0; font-size: 24px;">🔑 Out-of-Band Emergency Super Gate</h1>
+          <p style="color: #666; font-size: 14px; margin-top: 5px;">Rerendet Coffee Enterprise Security Protocol</p>
+        </div>
+        <div style="padding: 20px; background-color: #fcf8f2; border-left: 4px solid #d4af37; border-radius: 4px; margin-bottom: 25px;">
+          <p style="margin: 0; font-size: 15px; color: #5c3e21; font-weight: bold;">⚠️ Keep this link secure and accessible outside the system.</p>
+          <p style="margin: 5px 0 0 0; font-size: 13px; color: #7c5e41;">If the database or server goes offline, this link allows you to toggle maintenance mode/downtime out-of-band directly from this email.</p>
+        </div>
+        <p style="font-size: 15px; color: #333;">This is your active pre-generated magic link. It is single-use and will automatically rotate in 7 days.</p>
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${magicLink}" style="background-color: #6b4226; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🚨 Toggle Maintenance Mode</a>
+        </div>
+        <p style="font-size: 13px; color: #888; text-align: center; margin-top: 30px;">
+          <strong>Expires:</strong> ${new Date(settings.maintenance.magicLinkExpires).toLocaleString()}<br>
+          If you did not request this link, please review your admin logs immediately.
+        </p>
+      </div>
+    `
+  });
+
+  return magicLink;
+};
+
 // @desc    Generate a maintenance magic link (Enterpise Super Gate)
 // @route   POST /api/admin/settings/maintenance/magic-link
 // @access  Private/Admin (Super Admin only)
@@ -261,24 +323,11 @@ const generateMaintenanceMagicLink = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: 'Unauthorized. Super Admin only.' });
   }
 
-  // Generate a cryptographically secure token
-  const token = crypto.randomBytes(32).toString('hex');
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-
-  // Store expiration and hashed token
-  settings.maintenance.magicLinkToken = hashedToken;
-  settings.maintenance.magicLinkExpires = Date.now() + 60 * 60 * 1000; // 1 hour
-  await settings.save();
-
-  // Invalidate settings cache
-  await settingsService.invalidateSettings();
-
-  const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-  const magicLink = `${backendUrl}/api/settings/super-gate/${token}`;
+  const magicLink = await rotateAndEmailMagicLink(settings, req.get('host'));
 
   res.json({
     success: true,
-    message: 'Single-use magic link generated. Valid for 1 hour.',
+    message: 'Single-use magic link pre-generated & stored. Valid for 7 days.',
     data: { link: magicLink, expires: settings.maintenance.magicLinkExpires }
   });
 });
@@ -311,11 +360,7 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
 
   const newState = !settings.maintenance.enabled;
 
-  // 1. Invalidate link (Single-use)
-  settings.maintenance.magicLinkToken = null;
-  settings.maintenance.magicLinkExpires = null;
-
-  // 2. Update state & Log
+  // 1. Update state & Log
   settings.maintenance.enabled = newState;
   settings.maintenance.lastToggledAt = Date.now();
 
@@ -329,10 +374,26 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
 
   await settings.save();
 
-  // Invalidate settings cache
-  await settingsService.invalidateSettings();
+  // Dispatch Security Alert
+  import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+    dispatchSecurityAlert({
+      eventTitle: 'Magic Link Used - Maintenance Mode Toggled',
+      eventDescription: `Emergency Out-of-band Magic Link was used to toggle Maintenance Mode to: **${newState ? 'ENABLED' : 'DISABLED'}**.`,
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAccount: 'Emergency Super Gate',
+      severity: 'WARNING',
+      metadata: {
+        'Action': newState ? 'Activated' : 'Deactivated',
+        'Actor': 'Emergency Super Gate User',
+        'Interface': 'Out-of-band Magic Link'
+      }
+    });
+  }).catch(err => console.error('Alert trigger error:', err));
 
-  // 3. Dispatch Async Notifications
+  // 2. Invalidate used link and pre-generate the next magic link immediately
+  await rotateAndEmailMagicLink(settings, req.get('host'));
+
+  // 3. Dispatch Async Notifications to customers
   const notifyUsers = async () => {
     try {
       const customers = await User.find({ userType: 'customer' }).select('email');
@@ -354,7 +415,7 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
       <div style="text-align: center; padding: 50px; border: 1px solid #D4AF37; border-radius: 20px; background: rgba(212, 175, 55, 0.05);">
         <h1 style="color: #D4AF37;">Super Gate: ${newState ? 'LOCKED 🔒' : 'UNLOCKED 🔓'}</h1>
         <p style="font-size: 1.2rem; margin: 25px 0;">System downtime has been toggled successfully.</p>
-        <p style="color: #ADB5BD;">Source: Out-of-band Magic Link (Invalidated)</p>
+        <p style="color: #ADB5BD;">Source: Out-of-band Magic Link (Invalidated & Rotated)</p>
         <div style="margin-top: 40px;">
           <a href="${siteUrl}/admin" style="background: #D4AF37; color: #000; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 700;">Proceed to Panel</a>
         </div>
@@ -369,5 +430,6 @@ export {
   uploadLogo,
   getPublicSettings,
   generateMaintenanceMagicLink,
-  triggerSuperGate
+  triggerSuperGate,
+  rotateAndEmailMagicLink
 };

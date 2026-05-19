@@ -54,6 +54,14 @@ const PaymentProcessingModal = ({
             });
 
             const result = await response.json();
+
+            // ── 202: Safaricom gateway busy, retry queued ──
+            if (response.status === 202 && result.retrying) {
+                setStatus('retrying');
+                setMessage(result.message || 'M-Pesa gateway is busy. Your payment has been queued and will be retried automatically in ~2 minutes.');
+                return; // Don't show failure — stay in retrying state
+            }
+
             if (!result.success) {
                 throw new Error(result.message || 'Failed to trigger STK Push');
             }
@@ -204,6 +212,9 @@ const PaymentProcessingModal = ({
                     <div className={`payment-icon-container ${status}`}>
                         {status === 'processing' && (
                             <FaSpinner className="spinner" />
+                        )}
+                        {status === 'retrying' && (
+                            <span style={{ fontSize: '2.5rem' }}>⏳</span>
                         )}
                         {status === 'success' && (
                             <FaCheckCircle className="success-icon" />

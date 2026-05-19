@@ -117,7 +117,11 @@ const ProductDetail = () => {
                         </button>
 
                         <div className="product-features-mini">
-                            <div className="f-item"><FaLeaf /> Freshly Roasted</div>
+                            {product.category === 'coffee-beans' ? (
+                                <div className="f-item"><FaLeaf /> Freshly Roasted</div>
+                            ) : (
+                                <div className="f-item"><FaLeaf /> Premium Quality</div>
+                            )}
                             <div className="f-item"><FaShieldAlt /> Secure Checkout</div>
                             <div className="f-item"><FaTruck /> Fast Delivery</div>
                         </div>

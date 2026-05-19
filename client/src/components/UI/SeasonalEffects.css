@@ -1,0 +1,142 @@
+/* SeasonalEffects.css */
+
+.seasonal-effects-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999; /* Ensure it floats above the main page but below modal backdrops */
+    overflow: hidden;
+}
+
+/* Snowflake Animation */
+.snowflake {
+    position: absolute;
+    top: -20px;
+    background: #ffffff;
+    border-radius: 50%;
+    filter: blur(1px);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    animation: fall linear infinite;
+}
+
+@keyframes fall {
+    0% {
+        transform: translateY(0) rotate(0deg) translateX(0);
+        opacity: 1;
+    }
+    50% {
+        translateX: 15px;
+    }
+    100% {
+        transform: translateY(105vh) rotate(360deg) translateX(-15px);
+        opacity: 0;
+    }
+}
+
+/* Confetti Animation */
+.confetti-particle {
+    position: absolute;
+    top: -20px;
+    animation: confetti-fall ease-in-out infinite;
+}
+
+.confetti-particle.circle {
+    border-radius: 50%;
+}
+
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(105vh) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+/* Holiday Banner Common Styles */
+.holiday-banner {
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 700px;
+    padding: 16px 24px;
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    pointer-events: auto; /* Allow users to click banner actions */
+    animation: slideInDown 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Christmas Theme Crimson Styling */
+.christmas-banner {
+    background: linear-gradient(135deg, rgba(139, 0, 0, 0.95), rgba(34, 139, 34, 0.95));
+}
+
+/* New Year Theme Sleek Gold-Carbon Styling */
+.newyear-banner {
+    background: linear-gradient(135deg, rgba(18, 18, 22, 0.96), rgba(44, 34, 14, 0.96));
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 0 0 15px rgba(212, 175, 55, 0.1), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.banner-accent-gold {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    color: #FFD700;
+    text-transform: uppercase;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.banner-message {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #ffffff;
+    font-weight: 500;
+    font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+.banner-actions {
+    margin-top: 4px;
+}
+
+.promo-code {
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.12);
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.promo-code strong {
+    color: #FFD700;
+    letter-spacing: 0.5px;
+}
+
+/* Animations */
+@keyframes slideInDown {
+    from {
+        transform: translate(-50%, -50px);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}

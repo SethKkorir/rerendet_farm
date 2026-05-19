@@ -88,7 +88,6 @@ export const handleMpesaWebhook = asyncHandler(async (req, res) => {
         if (ResultCode === 0) {
             if (order.paymentStatus !== 'paid') {
                 order.paymentStatus = 'paid';
-                order.status = 'confirmed';
                 order.transactionId = finalTxReceipt; // Update with actual receipt number
                 order.orderEvents.push({
                     status: 'PAYMENT_CONFIRMED',
@@ -160,7 +159,6 @@ export const handleStripeWebhook = asyncHandler(async (req, res) => {
             const order = await Order.findById(orderId);
             if (order && order.paymentStatus !== 'paid') {
                 order.paymentStatus = 'paid';
-                order.status = 'confirmed';
                 order.transactionId = session.payment_intent;
                 await order.save();
 

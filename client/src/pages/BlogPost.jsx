@@ -78,7 +78,7 @@ const BlogPost = () => {
                     >
                         <span className="post-cat">{blog.category}</span>
                         <span className="dot-divider">•</span>
-                        <span>{new Date(blog.publishedAt).toLocaleDateString('en-KE', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                        <span>{new Date(blog.publishedAt || blog.createdAt).toLocaleDateString('en-KE', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                         <span className="dot-divider">•</span>
                         <span>{readTime} min read</span>
                     </motion.div>

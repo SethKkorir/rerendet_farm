@@ -186,7 +186,11 @@ const OrderReceipt = () => {
                 <tr key={i}>
                   <td>
                     <div className="or-item-name">{item.name}</div>
-                    <div className="or-item-sub">Freshly roasted selection</div>
+                    {item.category === 'coffee-beans' ? (
+                      <div className="or-item-sub">Freshly roasted selection</div>
+                    ) : (
+                      <div className="or-item-sub">Premium selection</div>
+                    )}
                   </td>
                   <td><span className="or-tag">{item.size}</span></td>
                   <td className="center">{item.quantity}</td>
@@ -228,7 +232,7 @@ const OrderReceipt = () => {
             <FaShieldAlt /> Secure Transaction
           </div>
           <div className="or-trust-item">
-            <FaCoffee /> Freshly Roasted
+            <FaCoffee /> {order.items?.some(item => item.category === 'coffee-beans') ? 'Freshly Roasted' : 'Premium Quality'}
           </div>
           <div className="or-trust-item">
             <FaTruck /> Premium Delivery

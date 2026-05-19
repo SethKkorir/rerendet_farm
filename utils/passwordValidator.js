@@ -1,5 +1,6 @@
-// utils/passwordValidator.js - HIGH ENTROPY VALIDATOR
+// utils/passwordValidator.js - HIGH ENTROPY & BREACH VALIDATOR
 import zxcvbnLib from 'zxcvbn';
+import { checkPasswordBreach } from './hibpService.js';
 
 export const checkPasswordStrength = (password, email = '') => {
   try {
@@ -50,4 +51,39 @@ export const checkPasswordStrength = (password, email = '') => {
       crackTime: score >= 3 ? 'Years' : 'Seconds'
     };
   }
+};
+
+/**
+ * Validates password strength and checks if it has been exposed in a data breach.
+ * 
+ * @param {string} password - Password to validate
+ * @param {string} email - Optional user email for entropy context
+ * @returns {Promise<{ isValid: boolean, score: number, feedback: string }>}
+ */
+export const validatePasswordSecurely = async (password, email = '') => {
+  const strength = checkPasswordStrength(password, email);
+  
+  if (strength.score < 3) {
+    return {
+      isValid: false,
+      score: strength.score,
+      feedback: `Password too weak! ${strength.feedback}`
+    };
+  }
+
+  // Check for breaches via HaveIBeenPwned API
+  const breachCount = await checkPasswordBreach(password);
+  if (breachCount > 0) {
+    return {
+      isValid: false,
+      score: strength.score,
+      feedback: `Security Risk: This password was found in a database of breached credentials (seen ${breachCount} times in public leaks). Please choose a different, unique password.`
+    };
+  }
+
+  return {
+    isValid: true,
+    score: strength.score,
+    feedback: 'Password meets all enterprise security requirements.'
+  };
 };

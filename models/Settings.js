@@ -1,5 +1,6 @@
 // models/Settings.js - NEW FILE
 import mongoose from 'mongoose';
+import crypto from 'crypto';
 
 const settingsSchema = new mongoose.Schema({
   // Store Information
@@ -161,6 +162,7 @@ const settingsSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     message: { type: String, default: 'We are currently performing maintenance. Please check back soon.' },
     magicLinkToken: { type: String, default: null },
+    magicLinkRaw: { type: String, default: null },
     magicLinkExpires: { type: Date, default: null },
     lastToggledAt: { type: Date, default: Date.now },
     history: [
@@ -200,6 +202,16 @@ settingsSchema.statics.getSettings = async function () {
 
   if (!settings.countyShipping || settings.countyShipping.length === 0) {
     settings.countyShipping = COUNTIES.map(c => ({ county: c, price: 500 }));
+    await settings.save();
+  }
+
+  // Pre-generate active magic link token if not present
+  if (!settings.maintenance || !settings.maintenance.magicLinkToken || !settings.maintenance.magicLinkRaw) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    settings.maintenance.magicLinkToken = hashedToken;
+    settings.maintenance.magicLinkRaw = token;
+    settings.maintenance.magicLinkExpires = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     await settings.save();
   }
 

@@ -1,284 +1,357 @@
-/* src/components/Admin/AdminLogin.css */
-.admin-login-page {
+/* ============================================================
+   Admin Login — Full Redesign
+   Design tokens: gold #D4AF37, dark base #0d0d0d
+   All colours meet WCAG AA contrast on dark backgrounds
+   ============================================================ */
+
+/* ── Page shell ── */
+.adl-page {
   min-height: 100dvh;
-  background: radial-gradient(circle at 0% 0%, #1a1a1a 0%, #0a0a0a 100%);
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 24px 16px;
+  background: #0d0d0d;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  position: relative;
   overflow: hidden;
-  font-family: 'Outfit', sans-serif;
 }
 
-/* Sophisticated background blobs - Fixed Z-index */
-.admin-login-page::before,
-.admin-login-page::after {
-  content: '';
+/* ── Ambient glows ── */
+.adl-glow {
   position: absolute;
-  width: 50vw;
-  height: 50vw;
   border-radius: 50%;
-  filter: blur(120px);
-  z-index: 1;
-  /* Below content but above base black */
-  opacity: 0.12;
+  filter: blur(100px);
   pointer-events: none;
-  /* Crucial: ensures blobs don't steal clicks */
+  z-index: 0;
 }
-
-.admin-login-page::before {
-  top: -200px;
-  left: -100px;
-  background: var(--color-primary, #D4AF37);
+.adl-glow--gold {
+  width: 520px;
+  height: 520px;
+  top: -180px;
+  left: -120px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.18) 0%, transparent 70%);
 }
-
-.admin-login-page::after {
-  bottom: -200px;
+.adl-glow--blue {
+  width: 400px;
+  height: 400px;
+  bottom: -140px;
   right: -100px;
-  background: #3b82f6;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
 }
 
-.admin-login-container {
-  width: 100%;
-  max-width: 460px;
+/* ── Card ── */
+.adl-card {
   position: relative;
-  z-index: 100;
-  /* High priority */
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(18, 18, 18, 0.92);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 24px;
+  padding: 36px 36px 28px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 32px 64px rgba(0, 0, 0, 0.7),
+    0 0 40px rgba(212, 175, 55, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
-.admin-login-card {
-  background: rgba(10, 10, 10, 0.4);
-  /* Darker for better contrast */
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border: 1px solid rgba(255, 215, 0, 0.1);
-  /* Gold tint border */
-  border-radius: 28px;
-  padding: clamp(30px, 8vw, 50px);
-  box-shadow: 0 50px 100px rgba(0, 0, 0, 0.8),
-    inset 0 0 40px rgba(255, 255, 255, 0.02);
-  user-select: none;
-  /* Prevent easy scraping of text */
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.login-header .logo-img {
-  height: 100px;
-  margin-bottom: 24px;
-  filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.2));
-  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.login-header .logo-img:hover {
-  transform: scale(1.05);
-}
-
-.login-header h2 {
-  color: #fff;
-  font-size: 1.8rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
-}
-
-.login-header p {
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 0.95rem;
-}
-
-.error-message {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #f87171;
-  padding: 14px 18px;
-  border-radius: 12px;
+/* ── Top bar ── */
+.adl-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 28px;
-  font-size: 0.88rem;
+  min-height: 32px;
+}
+
+.adl-icon-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
-  animation: shake 0.4s cubic-bezier(.36, .07, .19, .97) both;
-}
-
-@keyframes shake {
-
-  10%,
-  90% {
-    transform: translate3d(-1px, 0, 0);
-  }
-
-  20%,
-  80% {
-    transform: translate3d(2px, 0, 0);
-  }
-
-  30%,
-  50%,
-  70% {
-    transform: translate3d(-4px, 0, 0);
-  }
-
-  40%,
-  60% {
-    transform: translate3d(4px, 0, 0);
-  }
-}
-
-.login-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.form-group label {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  margin-left: 4px;
-}
-
-.input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.input-icon {
-  position: absolute;
-  left: 18px;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 1.1rem;
-  transition: color 0.3s ease;
-}
-
-.form-input {
-  width: 100%;
-  padding: 16px 18px 16px 50px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  color: #fff;
-  font-size: 1rem;
-  transition: all 0.3s ease;
-}
-
-.form-input:focus {
-  outline: none;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--color-primary, #D4AF37);
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
-}
-
-.form-input:focus+.input-icon {
-  color: var(--color-primary, #D4AF37);
-}
-
-.login-btn {
-  background: var(--color-primary, #D4AF37);
-  color: #000;
-  border: none;
-  padding: 18px;
-  border-radius: 14px;
-  font-size: 1rem;
-  font-weight: 700;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-  margin-top: 12px;
-  position: relative;
+  transition: all 0.2s ease;
+}
+.adl-icon-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: #D4AF37;
+  color: #D4AF37;
+}
+
+.adl-badge {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #D4AF37;
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+  padding: 4px 10px;
+  border-radius: 100px;
+}
+
+/* ── Header ── */
+.adl-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.adl-logo {
+  height: 72px;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 4px 16px rgba(212, 175, 55, 0.18));
+  transition: transform 0.4s ease;
+}
+.adl-logo:hover {
+  transform: scale(1.04);
+}
+
+.adl-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 8px;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.adl-subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Error banner ── */
+.adl-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fca5a5;
   overflow: hidden;
 }
 
-.login-btn::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
+/* ── Form ── */
+.adl-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.adl-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+/* ── Field ── */
+.adl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.adl-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.75); /* clearly visible */
+}
+
+/* ── Input wrapper ── */
+.adl-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Input ── */
+.adl-input {
   width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transition: .5s;
+  padding: 14px 46px 14px 16px; /* right pad clears icon */
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #ffffff;          /* typed text: full white */
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  font-family: inherit;
 }
 
-.login-btn:hover:not(:disabled)::after {
-  left: 100%;
+.adl-input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+  transition: color 0.2s ease;
 }
 
-.login-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 15px 35px rgba(212, 175, 55, 0.3);
-  background: #e5c048;
+.adl-input:focus::placeholder {
+  color: transparent;
 }
 
-.login-btn:active:not(:disabled) {
-  transform: translateY(0);
+.adl-input:focus {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: #D4AF37;
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
 }
 
-.login-btn:disabled {
-  opacity: 0.6;
+.adl-input:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(0, 0, 0, 0.1);
-  border-top-color: #000;
-  border-radius: 50%;
-  animation: spin 1s infinite linear;
+/* ── Right-side icon ── */
+.adl-input-icon {
+  position: absolute;
+  right: 14px;
+  width: 16px;
+  height: 16px;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.3); /* muted, not screaming white */
+  pointer-events: none;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
 }
 
-.back-btn {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.4);
-  border: none;
-  padding: 10px;
-  font-size: 0.9rem;
-  font-weight: 500;
+/* Icon turns gold when field is active */
+.adl-input-wrap:focus-within .adl-input-icon {
+  color: #D4AF37;
+}
+
+/* Eye toggle inherits icon position but needs pointer events */
+.adl-eye-btn {
+  pointer-events: auto;
   cursor: pointer;
-  width: 100%;
-  transition: color 0.3s ease;
-  margin-top: 10px;
-}
-
-.back-btn:hover {
-  color: #fff;
-}
-
-.login-security-footer {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: none;
+  border: none;
+  padding: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  color: rgba(255, 255, 255, 0.3);
-  font-size: 0.75rem;
+  border-radius: 6px;
+}
+.adl-eye-btn:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+.adl-input-wrap:focus-within .adl-eye-btn {
+  color: rgba(212, 175, 55, 0.7);
+}
+.adl-eye-btn:hover {
+  color: #D4AF37 !important;
+}
+
+/* ── OTP input ── */
+.adl-input--otp {
+  padding: 18px 16px;
+  text-align: center;
+  font-size: 2rem;
+  letter-spacing: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #D4AF37;           /* OTP digits in gold — unmistakable */
+}
+
+/* ── Submit button ── */
+.adl-submit {
+  width: 100%;
+  padding: 15px;
+  background: #D4AF37;
+  color: #0d0d0d;           /* near-black text on gold — max contrast */
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
   letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.adl-submit::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
+  transform: translateX(-100%);
+  transition: transform 0.55s ease;
+}
+.adl-submit:not(:disabled):hover::after {
+  transform: translateX(100%);
+}
+.adl-submit:not(:disabled):hover {
+  background: #e5c14a;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(212, 175, 55, 0.35);
+}
+.adl-submit:not(:disabled):active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+.adl-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
+/* ── Spinner ── */
+.adl-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(0, 0, 0, 0.2);
+  border-top-color: #0d0d0d;
+  border-radius: 50%;
+  animation: adl-spin 0.9s linear infinite;
+}
+@keyframes adl-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Footer ── */
+.adl-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+}
+
+.adl-footer-icon {
+  color: #D4AF37;
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+/* ── Responsive ── */
 @media (max-width: 480px) {
-  .admin-login-card {
+  .adl-card {
+    padding: 28px 20px 22px;
     border-radius: 20px;
-    padding: 30px 20px;
+  }
+  .adl-title {
+    font-size: 1.5rem;
   }
 }

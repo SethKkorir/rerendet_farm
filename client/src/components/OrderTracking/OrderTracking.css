@@ -33,6 +33,8 @@
     font-size: 0.85rem;
     font-weight: 600;
     transition: var(--transition-fast);
+    cursor: pointer;
+    text-decoration: none;
 }
 
 .ot-back-link:hover {
@@ -556,6 +558,8 @@
     letter-spacing: 1.5px;
     font-size: 0.85rem;
     box-shadow: var(--shadow-md);
+    cursor: pointer;
+    border: none;
 }
 
 /* --- Loader States --- */

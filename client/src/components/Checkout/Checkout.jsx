@@ -248,7 +248,15 @@ function Checkout() {
     if (!shippingInfo.firstName?.trim()) newErrors.firstName = 'First name is required';
     if (!shippingInfo.lastName?.trim()) newErrors.lastName = 'Last name is required';
     if (!shippingInfo.email?.trim()) newErrors.email = 'Email is required';
-    if (!shippingInfo.phone?.trim() || shippingInfo.phone.trim() === '+254') newErrors.phone = 'Valid phone is required';
+    
+    // Courier phone is now optional. If provided, validate that it is a valid format.
+    if (shippingInfo.phone?.trim() && 
+        shippingInfo.phone.trim() !== '+254' && 
+        shippingInfo.phone.trim() !== '+254 ' && 
+        shippingInfo.phone.replace(/[\s\-\+]/g, '').length < 9) {
+      newErrors.phone = 'Please enter a valid phone number or leave blank';
+    }
+
     if (!shippingInfo.address?.trim()) newErrors.address = 'Street/Building is required';
 
     if (shippingInfo.country === 'Kenya') {
@@ -277,6 +285,9 @@ function Checkout() {
       const orderData = {
         shippingAddress: {
           ...shippingInfo,
+          phone: shippingInfo.phone?.trim() && shippingInfo.phone.trim() !== '+254' && shippingInfo.phone.trim() !== '+254 '
+            ? shippingInfo.phone
+            : (user?.phone || mpesaPhone || '+254 700 000 000'),
           city: shippingInfo.country === 'Kenya' ? shippingInfo.county : shippingInfo.city
         },
         paymentMethod,
@@ -387,6 +398,9 @@ function Checkout() {
       const orderData = {
         shippingAddress: {
           ...shippingInfo,
+          phone: shippingInfo.phone?.trim() && shippingInfo.phone.trim() !== '+254' && shippingInfo.phone.trim() !== '+254 '
+            ? shippingInfo.phone
+            : (user?.phone || mpesaPhone || '+254 700 000 000'),
           city: shippingInfo.country === 'Kenya' ? shippingInfo.county : shippingInfo.city
         },
         paymentMethod,
@@ -613,7 +627,10 @@ function Checkout() {
               </div>
 
               <div className={`input-group full-width ${errors.phone ? 'has-error' : ''}`}>
-                <label className="input-label">Courier Contact Phone</label>
+                <div className="label-flex">
+                  <label className="input-label">Courier Contact Phone</label>
+                  <span className="label-hint">Optional</span>
+                </div>
                 <div className="input-with-icon-modern" style={{ position: 'relative' }}>
                   <FaPhone className="inner-icon" />
                   <input

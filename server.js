@@ -4,8 +4,8 @@ import * as Sentry from '@sentry/node';
 // Gracefully load Sentry CPU Profiling bindings (Node v25 Windows compatibility fallback)
 let nodeProfilingIntegration;
 try {
-  const profilingModule = await import('@sentry/profiling-node');
-  nodeProfilingIntegration = profilingModule.nodeProfilingIntegration;
+  // Removed top-level await for @sentry/profiling-node as it hangs on Node 24+ on Windows
+  // console.warn('⚠️  [Sentry] CPU Profiler bindings disabled for local dev to prevent hanging.');
 } catch (profilingErr) {
   console.warn('⚠️  [Sentry] CPU Profiler bindings not found for this platform. Profiling disabled.');
 }
@@ -23,6 +23,7 @@ import hpp from 'hpp';
 import cookieParser from 'cookie-parser';
 
 import connectDB from './config/db.js';
+import csrfGuard from './middleware/csrfGuardMiddleware.js';
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -32,6 +33,8 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import cronRoutes from './routes/cronRoutes.js';
+import publicRoutes from './routes/publicRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import adRoutes from './routes/adRoutes.js';
 import blogRoutes from './routes/blogRoutes.js';
@@ -94,8 +97,30 @@ console.log("✅ connectDB initiated");
 
 // ================= SECURITY =================
 
-// Helmet (keep this global — it's lightweight)
-app.use(helmet());
+// Helmet - enterprise-grade security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://apis.google.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+      connectSrc: ["'self'", "https://api.github.com", "https://api.haveibeenpwned.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameAncestors: ["'none'"]
+    }
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  frameguard: {
+    action: 'deny'
+  }
+}));
 
 // CORS (optimized)
 const allowedOrigins = new Set([
@@ -152,16 +177,38 @@ app.use(cookieParser());
 // Global (light)
 app.use('/api', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500
+  max: 500,
+  handler: (req, res, next, options) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    import('./utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+      dispatchSecurityAlert({
+        eventTitle: 'Global Rate Limit Blocked IP',
+        eventDescription: `An IP address has exceeded the global limit of 500 requests in 15 minutes. Potential DDoS or automated scraping attempt.`,
+        ipAddress: ip,
+        severity: 'WARNING',
+        metadata: { 'Target Path': req.originalUrl }
+      });
+    }).catch(e => console.error(e));
+    res.status(429).json({ success: false, message: 'Too many requests. Please try again in 15 minutes.' });
+  }
 }));
 
 // Strict (auth only)
 app.use('/api/auth', rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'development' ? 1000 : 30,
-  message: {
-    success: false,
-    message: 'Too many authentication attempts. Please try again after 15 minutes.'
+  handler: (req, res, next, options) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    import('./utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+      dispatchSecurityAlert({
+        eventTitle: 'Auth Rate Limit Blocked IP',
+        eventDescription: `An IP address has exceeded authentication request thresholds. Possible credential stuffing or brute force endpoint attack.`,
+        ipAddress: ip,
+        severity: 'WARNING',
+        metadata: { 'Target Path': req.originalUrl }
+      });
+    }).catch(e => console.error(e));
+    res.status(429).json({ success: false, message: 'Too many authentication attempts. Please try again in 15 minutes.' });
   }
 }));
 
@@ -171,6 +218,19 @@ app.use('/api/auth', rateLimit({
 app.use('/api/auth', mongoSanitize(), xss());
 app.use('/api/orders', mongoSanitize());
 app.use('/api/payments', hpp());
+
+// ================= HARDWARE RESOURCE SATURATION MONITOR =================
+let lastHardwareCheck = 0;
+app.use((req, res, next) => {
+  const now = Date.now();
+  if (now - lastHardwareCheck > 5 * 60 * 1000) { // every 5 minutes
+    lastHardwareCheck = now;
+    import('./utils/securityAlerts.js').then(({ checkHardwareResources }) => {
+      checkHardwareResources(req);
+    }).catch(e => console.error('Hardware monitor check error:', e));
+  }
+  next();
+});
 
 // ================= LOGGER (DEV ONLY) =================
 if (process.env.NODE_ENV !== 'production') {
@@ -183,6 +243,9 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// ================= ANTI-CSRF SHIELD =================
+app.use(csrfGuard);
+
 // ================= ROUTES =================
 app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);
@@ -191,6 +254,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/cron', cronRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/promotions', adRoutes);
 app.use('/api/blogs', blogRoutes);
@@ -212,24 +277,28 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ================= START =================
-const PORT = process.env.PORT || 5000;
+export default app;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  // Boot up automated system-wide background jobs (Cleanups, Fraud scans, Payment Reconciliations)
-  startCronJobs();
-  
-  // Boot up BullMQ asynchronous workers only if Redis is active
-  if (redisClient && (isRedisConnected || process.env.NODE_ENV === 'production')) {
-    try {
-      startEmailWorker();
-      startSubscriptionWorker();
-      startRetryWorker();
-      console.log('✅ [BullMQ] All background workers started successfully!');
-    } catch (workerErr) {
-      console.error('❌ [BullMQ] Failed to start background workers:', workerErr.message);
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    // Boot up automated system-wide background jobs (Cleanups, Fraud scans, Payment Reconciliations)
+    startCronJobs();
+    
+    // Boot up BullMQ asynchronous workers only if Redis is active
+    if (redisClient && (isRedisConnected || process.env.NODE_ENV === 'production')) {
+      try {
+        startEmailWorker();
+        startSubscriptionWorker();
+        startRetryWorker();
+        console.log('✅ [BullMQ] All background workers started successfully!');
+      } catch (workerErr) {
+        console.error('❌ [BullMQ] Failed to start background workers:', workerErr.message);
+      }
+    } else {
+      console.warn('⚠️  [BullMQ] Redis is offline. Asynchronous workers will not be started.');
     }
-  } else {
-    console.warn('⚠️  [BullMQ] Redis is offline. Asynchronous workers will not be started.');
-  }
-});
+  });
+}

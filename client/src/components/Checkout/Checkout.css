@@ -92,23 +92,22 @@
 }
 
 /* Sections */
+/* Sections */
 .checkout-form-section {
   background: var(--bg-card);
   border: 1px solid var(--border-main);
-  border-radius: 12px;
-  /* More compact */
-  padding: 1.5rem;
-  /* Reduced padding */
-  margin-bottom: 1rem;
-  /* Reduced margin */
+  border-radius: 20px;
+  padding: 2.25rem;
+  margin-bottom: 1.5rem;
   transition: var(--transition-smooth);
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .checkout-form-section:hover {
-  border-color: var(--color-primary-light);
+  border-color: var(--color-primary);
   background: var(--bg-surface);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 35px rgba(212, 175, 55, 0.06);
 }
 
 .section-head {
@@ -643,13 +642,21 @@
   padding: 1.5rem;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.payment-method-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-primary-light);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .payment-method-card.active {
   border-color: var(--color-primary);
-  background: rgba(212, 175, 55, 0.05);
-  box-shadow: 0 10px 25px rgba(212, 175, 55, 0.1);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(111, 78, 55, 0.04) 100%);
+  box-shadow: 0 12px 30px rgba(212, 175, 55, 0.15);
 }
 
 .payment-icon {
@@ -675,14 +682,12 @@
 .order-manifest-card {
   background: var(--bg-card);
   border: 1px solid var(--border-main);
-  border-radius: 12px;
-  /* More compact */
-  padding: 1.25rem;
-  /* Reduced from 1.5rem */
+  border-radius: 20px;
+  padding: 1.75rem;
   position: sticky;
-  top: 4rem;
-  /* Moved up */
-  box-shadow: var(--shadow-md);
+  top: 6rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
 }
 
 .manifest-header {

@@ -10,6 +10,36 @@ import {
 const SecurityTab = () => {
     const { user, updateUserProfile, deleteAccount, loading: contextLoading, showSuccess, showError, token, logout } = useContext(AppContext);
 
+    const evaluatePasswordStrength = (pass) => {
+        if (!pass) return { score: 0, label: 'Empty', color: '#666', feedback: 'Enter a secure password' };
+        let score = 0;
+        if (pass.length >= 8) score++;
+        if (pass.length >= 12) score++;
+        let hasLower = /[a-z]/.test(pass);
+        let hasUpper = /[A-Z]/.test(pass);
+        let hasDigit = /\d/.test(pass);
+        let hasSpecial = /[^A-Za-z0-9]/.test(pass);
+        const diversityCount = [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length;
+        if (diversityCount >= 3) score++;
+        if (diversityCount === 4 && pass.length >= 10) score++;
+        if (score > 4) score = 4;
+        const colors = ['#e11d48', '#f97316', '#eab308', '#22c55e', '#10b981'];
+        const labels = ['Too Weak', 'Weak', 'Fair', 'Strong', 'Excellent'];
+        const feedbacks = [
+            'Add uppercase, numbers, or symbols',
+            'Make it longer with mixed characters',
+            'Good, but could be longer',
+            'Secure password!',
+            'Ultra secure, perfect password!'
+        ];
+        return {
+            score,
+            label: labels[score],
+            color: colors[score],
+            feedback: feedbacks[score]
+        };
+    };
+
     // Password Change State
     const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [passwordLoading, setPasswordLoading] = useState(false);
@@ -244,6 +274,36 @@ const SecurityTab = () => {
                                         onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                                         required
                                     />
+                                    {passwordData.newPassword && (
+                                        <div className="password-strength-container" style={{ marginTop: '0.5rem', width: '100%' }}>
+                                            <div className="strength-bars-wrap" style={{ display: 'flex', gap: '4px', height: '4px', margin: '6px 0 4px' }}>
+                                                {[0, 1, 2, 3].map((index) => {
+                                                    const strength = evaluatePasswordStrength(passwordData.newPassword);
+                                                    const isActive = strength.score > index;
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            style={{
+                                                                flex: 1,
+                                                                height: '100%',
+                                                                borderRadius: '2px',
+                                                                backgroundColor: isActive ? strength.color : 'rgba(255, 255, 255, 0.08)',
+                                                                transition: 'background-color 0.3s ease'
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: '600' }}>
+                                                <span style={{ color: evaluatePasswordStrength(passwordData.newPassword).color }}>
+                                                    {evaluatePasswordStrength(passwordData.newPassword).label}
+                                                </span>
+                                                <span style={{ color: '#94a3b8' }}>
+                                                    {evaluatePasswordStrength(passwordData.newPassword).feedback}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="form-group-sec">
                                     <label>Confirm New Password</label>

@@ -13,7 +13,7 @@ const fixAdminUser = async () => {
 
     // Find and update the existing user
     const result = await User.findOneAndUpdate(
-      { email: 'admin@rerendetcoffee.com' },
+      { email: 'zsethkipchumba179@gmail.com' },
       {
         userType: 'admin',
         role: 'super-admin',

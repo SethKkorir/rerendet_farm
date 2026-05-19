@@ -22,6 +22,7 @@ const BackToTop = lazy(() => import('./components/BackToTop/BackToTop'));
 const Notification = lazy(() => import('./components/Notification/Notification'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
 const SessionLock = lazy(() => import('./components/Auth/SessionLock'));
+const SeasonalEffects = lazy(() => import('./components/UI/SeasonalEffects'));
 const WhatsAppSupport = lazy(() => import('./components/UI/WhatsAppSupport'));
 const ProductDetail = lazy(() => import('./components/Product/ProductDetail'));
 const AdminLayout = lazy(() => import('./components/Admin/AdminLayout'));
@@ -101,6 +102,7 @@ function App() {
       <Suspense fallback={<PageLoader />}>
         <Notification />
         <SessionLock />
+        <SeasonalEffects />
         
         {!isAdminRoute && <Navbar />}
 

@@ -7,6 +7,11 @@ const errorHandler = (err, req, res, next) => {
   // Capture server-side 5xx exceptions to Sentry securely
   if (statusCode >= 500) {
     Sentry.captureException(err);
+
+    // Track internal crash and spike in alert monitor
+    import('../utils/securityAlerts.js').then(({ recordServerCrash }) => {
+      recordServerCrash(err, req);
+    }).catch(e => console.error('Crash tracker failed:', e));
   }
 
   // Handle Mongoose Duplicate Key Error (E11000)

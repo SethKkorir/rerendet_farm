@@ -206,14 +206,22 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
 
     const handleVerificationInput = (index, value) => {
         const char = value.slice(-1);
-        if (char && !/^\d$/.test(char)) return;
+        
+        // Determine allowed characters based on view
+        const isHex = view === 'reset-password';
+        const allowedRegex = isHex ? /^[0-9a-fA-F]$/ : /^\d$/;
+
+        if (char && !allowedRegex.test(char)) return;
+
+        // Auto-lowercase hex characters for consistency
+        const finalChar = (isHex && char) ? char.toLowerCase() : char;
 
         const newCode = [...verificationCode];
-        newCode[index] = char;
+        newCode[index] = finalChar;
         setVerificationCode(newCode);
 
         // Auto move to next input
-        if (char && index < 5) {
+        if (finalChar && index < 5) {
             const nextInput = document.getElementById(`v-${index + 1}`);
             if (nextInput) nextInput.focus();
         }
@@ -241,9 +249,14 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
     const handlePaste = (e) => {
         e.preventDefault();
         const pastedData = e.clipboardData.getData('text').slice(0, 6);
-        if (!/^\d+$/.test(pastedData)) return;
+        
+        const isHex = view === 'reset-password';
+        const allowedRegex = isHex ? /^[0-9a-fA-F]+$/ : /^\d+$/;
+        
+        if (!allowedRegex.test(pastedData)) return;
 
-        const newCode = pastedData.split('').concat(Array(6 - pastedData.length).fill('')).slice(0, 6);
+        const finalPasted = isHex ? pastedData.toLowerCase() : pastedData;
+        const newCode = finalPasted.split('').concat(Array(6 - finalPasted.length).fill('')).slice(0, 6);
         setVerificationCode(newCode);
 
         // Focus the appropriate input
@@ -254,8 +267,8 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
         if (pastedData.length === 6) {
             setErrors(prev => ({ ...prev, code: '' }));
             setTimeout(() => {
-                if (view === 'verify-email') handleVerification(null, pastedData);
-                else if (view === '2fa-login') handle2FASubmit(null, pastedData);
+                if (view === 'verify-email') handleVerification(null, finalPasted);
+                else if (view === '2fa-login') handle2FASubmit(null, finalPasted);
             }, 100);
         }
     };

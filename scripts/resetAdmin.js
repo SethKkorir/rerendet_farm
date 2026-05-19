@@ -9,7 +9,7 @@ const resetAdmin = async () => {
     try {
         await connectDB();
 
-        const adminEmail = 'admin@rerendetcoffee.com';
+        const adminEmail = 'zsethkipchumba179@gmail.com';
         const adminPassword = 'Admin123!';
 
         // Find existing admin
@@ -36,8 +36,8 @@ const resetAdmin = async () => {
         } else {
             console.log('🆕 Creating new admin user...');
             await User.create({
-                firstName: 'Super',
-                lastName: 'Admin',
+                firstName: 'Seth',
+                lastName: 'Kipchumba',
                 email: adminEmail,
                 password: adminPassword,
                 phone: '+254700000000',

@@ -5,6 +5,7 @@ import { initiateMpesaStkPushService, queryMpesaStkStatusService } from '../serv
 import { createPayPalOrderService, capturePayPalOrderService } from '../services/paypalService.js';
 import { convertKEStoUSD } from '../utils/currencyConverter.js';
 import { sendOrderConfirmationEmailHelper } from '../utils/orderEmailSender.js';
+import { recordPaymentFailure } from '../utils/securityAlerts.js';
 
 // @desc    Initiate M-Pesa Express (STK Push)
 // @route   POST /api/payments/mpesa/stk
@@ -64,8 +65,14 @@ export const processMpesaPayment = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ M-Pesa payment initiation failed:', error.message);
-    
-    // Trigger automatic background retry queue with 2-minute delay (Attempt 1)
+
+    // Track failure in alert monitor
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userEmail = req.user ? req.user.email : 'Guest';
+    recordPaymentFailure(ip, userEmail, 'M-Pesa Express', error.message).catch(e => console.error('Alert monitor fail:', e));
+
+    // Queue a background retry (2-min delay) regardless of failure type
+    let retryQueued = false;
     try {
       const { retryQueue } = await import('../queues/index.js');
       await retryQueue.add('stkRetry', {
@@ -74,16 +81,35 @@ export const processMpesaPayment = asyncHandler(async (req, res) => {
         orderNumber: order.orderNumber,
         attempt: 1
       }, {
-        delay: 2 * 60 * 1000 // 2 minutes delay
+        delay: 2 * 60 * 1000 // 2 minutes
       });
+      retryQueued = true;
       console.log(`📬 [M-Pesa Payment] Failed push enqueued to Retry Queue with 2-minute delay for Order #${order.orderNumber}`);
     } catch (retryErr) {
       console.error('❌ Failed to enqueue failed STK Push to retryQueue:', retryErr.message);
     }
 
-    res.status(500).json({
+    // ── Safaricom gateway busy (500.003.02) ──────────────────────────────
+    // Their system is temporarily overloaded. We've already queued a retry,
+    // so send 202 Accepted — the client should poll / show a "processing" state.
+    if (error.isGatewayBusy) {
+      console.warn(`⏳ [M-Pesa] Safaricom gateway busy (500.003.02) for Order #${order.orderNumber}. Retry queued.`);
+      return res.status(202).json({
+        success: false,
+        retrying: true,
+        message: 'The M-Pesa gateway is momentarily busy. We\'ve queued your payment and will retry automatically in 2 minutes. Please wait — you will receive the STK prompt shortly.',
+        safaricomCode: error.safaricomCode,
+        orderNumber: order.orderNumber
+      });
+    }
+
+    // ── All other failures → 503 Service Unavailable ─────────────────────
+    return res.status(503).json({
       success: false,
-      message: error.message || 'M-Pesa STK Push initiation failed'
+      retrying: retryQueued,
+      message: retryQueued
+        ? 'Payment could not be initiated. We\'ve queued a retry — please wait a few minutes and check your order status.'
+        : (error.message || 'M-Pesa STK Push initiation failed')
     });
   }
 });
@@ -122,7 +148,6 @@ export const checkMpesaPaymentStatus = asyncHandler(async (req, res) => {
 
         if (order.paymentStatus !== 'paid') {
           order.paymentStatus = 'paid';
-          order.status = 'confirmed';
           order.orderEvents.push({
             status: 'PAYMENT_CONFIRMED',
             note: `M-Pesa payment verified via JIT query. CheckoutRequestID: ${checkoutRequestId}`,
@@ -223,6 +248,12 @@ export const createPayPalOrder = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ PayPal Order creation failed:', error.message);
+
+    // Track failure in alert monitor
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userEmail = req.user ? req.user.email : 'Guest';
+    recordPaymentFailure(ip, userEmail, 'PayPal Order Creation', error.message).catch(e => console.error('Alert monitor fail:', e));
+
     res.status(500).json({
       success: false,
       message: error.message || 'PayPal checkout initialization failed'
@@ -271,7 +302,6 @@ export const capturePayPalOrder = asyncHandler(async (req, res) => {
 
       // 5. Complete order status
       order.paymentStatus = 'paid';
-      order.status = 'confirmed';
       order.orderEvents.push({
         status: 'PAYMENT_CONFIRMED',
         note: `PayPal payment captured successfully. PayPal Transaction ID: ${paypalOrderId}`,
@@ -302,6 +332,11 @@ export const capturePayPalOrder = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('❌ PayPal Capture failed:', error.message);
+
+    // Track failure in alert monitor
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userEmail = req.user ? req.user.email : 'Guest';
+    recordPaymentFailure(ip, userEmail, 'PayPal Capture Failed', error.message).catch(e => console.error('Alert monitor fail:', e));
     
     tx.status = 'FAILED';
     await tx.save();
@@ -356,7 +391,6 @@ export const processCardPayment = asyncHandler(async (req, res) => {
 
   order.paymentStatus = 'paid';
   order.transactionId = transactionId;
-  order.status = 'confirmed';
   order.orderEvents.push({
     status: 'PAYMENT_CONFIRMED',
     note: `Card payment simulated successfully. Transaction: ${transactionId}`,
@@ -407,7 +441,6 @@ export const simulateMpesaWebhook = asyncHandler(async (req, res) => {
   if (status === 'Success') {
     if (order.paymentStatus !== 'paid') {
       order.paymentStatus = 'paid';
-      order.status = 'confirmed';
       order.transactionId = transactionId || `MPESA-${Date.now()}`;
       order.orderEvents.push({
         status: 'PAYMENT_CONFIRMED',

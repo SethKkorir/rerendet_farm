@@ -119,6 +119,19 @@ const AdminLayout = ({ children }) => {
     return () => clearInterval(id);
   }, [token, showNotification]);
 
+  const notificationRef = useRef(null);
+
+  // Close notifications panel on clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // ── Inactivity Timeout (Session Guard) ──
   useEffect(() => {
     if (!user) return; // Don't start timer until user is loaded
@@ -349,7 +362,7 @@ const AdminLayout = ({ children }) => {
               <span className="theme-label">{adminDark ? 'Light' : 'Dark'}</span>
             </button>
 
-            <div className="notification-wrapper">
+            <div className="notification-wrapper" ref={notificationRef}>
               <button className="notification-btn" onClick={() => setShowNotifications(s => !s)}>
                 <FaBell />
                 {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}

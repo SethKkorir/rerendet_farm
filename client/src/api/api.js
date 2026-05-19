@@ -6,7 +6,10 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  },
   withCredentials: true  // Needed so the HttpOnly refresh cookie is sent
 });
 
@@ -74,7 +77,10 @@ API.interceptors.response.use(
       try {
         console.log('🔄 Attempting token refresh...');
         // Use the relative path since we are using axios directly here
-        const res = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
+        const res = await axios.post('/api/auth/refresh', {}, { 
+          withCredentials: true,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
 
         if (res.data.success && res.data.data.token) {
           const newToken = res.data.data.token;

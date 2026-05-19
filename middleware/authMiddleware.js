@@ -1,8 +1,8 @@
-// middleware/authMiddleware.js - COMPLETELY REWRITTEN WITH STATELESS VALIDATION
+// middleware/authMiddleware.js - COMPLETELY REWRITTEN WITH STATELESS VALIDATION & FINGERPRINTING
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import dotenv from 'dotenv';
-import { verifyAccessToken } from '../utils/generateToken.js';
+import { verifyAccessToken, generateFingerprintHash } from '../utils/generateToken.js';
 
 // Load environment variables
 dotenv.config();
@@ -28,6 +28,22 @@ const protect = asyncHandler(async (req, res, next) => {
     try {
       const decoded = verifyAccessToken(token);
 
+      // Validate session fingerprint (IP and User-Agent) if present in token
+      if (decoded.fpt) {
+        const ip = req.ip || req.socket?.remoteAddress || '';
+        const userAgent = req.headers['user-agent'] || '';
+        const currentFpt = generateFingerprintHash(ip, userAgent);
+
+        if (decoded.fpt !== currentFpt) {
+          console.warn(`🚨 [Session Hijacking Attempt] Fingerprint mismatch! Token: ${decoded.fpt} | Current: ${currentFpt} | IP: ${ip} | User-Agent: ${userAgent}`);
+          return res.status(401).json({
+            success: false,
+            code: 'SESSION_FINGERPRINT_MISMATCH',
+            message: 'Session fingerprint verification failed. Absolute re-authentication required.'
+          });
+        }
+      }
+
       // Build stateless req.user completely from the access token
       req.user = {
         _id: decoded.userId,
@@ -38,6 +54,7 @@ const protect = asyncHandler(async (req, res, next) => {
         role: decoded.role || 'customer',
         userType: decoded.role === 'admin' || decoded.role === 'super-admin' ? 'admin' : 'customer',
         tokenVersion: decoded.tokenVersion || 0,
+        twoFactorEnabled: !!decoded.twoFactorEnabled,
         isActive: true,
         isVerified: true
       };
@@ -78,6 +95,15 @@ const admin = asyncHandler(async (req, res, next) => {
     req.user.role === 'super-admin';
 
   if (isAdmin) {
+    // Mandate 2FA TOTP for administrative actions
+    if (!req.user.twoFactorEnabled) {
+      console.warn(`🚨 [2FA MANDATORY LOCKOUT] Blocked administrative access attempt for: ${req.user.email} because Two-Factor Authentication is disabled.`);
+      return res.status(403).json({
+        success: false,
+        code: 'MFA_REQUIRED',
+        message: 'Security Restriction: Mandatory Two-Factor Authentication (2FA) is not enabled on your account. You must configure 2FA to access administrative routes.'
+      });
+    }
     next();
   } else {
     console.error(`⛔ Unauthorized Admin Attempt: ${req.user.email} (Type: ${req.user.userType}, Role: ${req.user.role})`);
@@ -86,7 +112,7 @@ const admin = asyncHandler(async (req, res, next) => {
   }
 });
 
-// ✅ Token validation endpoint middleware (Stateless)
+// ✅ Token validation endpoint middleware (Stateless & Fingerprinted)
 const validateToken = asyncHandler(async (req, res) => {
   let token;
 
@@ -99,6 +125,23 @@ const validateToken = asyncHandler(async (req, res) => {
   if (token) {
     try {
       const decoded = verifyAccessToken(token);
+
+      // Validate session fingerprint (IP and User-Agent) if present in token
+      if (decoded.fpt) {
+        const ip = req.ip || req.socket?.remoteAddress || '';
+        const userAgent = req.headers['user-agent'] || '';
+        const currentFpt = generateFingerprintHash(ip, userAgent);
+
+        if (decoded.fpt !== currentFpt) {
+          console.warn(`🚨 [Session Hijacking Attempt] Validation Fingerprint mismatch!`);
+          return res.status(401).json({
+            success: false,
+            code: 'SESSION_FINGERPRINT_MISMATCH',
+            message: 'Session fingerprint verification failed.'
+          });
+        }
+      }
+
       res.json({
         success: true,
         message: 'Token is valid',

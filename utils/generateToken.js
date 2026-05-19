@@ -10,8 +10,18 @@ const REFRESH_TOKEN_SECRET = process.env.JWT_REFRESH_SECRET || 'rerendet_refresh
 if (!process.env.JWT_SECRET) console.warn('⚠️ JWT_SECRET not set. Using fallback (UNSAFE).');
 if (!process.env.JWT_REFRESH_SECRET) console.warn('⚠️ JWT_REFRESH_SECRET not set. Using fallback (UNSAFE).');
 
+/**
+ * Generates a SHA-256 session fingerprint combining client IP and User-Agent.
+ * Normalized to handle loopback/localhost variations in development.
+ */
+export const generateFingerprintHash = (ip, userAgent) => {
+  const normalizedIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' ? 'loopback' : (ip || '');
+  const cleanUA = (userAgent || '').trim();
+  return crypto.createHash('sha256').update(`${normalizedIp}:${cleanUA}`).digest('hex');
+};
+
 // ── Access Token — short-lived (15 minutes), lives in HttpOnly cookie / auth header ────────────────────
-export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6) => {
+export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '', userAgent = '', twoFactorEnabled = false) => {
   let role = 'customer';
   let tokenVersion = 0;
   let email = '';
@@ -30,17 +40,29 @@ export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6) => {
     tokenVersion = arg2 || 0;
   }
 
+  const payload = { userId, role, tokenVersion, email, firstName, lastName, type: 'access', twoFactorEnabled: !!twoFactorEnabled };
+  
+  if (ip || userAgent) {
+    payload.fpt = generateFingerprintHash(ip, userAgent);
+  }
+
   return jwt.sign(
-    { userId, role, tokenVersion, email, firstName, lastName, type: 'access' },
+    payload,
     ACCESS_TOKEN_SECRET,
     { expiresIn: '15m' }
   );
 };
 
 // ── Refresh Token — long-lived (7 days), lives in HttpOnly cookie ─────────────────────
-export const generateRefreshToken = (userId, tokenVersion = 0, jti = crypto.randomUUID()) => {
+export const generateRefreshToken = (userId, tokenVersion = 0, jti = crypto.randomUUID(), ip = '', userAgent = '') => {
+  const payload = { userId, tokenVersion, jti, type: 'refresh' };
+  
+  if (ip || userAgent) {
+    payload.fpt = generateFingerprintHash(ip, userAgent);
+  }
+
   return jwt.sign(
-    { userId, tokenVersion, jti, type: 'refresh' },
+    payload,
     REFRESH_TOKEN_SECRET,
     { expiresIn: '7d' }
   );
@@ -60,8 +82,8 @@ export const verifyRefreshToken = (token) => {
 export const setTokenCookie = (res, token) => {
   res.cookie('token', token, {
     httpOnly: true,          // JS cannot read this — XSS-proof
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-    sameSite: 'strict',     // No cross-site requests
+    secure: process.env.NODE_ENV === 'production', // Enforce secure/HTTPS-only in production
+    sameSite: 'strict',      // No cross-site requests
     maxAge: 15 * 60 * 1000,  // 15 mins matching access token
     path: '/'                // Global route access
   });
@@ -81,8 +103,8 @@ export const clearTokenCookie = (res) => {
 export const setRefreshTokenCookie = (res, refreshToken) => {
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,          // JS cannot read this — XSS-proof
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in prod
-    sameSite: 'strict',     // No cross-site requests
+    secure: process.env.NODE_ENV === 'production', // Enforce secure/HTTPS-only in production
+    sameSite: 'strict',      // No cross-site requests
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
     path: '/' // Global route access for logout and refresh endpoint
   });

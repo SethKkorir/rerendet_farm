@@ -364,7 +364,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // Send order confirmation email only if paid or Cash on Delivery
     if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
       try {
-        const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:5173')}/account/orders/${savedOrder._id}`;
+        const dashboardUrl = `${process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000')}/account/orders/${savedOrder._id}`;
 
         // Prepare email data
         const emailData = {
@@ -455,9 +455,9 @@ const getUserOrders = asyncHandler(async (req, res) => {
 
 
   try {
-    const [orders, total] = await Promise.all([
+    const [ordersList, total] = await Promise.all([
       Order.find({ user: userId })
-        .select('orderNumber items totalAmount paymentStatus fulfillmentStatus createdAt')
+        .select('orderNumber items total orderStatus paymentStatus fulfillmentStatus createdAt')
         .populate('items.product', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -466,7 +466,21 @@ const getUserOrders = asyncHandler(async (req, res) => {
       Order.countDocuments({ user: userId })
     ]);
 
+    // Manually map virtual fields to preserve lean query performance
+    const orders = ordersList.map(order => {
+      let status = 'Confirmed';
+      if (order.orderStatus === 'cancelled') status = 'Cancelled';
+      else if (order.fulfillmentStatus === 'returned') status = 'Returned';
+      else if (order.fulfillmentStatus === 'delivered') status = 'Delivered';
+      else if (order.fulfillmentStatus === 'shipped') status = 'Shipped';
+      else if (order.fulfillmentStatus === 'packed') status = 'Processing';
 
+      return {
+        ...order,
+        status, // preserve backward compatible virtual 'status'
+        id: order._id.toString()
+      };
+    });
 
     res.json({
       success: true,
@@ -997,7 +1011,6 @@ const cancelOrder = asyncHandler(async (req, res) => {
 
   // Update order status to cancelled
   order.orderStatus = 'cancelled';
-  order.status = 'cancelled';
   order.orderEvents.push({
     status: 'CANCELLED',
     note: 'Cancelled by customer (Self-Service Dashboard)',

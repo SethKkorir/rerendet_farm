@@ -36,20 +36,26 @@ import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js';
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library';
-import { checkPasswordStrength } from '../utils/passwordValidator.js';
+import { validatePasswordSecurely } from '../utils/passwordValidator.js';
 import redisClient from '../config/redis.js';
 
-const createSession = async (res, user) => {
+const createSession = async (req, res, user) => {
   const jti = crypto.randomUUID();
+  const ip = req ? (req.ip || req.socket?.remoteAddress || '') : '';
+  const userAgent = req ? (req.headers['user-agent'] || '') : '';
+
   const accessToken = generateAccessToken(
     user._id,
     user.role || 'customer',
     user.tokenVersion || 0,
     user.email,
     user.firstName,
-    user.lastName
+    user.lastName,
+    ip,
+    userAgent,
+    user.twoFactorEnabled || false
   );
-  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti);
+  const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti, ip, userAgent);
 
   setTokenCookie(res, accessToken);
   setRefreshTokenCookie(res, refreshToken);
@@ -217,7 +223,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
   // Verify device fingerprint asynchronously
   handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
-  const accessToken = await createSession(res, user);
+  const accessToken = await createSession(req, res, user);
 
   res.json({
     success: true,
@@ -294,11 +300,11 @@ const registerCustomer = asyncHandler(async (req, res) => {
     throw new Error('Please fill in all required fields');
   }
 
-  // Validate password strength using zxcvbn
-  const strength = checkPasswordStrength(password, email);
-  if (strength.score < 3) {
+  // Validate password strength & breaches securely using zxcvbn + HIBP range API
+  const validation = await validatePasswordSecurely(password, email);
+  if (!validation.isValid) {
     res.status(400);
-    throw new Error(`Password too weak! ${strength.feedback} (Strength Score: ${strength.score}/4)`);
+    throw new Error(validation.feedback);
   }
 
   // Validate age if dateOfBirth provided
@@ -517,7 +523,7 @@ const googleLogin = asyncHandler(async (req, res) => {
     // Verify device fingerprint asynchronously
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
-    const accessToken = await createSession(res, user);
+    const accessToken = await createSession(req, res, user);
 
     console.log(`✅ Google Login successful for ${email}`);
 
@@ -604,12 +610,45 @@ const loginCustomer = asyncHandler(async (req, res) => {
     const attempts = updatedUser.loginAttempts;
     const remaining = 5 - attempts;
 
+    // Alert when attempts hit 3 or more (Warning)
+    if (attempts >= 3 && attempts < 5) {
+      import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+        dispatchSecurityAlert({
+          eventTitle: 'Customer Brute Force Attempts',
+          eventDescription: `Multiple failed login attempts detected for Customer account: **${email}**. Current failed attempts: ${attempts}.`,
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+          userAccount: email,
+          severity: 'WARNING',
+          metadata: {
+            'Failed Attempts': attempts,
+            'Account Type': 'Customer'
+          }
+        });
+      }).catch(err => console.error('Alert error:', err));
+    }
+
     // Lock account after 5 failed attempts
     if (attempts >= 5) {
       const lockExpiry = Date.now() + (60 * 60 * 1000); // 1 hour
       await User.findByIdAndUpdate(user._id, {
         $set: { lockUntil: lockExpiry }
       });
+
+      // Dispatch Critical Locked Out Alert for Customer
+      import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+        dispatchSecurityAlert({
+          eventTitle: 'Customer Account Temporarily Locked',
+          eventDescription: `Customer account **${email}** has been locked for 1 hour after exceeding 5 failed password attempts.`,
+          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+          userAccount: email,
+          severity: 'CRITICAL',
+          metadata: {
+            'Failed Attempts': attempts,
+            'Lock Duration': '1 Hour',
+            'Account Type': 'Customer'
+          }
+        });
+      }).catch(err => console.error('Alert error:', err));
 
       // Send security alert email
       try {
@@ -743,7 +782,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
   handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
   // Generate dual tokens
-  const accessToken = await createSession(res, user);
+  const accessToken = await createSession(req, res, user);
 
   console.log('✅ Customer login successful:', email);
 
@@ -855,9 +894,11 @@ const updateProfile = asyncHandler(async (req, res) => {
 const changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
-  if (newPassword && newPassword.length < 8) {
+  // Validate password strength & breaches securely using zxcvbn + HIBP range API
+  const validation = await validatePasswordSecurely(newPassword, req.user ? req.user.email : '');
+  if (!validation.isValid) {
     res.status(400);
-    throw new Error('New password must be at least 8 characters long');
+    throw new Error(validation.feedback);
   }
 
   const user = await User.findById(req.user._id).select('+password');
@@ -1024,11 +1065,44 @@ const loginAdmin = asyncHandler(async (req, res) => {
         $set: { loginAttempts: attempts }
       });
 
+      // Alert when attempts hit 3 or more (Warning)
+      if (attempts >= 3 && attempts < 5) {
+        import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+          dispatchSecurityAlert({
+            eventTitle: 'Brute Force Attempts Detected',
+            eventDescription: `Multiple failed login attempts detected for Admin account: **${email}**. Current failed attempts: ${attempts}.`,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            userAccount: email,
+            severity: 'WARNING',
+            metadata: {
+              'Failed Attempts': attempts,
+              'Account Type': 'Admin'
+            }
+          });
+        }).catch(err => console.error('Alert error:', err));
+      }
+
       // Lock after 5 failed attempts — 1 hour
       if (attempts >= 5) {
         await User.findByIdAndUpdate(user._id, {
           $set: { lockUntil: Date.now() + (60 * 60 * 1000) }
         });
+
+        // Dispatch Critical Locked Out Alert
+        import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+          dispatchSecurityAlert({
+            eventTitle: 'Admin Account Temporarily Locked',
+            eventDescription: `Admin account **${email}** has been locked for 1 hour after exceeding 5 failed password attempts. This is indicative of an active brute force attack.`,
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            userAccount: email,
+            severity: 'CRITICAL',
+            metadata: {
+              'Failed Attempts': attempts,
+              'Lock Duration': '1 Hour',
+              'Account Type': 'Admin'
+            }
+          });
+        }).catch(err => console.error('Alert error:', err));
 
         // Send security alert
         try {
@@ -1145,7 +1219,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
 
     // Generate Token
-    const accessToken = await createSession(res, user);
+    const accessToken = await createSession(req, res, user);
 
     console.log('✅ Admin login successful (2FA Disabled):', email);
 
@@ -1216,6 +1290,22 @@ const createAdmin = asyncHandler(async (req, res) => {
   });
 
   console.log('✅ Admin created:', email, 'Role:', role);
+
+  // Dispatch Security Alert
+  import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+    dispatchSecurityAlert({
+      eventTitle: 'New Admin Account Created',
+      eventDescription: `A new administrator account has been created for **${email}** with role **${role}** by super-admin **${req.user.email}**.`,
+      ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAccount: email,
+      severity: 'WARNING',
+      metadata: {
+        'Creator Admin': req.user.email,
+        'Assigned Role': role,
+        'Full Name': `${firstName} ${lastName}`
+      }
+    });
+  }).catch(e => console.error('Alert error:', e));
 
   // Send welcome email to new admin
   try {
@@ -1298,7 +1388,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
   await user.save();
   await user.populate('cart.product');
 
-  const accessToken = await createSession(res, user);
+  const accessToken = await createSession(req, res, user);
 
   // Send welcome email
   try {
@@ -1430,9 +1520,18 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
       const exists = await redisClient.get(`refresh:${userId}:${jti}`);
       if (!exists) {
+        // Potential Replay Attack! Revoke all sessions for this user!
+        console.warn(`🚨 [Replay Attack Detected] Revoking all sessions for user: ${userId} due to JTI reuse: ${jti}`);
+        const user = await User.findById(userId);
+        if (user) {
+          user.tokenVersion = (user.tokenVersion || 0) + 1;
+          await user.save({ validateBeforeSave: false });
+          await invalidateAllUserSessions(userId);
+        }
         clearRefreshTokenCookie(res);
+        clearTokenCookie(res);
         res.status(401);
-        throw new Error('Session has been revoked or rotated. Please log in again.');
+        throw new Error('Security Alert: Refresh token reuse detected. All sessions have been terminated. Please log in again.');
       }
     } catch (err) {
       console.error('❌ Redis check failed during refresh:', err.message);
@@ -1467,8 +1566,8 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     } catch (err) {}
   }
 
-  // Issue rotated tokens
-  const newAccessToken = await createSession(res, user);
+  // Issue rotated tokens (pass req for fingerprinting)
+  const newAccessToken = await createSession(req, res, user);
 
   res.json({
     success: true,
@@ -1505,7 +1604,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw new Error('Email is required');
   }
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select('+password'); // select password to use in signature signing
 
   // Anti-Enumeration: Always return success even if user is not found
   if (!user) {
@@ -1516,7 +1615,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate 6-char clean secure token (3 bytes hex, e.g. "a2c3f4")
+  // Generate 6-char clean secure token (3 bytes hex, e.g. "a2c3f4") as a fallback code
   const rawToken = crypto.randomBytes(3).toString('hex').toLowerCase();
   
   // Store SHA-256 hashed token in DB
@@ -1524,6 +1623,18 @@ const forgotPassword = asyncHandler(async (req, res) => {
   user.resetPasswordToken = hashedToken;
   user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // Strict 15 minutes expiration
   await user.save({ validateBeforeSave: false });
+
+  // Generate expiring signed stateless recovery token (JWT signed with secret + current password hash)
+  const secretKey = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + user.password;
+  const resetToken = jwt.sign(
+    { userId: user._id, tokenVersion: user.tokenVersion || 0, type: 'reset' },
+    secretKey,
+    { expiresIn: '15m' }
+  );
+
+  // Construct reset URL
+  const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-coffee.com' : 'http://localhost:3000');
+  const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
 
   try {
     // Fetch store logo for email
@@ -1535,15 +1646,15 @@ const forgotPassword = asyncHandler(async (req, res) => {
       console.error('Error fetching settings for email logo:', error);
     }
 
-    // Send reset email with rawToken
-    const emailHtml = getResetPasswordEmail(user.firstName, rawToken, logoUrl);
+    // Send reset email with rawToken and resetUrl
+    const emailHtml = getResetPasswordEmail(user.firstName, rawToken, logoUrl, resetUrl);
 
     await sendEmail({
       to: user.email,
       subject: 'Password Reset Request',
       html: emailHtml
     });
-    console.log(`📧 Hashed reset email sent to: ${user.email} | Raw Token: ${rawToken}`);
+    console.log(`📧 Signed reset email sent to: ${user.email} | Link: ${resetUrl}`);
 
     res.json({
       success: true,
@@ -1568,25 +1679,59 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new Error('Email, code, and new password are required');
   }
 
-  // Validate new password strength using zxcvbn / high entropy validator
-  const strength = checkPasswordStrength(newPassword, email);
-  if (strength.score < 3) {
+  // Validate new password strength & breaches securely using zxcvbn + HIBP range API
+  const validation = await validatePasswordSecurely(newPassword, email);
+  if (!validation.isValid) {
     res.status(400);
-    throw new Error(`Password too weak! ${strength.feedback} (Strength Score: ${strength.score}/4)`);
+    throw new Error(validation.feedback);
   }
 
-  // Hash received code for matching
-  const hashedCode = crypto.createHash('sha256').update(String(code).toLowerCase().trim()).digest('hex');
+  let user;
+  const isJwt = typeof code === 'string' && code.includes('.') && code.startsWith('ey');
 
-  const user = await User.findOne({
-    email,
-    resetPasswordToken: hashedCode,
-    resetPasswordExpires: { $gt: Date.now() }
-  });
+  if (isJwt) {
+    // Statelessly verify the signed recovery token
+    const candidateUser = await User.findOne({ email }).select('+password +loginAttempts +lockUntil');
+    if (!candidateUser) {
+      res.status(400);
+      throw new Error('Invalid email or reset token');
+    }
 
-  if (!user) {
-    res.status(400);
-    throw new Error('Invalid or expired reset code');
+    try {
+      const secretKey = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + candidateUser.password;
+      const decoded = jwt.verify(code, secretKey);
+
+      if (!decoded || decoded.userId !== candidateUser._id.toString() || decoded.type !== 'reset') {
+        res.status(400);
+        throw new Error('Reset token verification failed');
+      }
+
+      if (decoded.tokenVersion !== undefined && candidateUser.tokenVersion !== undefined && decoded.tokenVersion !== candidateUser.tokenVersion) {
+        res.status(400);
+        throw new Error('Reset token has expired or has already been used');
+      }
+
+      user = candidateUser;
+      console.log(`🔒 [StatelessReset] Successfully validated signed reset token for: ${email}`);
+    } catch (err) {
+      res.status(400);
+      throw new Error('Invalid or expired signed reset token');
+    }
+  } else {
+    // Fallback: Hash received 6-char code for matching in DB
+    const hashedCode = crypto.createHash('sha256').update(String(code).toLowerCase().trim()).digest('hex');
+
+    user = await User.findOne({
+      email,
+      resetPasswordToken: hashedCode,
+      resetPasswordExpires: { $gt: Date.now() }
+    }).select('+loginAttempts +lockUntil');
+
+    if (!user) {
+      res.status(400);
+      throw new Error('Invalid or expired reset code');
+    }
+    console.log(`🔒 [CodeReset] Successfully validated manual backup reset code for: ${email}`);
   }
 
   // PASSWORD COOLDOWN: 30 minutes
@@ -1625,7 +1770,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     await sendEmail({
       to: user.email,
       subject: 'Security Alert: Password Reset',
-      html: getSecurityAlertEmail(user.firstName, 'Password Reset via Recovery Code. All other devices have been logged out.', logoUrl)
+      html: getSecurityAlertEmail(user.firstName, 'Password Reset via Recovery Token. All other devices have been logged out.', logoUrl)
     });
   } catch (err) { }
 
@@ -1792,9 +1937,27 @@ const verifyPassword = asyncHandler(async (req, res) => {
     throw new Error('Incorrect password');
   }
 
+  // Generate 5-minute high-privilege signed reauth token
+  const reauthSecret = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + '_reauth';
+  const reauthToken = jwt.sign(
+    { userId: user._id, tokenVersion: user.tokenVersion || 0, type: 'reauth' },
+    reauthSecret,
+    { expiresIn: '5m' }
+  );
+
+  // Set reauth cookie for stateful web apps, while also returning in body for APIs
+  res.cookie('reauthToken', reauthToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    maxAge: 5 * 60 * 1000, // 5 minutes
+    path: '/'
+  });
+
   res.json({
     success: true,
-    message: 'Password verified'
+    message: 'Password verified. Session elevated for sensitive actions (expires in 5 minutes).',
+    reauthToken
   });
 });
 
@@ -2046,7 +2209,7 @@ const verify2FATOTP = asyncHandler(async (req, res) => {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
   } catch (_) {}
 
-  const accessToken = await createSession(res, user);
+  const accessToken = await createSession(req, res, user);
 
   // Log action
   const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
@@ -2144,7 +2307,7 @@ const verify2FABackup = asyncHandler(async (req, res) => {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
   } catch (_) {}
 
-  const accessToken = await createSession(res, user);
+  const accessToken = await createSession(req, res, user);
 
   // Log action
   const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';

@@ -10,13 +10,15 @@ import Settings from '../models/Settings.js';
 const maintenanceMode = asyncHandler(async (req, res, next) => {
     const fullPath = (req.baseUrl + req.path).replace(/\/$/, '');
 
-    // 1. Always allow fundamental bypasses (Health, Public Settings, Super Gate, Admin Auth)
+    // 1. Always allow fundamental bypasses (Health, Public Settings, Super Gate, Admin Auth, Heartbeat, Cron)
     const bypassPaths = [
         '/api/admin/login',
         '/api/auth/admin',
         '/api/settings/public',
         '/api/settings/super-gate', // CRITICAL: Allow the magic link to be triggered even if site is blocked
-        '/api/health'
+        '/api/health',
+        '/api/public/heartbeat',
+        '/api/cron/magic-link-rotation'
     ];
 
     if (bypassPaths.some(path => fullPath.includes(path))) {

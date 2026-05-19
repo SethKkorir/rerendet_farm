@@ -3,6 +3,7 @@ import express from 'express';
 import asyncHandler from 'express-async-handler';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { adminAuth } from '../middleware/adminAuth.js';
+import { ipAllowlist } from '../middleware/ipAllowlistMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
 import {
   getDashboardStats,
@@ -57,8 +58,8 @@ import { getStatementReport } from '../controllers/statementController.js';
 
 const router = express.Router();
 
-// All routes require authentication and admin privileges
-router.use(protect, admin);
+// All routes require authentication, admin privileges, and passing IP allowlist
+router.use(protect, admin, ipAllowlist);
 
 // ==================== ADMIN OVERVIEW ====================
 router.get('/overview', getAdminOverview);
@@ -71,12 +72,12 @@ router.get('/dashboard', (req, res) => res.json({
 }));
 
 // ==================== ORDER MANAGEMENT ====================
-router.get('/orders/status', adminAuth(['orders:manage']), checkNewOrders);
-router.get('/orders', adminAuth(['orders:manage']), getOrders);
-router.get('/orders/:id', adminAuth(['orders:manage']), getOrderDetail);
+router.get('/orders/status', adminAuth(['orders:view']), checkNewOrders);
+router.get('/orders', adminAuth(['orders:view']), getOrders);
+router.get('/orders/:id', adminAuth(['orders:view']), getOrderDetail);
 router.put('/orders/:id/status', adminAuth(['orders:update_status']), updateOrderStatus);
-router.post('/orders/:id/manual-override', adminAuth(['orders:update_status']), manualPaymentOverride);
-router.post('/orders/:id/refund', adminAuth(['orders:update_status']), refundOrder);
+router.post('/orders/:id/manual-override', adminAuth(['orders:manage']), manualPaymentOverride);
+router.post('/orders/:id/refund', adminAuth(['orders:manage']), refundOrder);
 
 // ==================== PRODUCT MANAGEMENT ====================
 router.get('/products', adminAuth(['products:manage']), getProducts);
