@@ -25,7 +25,8 @@ export const sendOrderConfirmationEmailHelper = async (order) => {
       order.items,
       order.total,
       order.trackingNumber,
-      logoUrl
+      logoUrl,
+      order._id.toString()
     );
 
     await sendEmail({

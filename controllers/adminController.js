@@ -349,7 +349,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
           emailStatus,
           order.trackingNumber,
           message || `Your order status is now ${emailStatus}.`,
-          logoUrl
+          logoUrl,
+          order._id.toString()
         );
 
         await sendEmail({

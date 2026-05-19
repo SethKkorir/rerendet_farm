@@ -392,7 +392,8 @@ const createOrder = asyncHandler(async (req, res) => {
           orderItems,
           finalTotal,
           savedOrder.trackingNumber,
-          logoUrl
+          logoUrl,
+          savedOrder._id.toString()
         );
 
         await sendEmail({
@@ -790,7 +791,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
         emailStatus,
         updatedOrder.trackingNumber,
         message || `Your order is now ${emailStatus}.`,
-        logoUrl
+        logoUrl,
+        updatedOrder._id.toString()
       );
 
       // Dynamic subject based on status

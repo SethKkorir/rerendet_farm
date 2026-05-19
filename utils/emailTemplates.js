@@ -1,4 +1,14 @@
-const FRONTEND_URL = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000');
+let FRONTEND_URL = process.env.FRONTEND_URL;
+
+// Self-healing fallback: If running in production (Vercel) but FRONTEND_URL is set to localhost, override it to the hosted site
+if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+  if (!FRONTEND_URL || FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1')) {
+    FRONTEND_URL = 'https://rerendet-farm.vercel.app';
+  }
+} else if (!FRONTEND_URL) {
+  FRONTEND_URL = 'http://localhost:3000';
+}
+
 const ADMIN_PANEL_URL = FRONTEND_URL;
 
 const getBaseTemplate = (title, content, options = {}) => {
@@ -266,7 +276,7 @@ export const getResetPasswordEmail = (name, code, logoUrl, resetUrl = '') => {
   return getBaseTemplate('Reset Your Password', content, { logoUrl });
 };
 
-export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, message, logoUrl) => {
+export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, message, logoUrl, orderId = null) => {
   let statusTitle = "Order Update";
   let icon = "📦";
   if (status === 'shipped') { statusTitle = "In Transit"; icon = "🚚"; }
@@ -292,13 +302,13 @@ export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, m
     ` : ''}
  
     <div style="text-align: center;">
-      <a href="${FRONTEND_URL}/track-order" class="premium-btn">Track Order Live</a>
+      <a href="${FRONTEND_URL}/order-tracking/${orderId || orderNumber}" class="premium-btn">Track Order Live</a>
     </div>
   `;
   return getBaseTemplate(`Order ${statusTitle} - #${orderNumber}`, content, { logoUrl });
 };
 
-export const getOrderConfirmationEmail = (name, orderNumber, items, total, trackingNumber, logoUrl) => {
+export const getOrderConfirmationEmail = (name, orderNumber, items, total, trackingNumber, logoUrl, orderId = null) => {
   const content = `
     <h1>Order Confirmed</h1>
     <p>Dear ${name},</p>
@@ -326,7 +336,7 @@ export const getOrderConfirmationEmail = (name, orderNumber, items, total, track
 
     <p>You can track your order live at any time using our public portal:</p>
     <div style="text-align: center;">
-      <a href="${FRONTEND_URL}/track-order" class="premium-btn">Track Live Status</a>
+      <a href="${FRONTEND_URL}/order-tracking/${orderId || orderNumber}" class="premium-btn">Track Live Status</a>
     </div>
   `;
   return getBaseTemplate(`Confirmation #${orderNumber} - Rerendet Coffee`, content, { logoUrl });
