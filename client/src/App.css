@@ -51,7 +51,6 @@
 
 html {
   scroll-behavior: smooth;
-  overscroll-behavior-y: none;
 }
 
 body {
@@ -61,7 +60,6 @@ body {
   background-color: var(--bg-primary);
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
-  overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
 }
 

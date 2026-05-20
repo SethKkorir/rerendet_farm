@@ -120,6 +120,14 @@
   position: absolute;
   pointer-events: none;
   user-select: none;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+.hero-text-content,
+.hero-image-container {
+  will-change: transform, opacity;
+  transform: translateZ(0);
 }
 
 /* ==============================================

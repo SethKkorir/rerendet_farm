@@ -1,11 +1,13 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../../context/AppContext';
 import {
   FaUser, FaShoppingBag, FaMapMarkerAlt, FaCreditCard,
-  FaSignOutAlt, FaLock, FaTimes, FaHome, FaShieldAlt, FaHistory, FaCheckCircle, FaLifeRing
+  FaSignOutAlt, FaLock, FaTimes, FaHome, FaShieldAlt,
+  FaLifeRing, FaChevronRight, FaBox, FaEllipsisH,
+  FaCartPlus, FaTruck, FaCheckCircle, FaClock
 } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import './AccountDashboard.css';
 
 // Import Tab Components
@@ -16,110 +18,221 @@ import ProfileTab from './ProfileTab';
 import SecurityTab from './SecurityTab';
 import TicketsTab from './TicketsTab';
 
-// Internal Overview Tab
+/* ───────────── helpers ───────────── */
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+};
+
+const formatDate = () =>
+  new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+
+const ORDER_STEPS = ['confirmed', 'processing', 'shipped', 'delivered'];
+
+const stepIndex = (status) => {
+  const s = (status || '').toLowerCase();
+  const idx = ORDER_STEPS.indexOf(s);
+  return idx === -1 ? 0 : idx;
+};
+
+const maskPhone = (phone) => {
+  if (!phone) return 'Not linked';
+  return phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 ••• $3');
+};
+
+/* ───────────── OverviewTab ───────────── */
 const OverviewTab = ({ user, orders, onNavigate }) => {
   const unpaidOrders = orders.filter(o => o.paymentStatus !== 'paid').length;
-
-  const maskPhone = (phone) => {
-    if (!phone) return 'Not set';
-    return phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 ••• $3');
-  };
-
+  const activeOrder = orders.find(o =>
+    ['confirmed', 'processing', 'shipped', 'pending'].includes((o.status || '').toLowerCase())
+  );
   const displayPhone = user.wallet?.mpesaPhone || user.phone;
 
+  // Build "Buy Again" items from order history (most recent unique items)
+  const buyAgainItems = useMemo(() => {
+    const seen = new Map();
+    for (const order of orders) {
+      for (const item of (order.items || order.orderItems || [])) {
+        const name = item.name || item.productName || 'Coffee';
+        if (!seen.has(name)) {
+          seen.set(name, {
+            name,
+            price: item.price || 0,
+            image: item.image || item.productImage || null,
+            quantity: item.quantity || 1,
+          });
+        }
+      }
+    }
+    return Array.from(seen.values()).slice(0, 6);
+  }, [orders]);
+
+  // Loyalty tier progress
+  const loyaltyPoints = user?.loyaltyPoints || 0;
+  const nextTier = loyaltyPoints < 500 ? { name: 'Silver', target: 500 }
+    : loyaltyPoints < 2000 ? { name: 'Gold', target: 2000 }
+    : loyaltyPoints < 5000 ? { name: 'Platinum', target: 5000 }
+    : { name: 'Diamond', target: 10000 };
+  const tierProgress = Math.min((loyaltyPoints / nextTier.target) * 100, 100);
+
   return (
-    <div className="overview-tab">
+    <div className="noir-overview">
+      {/* Greeting */}
+      <div className="noir-greeting">
+        <h1>{getGreeting()}, {user.firstName || 'there'}.</h1>
+        <p className="noir-date">{formatDate()}</p>
+      </div>
+
+      {/* 2FA Alert */}
       {!user.twoFactorEnabled && (
-        <div className="security-unhealthy-banner">
-          <div className="unhealthy-icon-box">
-            <FaShieldAlt />
+        <div className="noir-alert-banner" onClick={() => onNavigate('security')}>
+          <div className="alert-icon-box"><FaShieldAlt /></div>
+          <div className="alert-content">
+            <span className="alert-title">Enable Two-Factor Authentication</span>
+            <span className="alert-desc">Your account is protected by password only.</span>
           </div>
-          <div className="unhealthy-content">
-            <h4 className="unhealthy-title">Security Recommendation</h4>
-            <p className="unhealthy-desc">Your account is currently protected by password only. Enable Two-Factor Authentication (2FA) for an extra layer of defense.</p>
-          </div>
-          <button className="enable-2fa-cta" onClick={() => onNavigate('security')}>
-            Secure Account
-          </button>
+          <FaChevronRight className="alert-chevron" />
         </div>
       )}
 
-      <div className="overview-stats-grid">
-        <div className="overview-stat-card">
-          <div className="stat-icon-wrap"><FaShoppingBag /></div>
-          <div className="stat-content">
-            <span className="stat-label">Acquisitions</span>
-            <span className="stat-value">{orders.length}</span>
+      {/* Active Order Snapshot */}
+      {activeOrder && (
+        <div className="noir-active-order" onClick={() => onNavigate('orders')}>
+          <div className="active-order-top">
+            <div>
+              <span className="active-order-label">Active Order</span>
+              <h3 className="active-order-id">#{(activeOrder.orderNumber || activeOrder._id || '').toString().slice(-8).toUpperCase()}</h3>
+            </div>
+            <div className="active-order-amount">
+              KES {(activeOrder.totalPrice || activeOrder.totalAmount || 0).toLocaleString()}
+            </div>
+          </div>
+          <div className="order-progress-track">
+            {ORDER_STEPS.map((step, i) => {
+              const current = stepIndex(activeOrder.status);
+              const isDone = i <= current;
+              const isActive = i === current;
+              return (
+                <React.Fragment key={step}>
+                  {i > 0 && <div className={`progress-line ${i <= current ? 'done' : ''}`} />}
+                  <div className={`progress-node ${isDone ? 'done' : ''} ${isActive ? 'active' : ''}`}>
+                    <div className="node-dot">
+                      {isDone ? <FaCheckCircle /> : <span className="dot-num">{i + 1}</span>}
+                    </div>
+                    <span className="node-label">{step}</span>
+                  </div>
+                </React.Fragment>
+              );
+            })}
+          </div>
+          <div className="active-order-items-row">
+            {(activeOrder.items || activeOrder.orderItems || []).slice(0, 3).map((item, i) => (
+              <span key={i} className="ao-item-chip">
+                {item.name || item.productName} × {item.quantity || 1}
+              </span>
+            ))}
+            {(activeOrder.items || activeOrder.orderItems || []).length > 3 && (
+              <span className="ao-item-chip ao-more">+{(activeOrder.items || activeOrder.orderItems).length - 3} more</span>
+            )}
           </div>
         </div>
-        <div className="overview-stat-card">
-          <div className="stat-icon-wrap"><FaCreditCard /></div>
-          <div className="stat-content">
-            <span className="stat-label">Pending</span>
-            <span className="stat-value">{unpaidOrders}</span>
-          </div>
+      )}
+
+      {/* Stats Grid */}
+      <div className="noir-stats-grid">
+        <div className="noir-stat" onClick={() => onNavigate('orders')}>
+          <span className="stat-number">{orders.length}</span>
+          <span className="stat-name">Total Orders</span>
         </div>
-        <div className="overview-stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(212, 175, 55, 0.1)', color: 'var(--color-primary)' }}><FaCreditCard /></div>
-          <div className="stat-content">
-            <span className="stat-label">Store Credit</span>
-            <span className="stat-value" style={{ color: 'var(--color-primary)' }}>KES {user?.storeCredit?.toLocaleString() || '0'}</span>
-          </div>
+        <div className="noir-stat">
+          <span className="stat-number">{unpaidOrders}</span>
+          <span className="stat-name">Pending</span>
         </div>
-        <div className="overview-stat-card">
-          <div className="stat-icon-wrap" style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}><FaUser /></div>
-          <div className="stat-content">
-            <span className="stat-label">Loyalty Rewards</span>
-            <span className="stat-value" style={{ color: '#8b5cf6' }}>{user?.loyaltyPoints?.toLocaleString() || '0'} <span style={{ fontSize: '0.75rem', fontWeight: '500' }}>PTS</span></span>
-          </div>
+        <div className="noir-stat">
+          <span className="stat-number accent-green">KES {(user?.storeCredit || 0).toLocaleString()}</span>
+          <span className="stat-name">Store Credit</span>
         </div>
-        <div className={`overview-stat-card ${user.twoFactorEnabled ? 'security-card' : 'at-risk-card'}`}>
-          <div className="stat-icon-wrap"><FaShieldAlt /></div>
-          <div className="stat-content">
-            <span className="stat-label">Account Health</span>
-            <span className={`stat-value ${user.twoFactorEnabled ? 'text-success' : 'text-warning'}`}>
-              {user.twoFactorEnabled ? 'Secure' : 'At Risk'}
-            </span>
-          </div>
+        <div className="noir-stat" onClick={() => onNavigate('wallet')}>
+          <span className="stat-number accent-warm">{(user?.loyaltyPoints || 0).toLocaleString()}</span>
+          <span className="stat-name">Reward Points</span>
         </div>
       </div>
 
-      <div className="overview-sections-grid">
-        <div className="overview-section-main">
-          <h3>Security Overview</h3>
-          <div className="security-health-banner">
-            <div className="health-info">
-              <FaCheckCircle className="text-success" />
-              <div>
-                <p className="health-title">SSL Encryption Active</p>
-                <p className="health-desc">Your connection to Rerendet is end-to-end encrypted.</p>
-              </div>
-            </div>
+      {/* Buy Again */}
+      {buyAgainItems.length > 0 && (
+        <div className="noir-section">
+          <div className="section-header">
+            <h3>Buy Again</h3>
+            <button className="link-btn" onClick={() => onNavigate('orders')}>View all orders <FaChevronRight /></button>
           </div>
-          <div className="security-features-list">
-            <div className="sec-feature-item">
-              <FaLock />
-              <span>Two-Factor Authentication: <strong>{user.twoFactorEnabled ? 'Enabled' : 'Disabled'}</strong></span>
-            </div>
-            <div className="sec-feature-item">
-              <FaHistory />
-              <span>Last Login: <strong>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : 'Just now'}</strong></span>
-            </div>
+          <div className="buy-again-scroll">
+            {buyAgainItems.map((item, i) => (
+              <div key={i} className="buy-again-card">
+                <div className="ba-image">
+                  {item.image
+                    ? <img src={item.image} alt={item.name} />
+                    : <FaBox />}
+                </div>
+                <div className="ba-info">
+                  <span className="ba-name">{item.name}</span>
+                  <span className="ba-price">KES {item.price.toLocaleString()}</span>
+                </div>
+                <button className="ba-add-btn" title="Add to cart">
+                  <FaCartPlus />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
+      )}
 
-        <div className="overview-section-side">
-          <h3>Wallet</h3>
-          <div className="wallet-mini-card">
-            <div className="mpesa-brand">
-              <img src="/M-PESA_LOGO-01.svg.png" alt="M-Pesa" style={{ height: '20px' }} />
+      {/* Loyalty + Wallet Row */}
+      <div className="noir-bottom-grid">
+        {/* Loyalty Tier */}
+        <div className="noir-section-card">
+          <div className="section-header">
+            <h3>Loyalty Tier</h3>
+            <span className="tier-badge">{loyaltyPoints < 500 ? 'Bronze' : loyaltyPoints < 2000 ? 'Silver' : loyaltyPoints < 5000 ? 'Gold' : 'Platinum'}</span>
+          </div>
+          <div className="loyalty-progress-wrap">
+            <div className="loyalty-bar-bg">
+              <div className="loyalty-bar-fill" style={{ width: `${tierProgress}%` }} />
             </div>
-            {displayPhone ? (
-              <p className="wallet-number">{maskPhone(displayPhone)}</p>
-            ) : (
-              <p className="wallet-number-empty">No number linked</p>
+            <div className="loyalty-meta">
+              <span>{loyaltyPoints.toLocaleString()} pts</span>
+              <span>{nextTier.target.toLocaleString()} pts — {nextTier.name}</span>
+            </div>
+          </div>
+          <p className="loyalty-hint">Earn points with every purchase. Redeem for discounts.</p>
+        </div>
+
+        {/* Wallet Snapshot */}
+        <div className="noir-section-card">
+          <div className="section-header">
+            <h3>Payment Method</h3>
+            <button className="link-btn" onClick={() => onNavigate('wallet')}>Manage <FaChevronRight /></button>
+          </div>
+          <div className="wallet-snap">
+            <div className="wallet-snap-icon">
+              <img src="/M-PESA_LOGO-01.svg.png" alt="M-Pesa" />
+            </div>
+            <div className="wallet-snap-info">
+              <span className="wallet-snap-number">{maskPhone(displayPhone)}</span>
+              <span className="wallet-snap-label">Primary • M-Pesa</span>
+            </div>
+          </div>
+
+          {/* Security snapshot */}
+          <div className="security-snap">
+            <FaLock />
+            <span>2FA: <strong>{user.twoFactorEnabled ? 'Enabled' : 'Disabled'}</strong></span>
+            {!user.twoFactorEnabled && (
+              <button className="snap-action-btn" onClick={() => onNavigate('security')}>Enable</button>
             )}
-            <span className="wallet-status">Primary Method</span>
           </div>
         </div>
       </div>
@@ -127,6 +240,7 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
   );
 };
 
+/* ───────────── AccountDashboard ───────────── */
 function AccountDashboard() {
   const {
     user,
@@ -138,40 +252,36 @@ function AccountDashboard() {
 
   const navigate = useNavigate();
 
-  // Block admin users from accessing customer dashboard
+  // Block admin users
   const isAdminUser = userType === 'admin' || user?.role === 'admin' || user?.role === 'super-admin';
   useEffect(() => {
     if (user && isAdminUser) {
       navigate('/admin', { replace: true });
     }
   }, [user, isAdminUser, navigate]);
+
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
-  
-  const setActiveTab = (tabId) => {
-    setSearchParams({ tab: tabId });
-  };
-  
+  const setActiveTab = (tabId) => setSearchParams({ tab: tabId });
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   // Real Data State
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
-  // Load orders for Overview and Orders tab
   useEffect(() => {
     if (user && (activeTab === 'orders' || activeTab === 'overview')) {
       loadOrders(true);
     }
   }, [user, activeTab, orderRefreshTrigger]);
 
-  // LIVE POLLING: Refresh order list every 20 seconds
+  // LIVE POLLING
   useEffect(() => {
     let pollInterval;
     if (user && (activeTab === 'orders' || activeTab === 'overview')) {
-      pollInterval = setInterval(() => {
-        loadOrders(false);
-      }, 20000);
+      pollInterval = setInterval(() => loadOrders(false), 20000);
     }
     return () => clearInterval(pollInterval);
   }, [user, activeTab]);
@@ -180,11 +290,8 @@ function AccountDashboard() {
     if (showLoading) setOrdersLoading(true);
     try {
       const payload = await fetchUserOrders(1, 15);
-      if (payload?.data?.orders) {
-        setOrders(payload.data.orders);
-      } else if (payload?.orders) {
-        setOrders(payload.orders);
-      }
+      if (payload?.data?.orders) setOrders(payload.data.orders);
+      else if (payload?.orders) setOrders(payload.orders);
     } catch (err) {
       console.error('Error fetching orders:', err);
     } finally {
@@ -197,27 +304,69 @@ function AccountDashboard() {
     navigate('/');
   };
 
-  // Tabs Configuration
+  // Tabs
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <FaHome /> },
     { id: 'orders', label: 'My Orders', icon: <FaShoppingBag /> },
     { id: 'addresses', label: 'Addresses', icon: <FaMapMarkerAlt /> },
     { id: 'wallet', label: 'Wallet', icon: <FaCreditCard /> },
-    { id: 'tickets', label: 'Support Helpdesk', icon: <FaLifeRing /> },
+    { id: 'tickets', label: 'Support', icon: <FaLifeRing /> },
     { id: 'profile', label: 'Profile', icon: <FaUser /> },
     { id: 'security', label: 'Security', icon: <FaLock /> },
   ];
 
+  // Bottom nav: first 4 + "More" trigger
+  const bottomTabs = tabs.slice(0, 4);
+  const moreTabs = tabs.slice(4);
+
   if (!user) return null;
 
   return (
-    <div className="modern-account-dashboard">
-      <div className="modern-dashboard-container">
-        {/* Backdrop for Mobile Sidebar */}
+    <div className="noir-dashboard">
+      <div className="noir-layout">
+
+        {/* ── Desktop Sidebar ── */}
+        <aside className={`noir-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+          <div className="noir-sidebar-profile">
+            <div className="noir-avatar">
+              {user.firstName?.charAt(0) || <FaUser />}
+            </div>
+            <div className="noir-profile-info">
+              <span className="noir-member-tag">Rerendet Member</span>
+              <h3 className="noir-profile-name">{user.firstName} {user.lastName}</h3>
+              <p className="noir-profile-email">{user.email}</p>
+            </div>
+          </div>
+
+          <div className="noir-sidebar-divider" />
+
+          <nav className="noir-sidebar-nav">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`noir-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
+              >
+                <span className="nav-icon">{tab.icon}</span>
+                <span className="nav-text">{tab.label}</span>
+                {activeTab === tab.id && <div className="nav-active-bar" />}
+              </button>
+            ))}
+          </nav>
+
+          <div className="noir-sidebar-divider" />
+
+          <button className="noir-nav-btn noir-logout-btn" onClick={handleLogout}>
+            <span className="nav-icon"><FaSignOutAlt /></span>
+            <span className="nav-text">Log out</span>
+          </button>
+        </aside>
+
+        {/* Mobile sidebar backdrop */}
         <AnimatePresence>
           {isSidebarOpen && (
             <motion.div
-              className="sidebar-mobile-backdrop"
+              className="noir-sidebar-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -226,143 +375,34 @@ function AccountDashboard() {
           )}
         </AnimatePresence>
 
-        {/* Sidebar */}
-        <motion.aside 
-          className={`modern-sidebar ${isSidebarOpen ? 'open' : ''}`}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.1}
-          onDragEnd={(e, info) => {
-            if (info.offset.x < -50 || info.velocity.x < -300) {
-              setIsSidebarOpen(false);
-            }
-          }}
-        >
-          <div className="user-card-modern">
-            <div className="avatar-modern-wrap">
-              <div className="avatar-modern">
+        {/* ── Main Content ── */}
+        <main className="noir-main">
+          {/* Mobile top bar */}
+          <div className="noir-mobile-topbar">
+            <div className="mobile-top-left">
+              <div className="noir-avatar-sm">
                 {user.firstName?.charAt(0) || <FaUser />}
               </div>
-              <div className="avatar-glow" />
-            </div>
-            <div className="user-info-modern">
-              <span className="membership-badge">Rerendet Member</span>
-              <h3>{user.firstName} {user.lastName}</h3>
-              <p className="user-email">{user.email}</p>
-              
-              {/* Dynamic balances shown instantly on the sidebar */}
-              <div className="user-stats-mini">
-                <div className="stat-pill">
-                  <span className="stat-label">Credit</span>
-                  <span className="stat-value credit-val">KES {user.storeCredit?.toLocaleString() || '0'}</span>
-                </div>
-                <div className="stat-pill">
-                  <span className="stat-label">Rewards</span>
-                  <span className="stat-value rewards-val">{user.loyaltyPoints?.toLocaleString() || '0'} <span className="pts-suffix">PTS</span></span>
-                </div>
-                <div className="stat-pill">
-                  <span className="stat-label">Orders</span>
-                  <span className="stat-value">{orders.length}</span>
-                </div>
+              <div>
+                <p className="mobile-greeting">{getGreeting()},</p>
+                <h3 className="mobile-name">{user.firstName}</h3>
               </div>
             </div>
-          </div>
-
-          <nav className="modern-sidebar-nav">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`modern-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
-            <button className="modern-nav-item logout-btn" onClick={handleLogout}>
-              <FaSignOutAlt />
-              <span>Logout</span>
-            </button>
-          </nav>
-        </motion.aside>
-
-        {/* Main Content */}
-        <main className="modern-main-content">
-          <button className="mobile-menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? <FaTimes /> : <FaUser />}
-          </button>
-
-          {/* Mobile Profile Card - Premium Edition */}
-          <div className="dashboard-mobile-header">
-            <div className="mobile-user-card">
-              <div className="mobile-avatar-wrap">
-                <div className="mobile-avatar">
-                  {user.firstName?.charAt(0) || <FaUser />}
-                </div>
-                <div className="mobile-avatar-glow" />
-              </div>
-              <div className="mobile-user-info">
-                <span className="mobile-membership-badge">
-                  <FaShieldAlt style={{ fontSize: '0.8rem' }} /> Rerendet Elite
-                </span>
-                <p className="mobile-welcome-text">Welcome back,</p>
-                <h3>{user.firstName} {user.lastName}</h3>
-                <p className="mobile-user-email">{user.email}</p>
-                
-                {/* Mobile stats upgraded to show actionable balances */}
-                <div className="mobile-user-stats">
-                  <div className="mobile-stat-pill">
-                    <span className="mobile-stat-label">Store Credit</span>
-                    <span className="mobile-stat-value credit-val">KES {user.storeCredit?.toLocaleString() || '0'}</span>
-                  </div>
-                  <div className="mobile-stat-pill">
-                    <span className="mobile-stat-label">Rewards</span>
-                    <span className="mobile-stat-value rewards-val">{user.loyaltyPoints?.toLocaleString() || '0'} PTS</span>
-                  </div>
-                  <div className="mobile-stat-pill">
-                    <span className="mobile-stat-label">Orders</span>
-                    <span className="mobile-stat-value">{orders.length}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Access Mobile Tabs */}
-          <div className="mobile-tabs-scroll-nav">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`mobile-scroll-tab ${activeTab === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
-            <button
-              className="mobile-scroll-tab logout-mobile-tab"
-              onClick={handleLogout}
-            >
-              <FaSignOutAlt style={{ color: '#ff4d4d' }} />
-              <span style={{ color: '#ff4d4d' }}>Logout</span>
+            <button className="noir-menu-trigger" onClick={() => setIsSidebarOpen(true)}>
+              <FaUser />
             </button>
           </div>
 
-          <div className="tab-header">
-            <p>Member Dashboard</p>
-            <h2>
-              {activeTab === 'overview' && 'Overview'}
-              {activeTab === 'orders' && 'Orders'}
-              {activeTab === 'addresses' && 'Addresses'}
-              {activeTab === 'wallet' && 'Wallet'}
-              {activeTab === 'tickets' && 'Support Helpdesk'}
-              {activeTab === 'profile' && 'Profile'}
-              {activeTab === 'security' && 'Security'}
+          {/* Tab header */}
+          <div className="noir-tab-header">
+            <p className="tab-breadcrumb">Dashboard</p>
+            <h2 className="tab-title">
+              {tabs.find(t => t.id === activeTab)?.label || 'Overview'}
             </h2>
           </div>
 
-          <div className="dashboard-view-container">
+          {/* Tab Content */}
+          <div className="noir-content-area">
             {activeTab === 'overview' && <OverviewTab user={user} orders={orders} onNavigate={setActiveTab} />}
             {activeTab === 'orders' && <OrdersTab orders={orders} loading={ordersLoading} onRefresh={() => loadOrders(true)} />}
             {activeTab === 'addresses' && <AddressesTab />}
@@ -373,6 +413,59 @@ function AccountDashboard() {
           </div>
         </main>
       </div>
+
+      {/* ── Mobile Bottom Nav ── */}
+      <nav className="noir-bottom-nav">
+        {bottomTabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`bottom-nav-item ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => { setActiveTab(tab.id); setMoreMenuOpen(false); }}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
+        <button
+          className={`bottom-nav-item ${moreTabs.some(t => t.id === activeTab) ? 'active' : ''}`}
+          onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+        >
+          <FaEllipsisH />
+          <span>More</span>
+        </button>
+
+        {/* More menu flyout */}
+        <AnimatePresence>
+          {moreMenuOpen && (
+            <motion.div
+              className="more-menu-flyout"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+            >
+              {moreTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  className={`more-menu-item ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => { setActiveTab(tab.id); setMoreMenuOpen(false); }}
+                >
+                  {tab.icon}
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+              <button className="more-menu-item logout-item" onClick={handleLogout}>
+                <FaSignOutAlt />
+                <span>Log out</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      {/* Backdrop for more menu */}
+      {moreMenuOpen && (
+        <div className="more-menu-backdrop" onClick={() => setMoreMenuOpen(false)} />
+      )}
     </div>
   );
 }

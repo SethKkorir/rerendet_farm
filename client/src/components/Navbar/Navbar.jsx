@@ -86,8 +86,7 @@ function Navbar() {
     if (section) {
       section.scrollIntoView({ behavior: 'smooth' });
     } else {
-      // If section not found (e.g., on another page), navigate to home with hash
-      navigate('/' + sectionId);
+      navigate('/', { state: { scrollTo: sectionId.replace('#', '') } });
     }
     setMobileMenuOpen(false);
   };
@@ -153,8 +152,11 @@ function Navbar() {
 
             {/* Account */}
             <button
+              type="button"
               className="header__account"
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 if (user) {
                   navigate(isAdminUser ? '/admin' : '/profile');
                 } else {

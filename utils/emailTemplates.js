@@ -1,12 +1,8 @@
 let FRONTEND_URL = process.env.FRONTEND_URL;
 
-// Self-healing fallback: If running in production (Vercel) but FRONTEND_URL is set to localhost, override it to the hosted site
-if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-  if (!FRONTEND_URL || FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1')) {
-    FRONTEND_URL = 'https://rerendet-farm.vercel.app';
-  }
-} else if (!FRONTEND_URL) {
-  FRONTEND_URL = 'http://localhost:3000';
+// Force healing: If FRONTEND_URL is empty or points to localhost/127.0.0.1, prioritize the hosted Vercel address
+if (!FRONTEND_URL || FRONTEND_URL.includes('localhost') || FRONTEND_URL.includes('127.0.0.1')) {
+  FRONTEND_URL = 'https://rerendet-farm.vercel.app';
 }
 
 const ADMIN_PANEL_URL = FRONTEND_URL;
@@ -195,7 +191,9 @@ const getBaseTemplate = (title, content, options = {}) => {
         </div>
         <div class="footer">
           <div class="social-tray">
-             <a href="#">Instagram</a> • <a href="#">Twitter</a> • <a href="#">Facebook</a>
+             <a href="https://www.instagram.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Instagram</a> • 
+             <a href="https://x.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Twitter</a> • 
+             <a href="https://www.facebook.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Facebook</a>
           </div>
           <p>&copy; ${year} Rerendet Coffees. All rights reserved.</p>
           <div style="margin-top: 15px;">

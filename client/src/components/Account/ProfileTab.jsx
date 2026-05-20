@@ -1,6 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../../context/AppContext';
-import { FaLock, FaUser } from 'react-icons/fa';
+import { FaLock, FaUser, FaSave } from 'react-icons/fa';
 
 const ProfileTab = () => {
     const { user, updateUserProfile, loading, showSuccess, showError } = useContext(AppContext);
@@ -32,7 +32,7 @@ const ProfileTab = () => {
 
     return (
         <div className="modern-dashboard-tab">
-            <div className="content-card">
+            <div className="content-card compact-card">
                 <form className="modern-form" onSubmit={handleSubmit}>
                     <div className="profile-form-section">
                         <h4>Personal Information</h4>
@@ -44,7 +44,7 @@ const ProfileTab = () => {
                                     value={formData.firstName}
                                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                                     required
-                                    placeholder="Enter your first name"
+                                    placeholder="First name"
                                     className="premium-input-modern"
                                 />
                             </div>
@@ -55,13 +55,13 @@ const ProfileTab = () => {
                                     value={formData.lastName}
                                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                                     required
-                                    placeholder="Enter your last name"
+                                    placeholder="Last name"
                                     className="premium-input-modern"
                                 />
                             </div>
                         </div>
 
-                        <div className="form-grid-2 mt-3" style={{ marginTop: '1rem' }}>
+                        <div className="form-grid-2 mt-3">
                             <div className="form-group">
                                 <label>Date of Birth</label>
                                 <input
@@ -69,14 +69,6 @@ const ProfileTab = () => {
                                     value={formData.dateOfBirth}
                                     onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                                     className="premium-input-modern"
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.8rem 1rem',
-                                        borderRadius: '8px',
-                                        background: 'var(--bg-card)',
-                                        border: '1px solid var(--border-color)',
-                                        color: 'var(--text-main)'
-                                    }}
                                 />
                             </div>
                             <div className="form-group">
@@ -84,15 +76,7 @@ const ProfileTab = () => {
                                 <select
                                     value={formData.gender}
                                     onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                                    className="premium-select-modern"
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.8rem 1rem',
-                                        borderRadius: '8px',
-                                        background: 'var(--bg-card)',
-                                        border: '1px solid var(--border-color)',
-                                        color: 'var(--text-main)'
-                                    }}
+                                    className="premium-input-modern"
                                 >
                                     <option value="">Select Gender</option>
                                     <option value="male">Male</option>
@@ -104,15 +88,15 @@ const ProfileTab = () => {
                         </div>
                     </div>
 
-                    <div className="profile-form-section mt-4" style={{ marginTop: '1.5rem' }}>
+                    <div className="profile-form-section mt-4">
                         <h4>Contact Details</h4>
                         <div className="form-grid-2">
                             <div className="form-group">
                                 <label>Email Address</label>
-                                <input type="email" defaultValue={user?.email} disabled className="disabled-input" />
+                                <input type="email" defaultValue={user?.email} disabled className="disabled-input premium-input-modern" />
                                 <small className="form-text-small">
-                                    <FaLock size={10} style={{ marginRight: '4px' }} />
-                                    Email is locked for account security
+                                    <FaLock size={9} style={{ marginRight: '3px' }} />
+                                    Locked for security
                                 </small>
                             </div>
                             <div className="form-group">
@@ -122,25 +106,21 @@ const ProfileTab = () => {
                                         type="tel"
                                         value={formData.phone}
                                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        placeholder="+254..."
+                                        placeholder="0748..."
                                         className="premium-input-modern"
                                         onFocus={() => setIsPhoneFocused(true)}
                                         onBlur={() => setIsPhoneFocused(false)}
                                     />
                                     {!isPhoneFocused && (
                                         <div className="input-mask-overlay" style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            height: '100%',
-                                            background: 'var(--bg-card)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: '0 1rem',
-                                            pointerEvents: 'none',
-                                            borderRadius: 'inherit',
-                                            color: 'var(--text-main)'
+                                            position: 'absolute', top: 0, left: 0,
+                                            width: '100%', height: '100%',
+                                            background: 'var(--noir-surface)',
+                                            display: 'flex', alignItems: 'center',
+                                            padding: '0 1rem', pointerEvents: 'none',
+                                            borderRadius: 'inherit', color: 'var(--text-1)',
+                                            border: '1px solid var(--noir-border)',
+                                            fontSize: '0.95rem'
                                         }}>
                                             {maskPhone(formData.phone)}
                                         </div>
@@ -151,9 +131,10 @@ const ProfileTab = () => {
                         </div>
                     </div>
 
-                    <div className="form-actions mt-4" style={{ marginTop: '1.5rem' }}>
-                        <button className="btn-primary" disabled={loading}>
-                            {loading ? 'Saving Changes...' : 'Save Profile'}
+                    <div className="form-actions mt-4">
+                        <button type="submit" className="btn-primary" disabled={loading}>
+                            <FaSave />
+                            {loading ? 'Saving...' : 'Save Profile'}
                         </button>
                     </div>
                 </form>

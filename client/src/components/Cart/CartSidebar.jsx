@@ -30,13 +30,7 @@ function CartSidebar() {
 
   const openShop = () => {
     closeCart();
-    navigate('/');
-    setTimeout(() => {
-      const shopSection = document.getElementById('coffee-shop');
-      if (shopSection) {
-        shopSection.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    navigate('/', { state: { scrollTo: 'coffee-shop' } });
   };
 
   const proceedToCheckout = () => {

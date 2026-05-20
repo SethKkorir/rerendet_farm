@@ -110,7 +110,8 @@ const userSchema = new mongoose.Schema({
     town: String,
     zip: String,
     country: String,
-    deliveryOption: String
+    deliveryOption: String,
+    additionalAddresses: { type: Array, default: [] }
   },
 
   // Wallet / Payment Methods

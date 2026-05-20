@@ -8,7 +8,7 @@ const settingsSchema = new mongoose.Schema({
     name: { type: String, default: 'Rerendet Coffee' },
     email: { type: String, default: 'info@rerendetcoffee.com' },
     phone: { type: String, default: '+254700000000' },
-    address: { type: String, default: 'Nairobi, Kenya' },
+    address: { type: String, default: 'Bomet, Kenya' },
     description: { type: String, default: 'Premium coffee blends roasted to perfection' },
     logo: { type: String, default: '' },
     favicon: { type: String, default: '' }
@@ -186,6 +186,12 @@ settingsSchema.statics.getSettings = async function () {
   let settings = await this.findOne();
   if (!settings) {
     settings = new this();
+    await settings.save();
+  }
+
+  // Self-heal: If store address is the old default 'Nairobi, Kenya', update it to 'Bomet, Kenya'
+  if (settings.store && settings.store.address === 'Nairobi, Kenya') {
+    settings.store.address = 'Bomet, Kenya';
     await settings.save();
   }
 

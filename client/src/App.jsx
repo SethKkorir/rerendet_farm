@@ -70,10 +70,21 @@ function App() {
   const location = useLocation();
   const { settingsLoading, isAdmin, showAuthModal, setShowAuthModal, authView } = useContext(AppContext);
 
-  // Scroll to top on every route change
+  // Scroll to top or specific target on every route change
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [location.pathname]);
+    if (location.state?.scrollTo) {
+      const targetId = location.state.scrollTo;
+      setTimeout(() => {
+        const element = document.getElementById(targetId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 150);
+      window.history.replaceState({}, document.title);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [location.pathname, location.state]);
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true, easing: 'ease-in-out' });

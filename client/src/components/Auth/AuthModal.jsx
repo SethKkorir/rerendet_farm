@@ -421,7 +421,28 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                     exit="exit"
                     onClick={e => e.stopPropagation()}
                 >
-                    <button className="close-auth-btn" onClick={onClose} aria-label="Close modal"><FaTimes /></button>
+                    <div className="auth-split-layout">
+                        {/* LEFT BRAND PANEL (Desktop/Tablet Showcase) */}
+                        <div className="auth-left-brand-panel">
+                            <div className="auth-back-glow auth-back-glow--1"></div>
+                            <div className="auth-back-glow auth-back-glow--2"></div>
+                            <div className="auth-back-glow auth-back-glow--3"></div>
+                            
+                            <div className="auth-brand-badge">EST. 2024</div>
+                            <div className="auth-brand-middle">
+                                <img src="/rerendet-logo.png" alt="Rerendet Logo" className="auth-brand-logo" />
+                                <h1 className="auth-brand-name">RERENDET</h1>
+                                <div className="auth-brand-divider"></div>
+                                <p className="auth-brand-tagline">Grown at 1,800m. Hand-picked. Roasted to order.</p>
+                            </div>
+                            <div className="auth-brand-footer">
+                                <span>Highland Arabica Specialty</span>
+                            </div>
+                        </div>
+
+                        {/* RIGHT FORM PANEL */}
+                        <div className="auth-right-form-panel">
+                            <button className="close-auth-btn" onClick={onClose} aria-label="Close modal"><FaTimes /></button>
 
                     {(view !== 'login' && view !== '2fa-login' && (view !== 'signup' || signupStep > 1 || view === 'policies')) && (
                         <button
@@ -560,9 +581,20 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                                     className="auth-form"
                                     onSubmit={signupStep === 4 ? handleSignupSubmit : handleSignupNext}
                                 >
-                                    <div className="signup-progress">
-                                        {[1, 2, 3, 4].map(step => (
-                                            <div key={step} className={`progress-dot ${signupStep >= step ? 'active' : ''}`} />
+                                    <div className="signup-progress-premium">
+                                        {[1, 2, 3, 4].map((step, idx) => (
+                                            <React.Fragment key={step}>
+                                                {idx > 0 && <div className={`progress-line-segment ${signupStep >= step ? 'active' : ''}`} />}
+                                                <div className={`progress-step-node ${signupStep >= step ? 'active' : ''} ${signupStep === step ? 'current' : ''}`}>
+                                                    <span className="node-number">{step}</span>
+                                                    <span className="node-title">
+                                                        {step === 1 && 'Email'}
+                                                        {step === 2 && 'Security'}
+                                                        {step === 3 && 'Details'}
+                                                        {step === 4 && 'Finish'}
+                                                    </span>
+                                                </div>
+                                            </React.Fragment>
                                         ))}
                                     </div>
 
@@ -912,7 +944,9 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
 
                         </AnimatePresence>
                     </div>
-                </motion.div>
+                </div>
+            </div>
+        </motion.div>
             </motion.div>
         </AnimatePresence>
     );

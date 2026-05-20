@@ -156,7 +156,7 @@ function Confirmation() {
             <button className="btn btn-primary" onClick={() => navigate('/')}>
               <FaHome /> Back to Home
             </button>
-            <button className="btn btn-outline" onClick={() => navigate('/shop')}>
+            <button className="btn btn-outline" onClick={() => navigate('/', { state: { scrollTo: 'coffee-shop' } })}>
               <FaShoppingBag /> Continue Shopping
             </button>
           </div>

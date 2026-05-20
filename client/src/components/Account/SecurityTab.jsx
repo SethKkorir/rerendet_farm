@@ -4,7 +4,7 @@ import API from '../../api/api';
 import {
     FaLock, FaShieldAlt, FaKey, FaTrash, FaCheckCircle,
     FaExclamationTriangle, FaHistory, FaDesktop, FaFingerprint,
-    FaArrowRight, FaShieldVirus, FaFingerprint as FaBiometric
+    FaArrowRight, FaShieldVirus
 } from 'react-icons/fa';
 
 const SecurityTab = () => {
@@ -164,7 +164,7 @@ const SecurityTab = () => {
             {/* Header Health Overview */}
             <div className="security-health-card">
                 <div className="health-visual">
-                    <div className={`health-circle ${user.twoFactorEnabled ? 'strong' : 'danger'}`}>
+                    <div className={`health-icon-wrap ${user.twoFactorEnabled ? 'strong' : 'danger'}`}>
                         <FaShieldVirus />
                     </div>
                 </div>
@@ -190,7 +190,9 @@ const SecurityTab = () => {
                     <div className="sec-card glass-morph">
                         <div className="sec-card-header">
                             <div className="header-title">
-                                <FaFingerprint className="accent-icon" />
+                                <div className="accent-icon">
+                                    <FaFingerprint />
+                                </div>
                                 <div>
                                     <h5>Two-Factor Authentication</h5>
                                     <p>Encrypted email verification</p>
@@ -245,7 +247,9 @@ const SecurityTab = () => {
                     <div className="sec-card glass-morph mt-4">
                         <div className="sec-card-header mb-4">
                             <div className="header-title">
-                                <FaKey className="accent-icon" />
+                                <div className="accent-icon">
+                                    <FaKey />
+                                </div>
                                 <div>
                                     <h5>Change Password</h5>
                                     <p>Ensure your account remains secure</p>
@@ -350,10 +354,9 @@ const SecurityTab = () => {
                                     />
                                 </div>
                                 <div className="danger-btn-group" style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
-                                    <button className="btn-outline" style={{ borderColor: 'var(--text-muted)', color: 'var(--text-muted)' }} onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}>Abort</button>
+                                    <button className="btn-text-only" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}>Abort</button>
                                     <button
-                                        className="btn-primary"
-                                        style={{ background: 'var(--status-cancelled)', borderColor: 'var(--status-cancelled)' }}
+                                        className="btn-danger-minimal"
                                         onClick={handleDeleteAccount}
                                         disabled={deleteLoading || !deletePassword}
                                     >
@@ -370,7 +373,9 @@ const SecurityTab = () => {
                     <div className="sec-card glass-morph activity-container">
                         <div className="sec-card-header mb-4">
                             <div className="header-title">
-                                <FaHistory className="accent-icon" />
+                                <div className="accent-icon">
+                                    <FaHistory />
+                                </div>
                                 <div>
                                     <h5>Access Logs</h5>
                                     <p>Real-time session tracking</p>
