@@ -4,7 +4,7 @@ import Settings from '../models/Settings.js';
 import crypto from 'crypto';
 import os from 'os';
 
-const superAdminEmail = 'zsethkipchumba179@gmail.com';
+const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'kipzseth@gmail.com';
 
 // Sliding windows state for spikes monitoring (in-memory caching for active instances)
 const state = {

@@ -69,7 +69,15 @@ API.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    if (error.response?.status === 401 && !original._retried) {
+    // Avoid silent token refresh for standard login/auth paths where a 401 indicates invalid credentials
+    const isLoginOrAuth = original?.url?.includes('/auth/customer/login') || 
+                          original?.url?.includes('/auth/admin/login') || 
+                          original?.url?.includes('/auth/customer/register') ||
+                          original?.url?.includes('/auth/google') ||
+                          original?.url?.includes('/auth/forgot-password') ||
+                          original?.url?.includes('/auth/reset-password');
+
+    if (error.response?.status === 401 && !original._retried && !isLoginOrAuth) {
       original._retried = true;
 
       if (isRefreshing) {
