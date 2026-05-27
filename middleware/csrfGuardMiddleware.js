@@ -30,6 +30,11 @@ export const csrfGuard = (req, res, next) => {
     return next();
   }
 
+  // Silent token refresh is cookie-secured and response is protected by CORS, so bypass CSRF to prevent proxy blocks
+  if (req.originalUrl.includes('/api/auth/refresh')) {
+    return next();
+  }
+
   // Public anonymous state-changing endpoints do not use session credentials and are not vulnerable to CSRF
   const isPublicRoute = 
     req.originalUrl.startsWith('/api/subscribers/subscribe') ||
