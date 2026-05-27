@@ -15,6 +15,7 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
     const bypassPaths = [
         '/api/admin/login',
         '/api/auth/admin',
+        '/api/auth/refresh', // Allow silent token refresh under maintenance mode
         '/api/settings/public',
         '/api/settings/super-gate', // CRITICAL: Allow the magic link to be triggered even if site is blocked
         '/api/health',
