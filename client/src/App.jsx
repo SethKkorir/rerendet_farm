@@ -68,7 +68,7 @@ const PageLoader = () => (
 
 function App() {
   const location = useLocation();
-  const { settingsLoading, isAdmin, showAuthModal, setShowAuthModal, authView } = useContext(AppContext);
+  const { settingsLoading, isAdmin, showAuthModal, setShowAuthModal, authView, globalMaintenance, publicSettings } = useContext(AppContext);
 
   // Scroll to top or specific target on every route change
   useEffect(() => {
@@ -107,6 +107,31 @@ function App() {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   if (settingsLoading) return <PageLoader />;
+
+  if (globalMaintenance && !isAdminRoute && !isAdmin) {
+    return (
+      <div className="maintenance-overlay">
+        <div className="maintenance-content">
+          <div style={{ fontSize: '4rem', marginBottom: '1.5rem', filter: 'drop-shadow(0 0 15px rgba(212, 175, 55, 0.3))' }}>🚧</div>
+          <h1 style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-primary)', letterSpacing: '2px' }}>Under Maintenance</h1>
+          <p style={{ margin: '1.5rem 0', lineHeight: '1.8' }}>
+            {publicSettings?.maintenance?.message || 'Our storefront is temporarily offline for scheduled maintenance. We will be back shortly!'}
+          </p>
+          <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-main)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            Are you an administrator?{' '}
+            <a 
+              href="/admin/login" 
+              style={{ color: 'var(--color-primary)', textDecoration: 'underline', fontWeight: '600', transition: 'color 0.2s' }}
+              onMouseEnter={(e) => e.target.style.color = '#fff'}
+              onMouseLeave={(e) => e.target.style.color = 'var(--color-primary)'}
+            >
+              Log In Here
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="App">

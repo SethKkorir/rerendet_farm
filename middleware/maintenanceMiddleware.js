@@ -11,19 +11,19 @@ import connectDB from '../config/db.js';
 const maintenanceMode = asyncHandler(async (req, res, next) => {
     const fullPath = (req.baseUrl + req.path).replace(/\/$/, '');
 
-    // 1. Always allow fundamental bypasses (Health, Public Settings, Super Gate, Admin Auth, Heartbeat, Cron)
+    // 1. Always allow fundamental bypasses (Health, Public Settings, Super Gate, Admin Auth, Heartbeat, Cron, and Admin panel APIs)
     const bypassPaths = [
-        '/api/admin/login',
-        '/api/auth/admin',
-        '/api/auth/refresh', // Allow silent token refresh under maintenance mode
-        '/api/settings/public',
+        '/api/admin',            // Allow all administrative management APIs (e.g. settings, dashboard, products)
+        '/api/auth/admin',       // Allow admin auth endpoints (login, 2fa, etc)
+        '/api/auth/refresh',     // Allow silent token refresh under maintenance mode
+        '/api/settings/public',  // Public settings needed to display shop status
         '/api/settings/super-gate', // CRITICAL: Allow the magic link to be triggered even if site is blocked
-        '/api/health',
+        '/api/health',           // Health check
         '/api/public/heartbeat',
-        '/api/cron/magic-link-rotation'
+        '/api/cron'              // Cron triggers
     ];
 
-    if (bypassPaths.some(path => fullPath.includes(path))) {
+    if (bypassPaths.some(path => fullPath.includes(path) || fullPath.startsWith(path))) {
         return next();
     }
 
@@ -59,34 +59,44 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
         return next();
     }
 
-    // 3. If Maintenance is ON, we must check if the user is a SUPER ADMIN
-    // Since this middleware runs before 'protect', we manually check for Token
-    let isSuperAdmin = false;
+    // 3. If Maintenance is ON, check if the requester is an authorized ADMIN or SUPER ADMIN
+    // Since this middleware runs before 'protect', we manually parse the token from headers or cookies
+    let isAdmin = false;
+    let token = null;
 
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (token) {
         try {
-            const token = req.headers.authorization.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const user = await User.findById(decoded.id).select('role userType');
+            const userId = decoded.userId || decoded.id; // Match decoded token fields
 
-            // STRICT: Only 'super-admin' can bypass maintenance/downtime
-            if (user && user.role === 'super-admin') {
-                isSuperAdmin = true;
-                req.user = user; // Attach user so subsequent middleware knows who it is
+            if (userId) {
+                const user = await User.findById(userId).select('role userType');
+                
+                // Allow both 'super-admin' and 'admin' roles to bypass storefront locks
+                if (user && (user.role === 'super-admin' || user.role === 'admin' || user.userType === 'admin')) {
+                    isAdmin = true;
+                    req.user = user; // Attach user so subsequent middleware knows who it is
+                }
             }
         } catch (err) {
             // Token invalid or expired, proceed as guest
         }
     }
 
-    // 4. Block everyone if NOT super-admin
-    if (!isSuperAdmin) {
+    // 4. Block everyone else (non-admins / guests) on public routes
+    if (!isAdmin) {
         return res.status(503).json({
             success: false,
             maintenance: true,
             downtime: true,
-            message: settings.maintenance.message || 'The system is currently undergoing critical maintenance and is temporary offline. We apologize for the downtime.',
-            storeName: settings.store.name
+            message: settings.maintenance.message || 'The system is currently undergoing critical maintenance and is temporarily offline. We apologize for the downtime.',
+            storeName: settings.store?.name || 'Rerendet Coffee'
         });
     }
 
