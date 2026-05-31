@@ -1179,9 +1179,34 @@ const updateSettings = asyncHandler(async (req, res) => {
     }
   );
 
-  // Check if maintenance mode toggled
-  if (req.body.maintenance && typeof req.body.maintenance.enabled !== 'undefined') {
-    const isMaintenanceNow = req.body.maintenance.enabled === true || req.body.maintenance.enabled === 'true';
+    // Dynamic dynamic administrator downtime email alert
+    const notifyAdminsDowntime = async () => {
+      try {
+        if (isMaintenanceNow) {
+          const admins = await User.find({ role: { $in: ['admin', 'super-admin'] } }).select('email firstName');
+          console.log(`🛡️ [Cybersecurity Security Alert] Dispatching automatic downtime notifications to ${admins.length} administrators...`);
+          await Promise.allSettled(admins.map(admin =>
+            sendEmail({
+              to: admin.email,
+              subject: '⚠️ Alert: Rerendet Coffee Downtime Activated',
+              html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #ef4444; border-radius: 12px; background-color: #ffffff;">
+                  <h2 style="color: #ef4444; margin: 0 0 10px;">⚠️ Authoritative Downtime Event Alert</h2>
+                  <p style="font-size: 15px; color: #333;">Hello ${admin.firstName},</p>
+                  <p style="font-size: 14px; color: #555;">This is an automated security broadcast. Rerendet Coffee has been put into <strong>Maintenance Mode / Downtime</strong> successfully.</p>
+                  <p style="font-size: 14px; color: #555; padding: 10px; background-color: #fef2f2; border-left: 4px solid #ef4444;">
+                    <strong>Status:</strong> Active Downtime Blocked
+                  </p>
+                  <p style="font-size: 13px; color: #888; margin-top: 25px;">Logged under security compliance audit trails.</p>
+                </div>
+              `
+            })
+          ));
+        }
+      } catch (err) {
+        console.error('❌ Failed to email admins downtime notification:', err.message);
+      }
+    };
 
     // Asynchronous email notification logic (Fire and Forget)
     const notifyCustomers = async () => {
@@ -1233,6 +1258,7 @@ const updateSettings = asyncHandler(async (req, res) => {
 
     // Execute functionality strictly after response or async
     notifyCustomers();
+    notifyAdminsDowntime();
   }
 
   res.json({

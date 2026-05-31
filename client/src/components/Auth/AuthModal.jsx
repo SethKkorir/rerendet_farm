@@ -421,28 +421,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                     exit="exit"
                     onClick={e => e.stopPropagation()}
                 >
-                    <div className="auth-split-layout">
-                        {/* LEFT BRAND PANEL (Desktop/Tablet Showcase) */}
-                        <div className="auth-left-brand-panel">
-                            <div className="auth-back-glow auth-back-glow--1"></div>
-                            <div className="auth-back-glow auth-back-glow--2"></div>
-                            <div className="auth-back-glow auth-back-glow--3"></div>
-                            
-                            <div className="auth-brand-badge">EST. 2024</div>
-                            <div className="auth-brand-middle">
-                                <img src="/rerendet-logo.png" alt="Rerendet Logo" className="auth-brand-logo" />
-                                <h1 className="auth-brand-name">RERENDET</h1>
-                                <div className="auth-brand-divider"></div>
-                                <p className="auth-brand-tagline">Grown at 1,800m. Hand-picked. Roasted to order.</p>
-                            </div>
-                            <div className="auth-brand-footer">
-                                <span>Highland Arabica Specialty</span>
-                            </div>
-                        </div>
-
-                        {/* RIGHT FORM PANEL */}
-                        <div className="auth-right-form-panel">
-                            <button className="close-auth-btn" onClick={onClose} aria-label="Close modal"><FaTimes /></button>
+                    <button className="close-auth-btn" onClick={onClose} aria-label="Close modal"><FaTimes /></button>
 
                     {(view !== 'login' && view !== '2fa-login' && (view !== 'signup' || signupStep > 1 || view === 'policies')) && (
                         <button
@@ -944,9 +923,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
 
                         </AnimatePresence>
                     </div>
-                </div>
-            </div>
-        </motion.div>
+                </motion.div>
             </motion.div>
         </AnimatePresence>
     );

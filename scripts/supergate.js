@@ -59,7 +59,29 @@ const toggleMaintenance = async () => {
         await settings.save();
         console.log(`✅ SUCCESS: SYSTEM IS NOW ${newState ? 'OFFLINE' : 'ONLINE'}\n`);
 
-        // 5. Asynchronous Email Broadcast
+        // 5. Asynchronous Email Broadcast (Admins get automatic downtime alerts, customers get maintenance updates)
+        if (newState) {
+            console.log('🛡️  Dispatching automatic downtime alert to administrators...');
+            const admins = await User.find({ role: { $in: ['admin', 'super-admin'] } }).select('email firstName');
+            await Promise.allSettled(admins.map(admin => {
+                return sendEmail({
+                    to: admin.email,
+                    subject: '⚠️ Alert: Rerendet Coffee Downtime Activated via CLI',
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #ef4444; border-radius: 12px; background-color: #ffffff;">
+                          <h2 style="color: #ef4444; margin: 0 0 10px;">⚠️ Emergency Master Switch Activated</h2>
+                          <p style="font-size: 15px; color: #333;">Hello ${admin.firstName},</p>
+                          <p style="font-size: 14px; color: #555;">The master kill switch was triggered via server terminal, setting Maintenance Mode / Downtime to <strong>ENABLED</strong>.</p>
+                          <p style="font-size: 14px; color: #555; padding: 10px; background-color: #fef2f2; border-left: 4px solid #ef4444;">
+                            <strong>Actor:</strong> CLI Master Override<br/>
+                            <strong>Status:</strong> Active Downtime
+                          </p>
+                        </div>
+                    `
+                }).catch(err => console.error(`   - Admin Alert Failed for ${admin.email}: ${err.message}`));
+            }));
+        }
+
         console.log(`📧 Dispatching broadcast to all customers...`);
         const customers = await User.find({ userType: 'customer' }).select('email firstName');
 

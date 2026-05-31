@@ -163,6 +163,13 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
             </div>
           </div>
 
+          {/* Description */}
+          {product.description && (
+            <p className="cs-desc-short">
+              {product.description}
+            </p>
+          )}
+
           {/* Flavor / spec pills */}
           <div className="cs-pills">
             {product.category === 'coffee-beans'

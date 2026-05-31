@@ -30,8 +30,38 @@ import generateToken, {
   setTokenCookie,
   clearTokenCookie
 } from '../utils/generateToken.js';
-import sendEmail from '../utils/sendEmail.js';
+import realSendEmail from '../utils/sendEmail.js';
 import { getVerificationEmail, getWelcomeEmail, getResetPasswordEmail, getRegretEmail, getSecurityAlertEmail } from '../utils/emailTemplates.js';
+
+// Dynamic cybersecurity wrapper to strictly prevent administrative/security alerts from being sent to customer accounts.
+const sendEmail = async (options) => {
+  const isSecurityAlert = options.subject && (
+    /security alert/i.test(options.subject) || 
+    /account locked/i.test(options.subject) || 
+    /mfa/i.test(options.subject) ||
+    /two-factor/i.test(options.subject) ||
+    /password change/i.test(options.subject) ||
+    /password reset/i.test(options.subject) ||
+    /device login/i.test(options.subject)
+  );
+
+  if (isSecurityAlert) {
+    try {
+      const user = await User.findOne({ email: options.to }).select('role userType');
+      if (user) {
+        const isClientAdmin = user.role === 'admin' || user.role === 'super-admin' || user.userType === 'admin';
+        if (!isClientAdmin) {
+          console.log(`🛡️ [Cybersecurity Boundary] Blocked security alert email dispatch to customer account: ${options.to}`);
+          return { success: false, message: 'Security alert muted for customer accounts' };
+        }
+      }
+    } catch (err) {
+      console.error('❌ Dynamic email role-check failed:', err.message);
+    }
+  }
+
+  return realSendEmail(options);
+};
 import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js';
 import dotenv from 'dotenv';

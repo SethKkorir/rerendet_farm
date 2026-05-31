@@ -69,7 +69,7 @@
   backdrop-filter: blur(35px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(35px) saturate(180%) !important;
   width: 100%;
-  max-width: 880px; /* Expanded for side-by-side split layout */
+  max-width: 480px; /* Reset to 480px for a focused card layout */
   border-radius: 28px;
   border: 1px solid rgba(212, 175, 55, 0.18) !important; /* Premium gold border */
   box-shadow: 
@@ -78,7 +78,7 @@
     inset 0 0 50px rgba(212, 175, 55, 0.04) !important;
   position: relative;
   overflow: hidden;
-  max-height: 92vh;
+  max-height: 90vh; /* Strict max-height to prevent viewport overflows */
   display: flex;
   flex-direction: column;
   transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
@@ -283,10 +283,13 @@
 
 /* ── Content Wrapper ── */
 .auth-content {
-  padding: 3.5rem 2.25rem 2.25rem;
+  padding: 3rem 2.25rem 2.25rem;
   overflow-y: auto;
   position: relative;
   z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .auth-content::-webkit-scrollbar {
@@ -306,14 +309,16 @@
 }
 
 .auth-logo {
+  text-align: center;
   margin-bottom: 1.25rem;
 }
 
-/* Logo only visible on form side if screen collapses left side */
-.auth-right-form-panel .auth-logo img {
-  height: 54px;
+.auth-logo img {
+  height: 60px;
+  width: auto;
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
-  display: none; /* Hidden on split layout since brand logo is on the left */
+  display: inline-block !important;
+  margin: 0 auto;
 }
 
 .premium-title {
@@ -890,23 +895,7 @@ select.form-input {
 @media (max-width: 768px) {
   .auth-modal-container {
     max-width: 460px; /* Collapse container back to single-pane width */
-  }
-
-  .auth-split-layout {
-    grid-template-columns: 1fr; /* Collapse left panel completely */
-  }
-
-  .auth-left-brand-panel {
-    display: none !important; /* Hide left brand showcase on mobile */
-  }
-
-  .auth-right-form-panel {
-    background: transparent;
-  }
-
-  .auth-right-form-panel .auth-logo img {
-    display: inline-block; /* Show simple logo inside the form header on mobile */
-    margin: 0 auto 0.5rem;
+    max-height: 90vh;
   }
 
   .signup-progress-premium {
@@ -929,5 +918,63 @@ select.form-input {
 
   .premium-title {
     font-size: 1.7rem;
+  }
+}
+
+@media (max-width: 568px) {
+  .auth-modal-container {
+    max-width: 100%;
+    margin: 0.5rem;
+    border-radius: 20px;
+    max-height: 90vh;
+  }
+
+  .auth-content {
+    padding: 2.25rem 1.25rem 1.25rem;
+  }
+
+  .premium-title {
+    font-size: 1.45rem;
+  }
+
+  .auth-subtitle {
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+  }
+
+  .form-input {
+    padding: 0.8rem 2.5rem 0.8rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 10px;
+  }
+
+  .primary-btn {
+    padding: 0.85rem;
+    font-size: 0.88rem;
+    border-radius: 10px;
+  }
+
+  .custom-google-btn {
+    padding: 0.8rem;
+    font-size: 0.8rem;
+    border-radius: 10px;
+  }
+
+  .policy-text-wrap {
+    max-height: 240px !important;
+    padding: 0.85rem !important;
+    font-size: 0.82rem;
+    border-radius: 12px;
+  }
+  
+  .verification-grid {
+    gap: 0.4rem;
+  }
+  
+  .verification-digit {
+    width: 36px !important;
+    height: 48px !important;
+    font-size: 1.25rem !important;
+    border-radius: 10px !important;
   }
 }

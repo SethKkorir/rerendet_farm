@@ -93,6 +93,35 @@ const updateSettings = asyncHandler(async (req, res) => {
           });
         }).catch(err => console.error('Alert trigger error:', err));
 
+        // Dynamic dynamic administrator downtime email alert
+        const notifyAdminsDowntime = async () => {
+          try {
+            if (isMaintenanceNow) {
+              const admins = await User.find({ role: { $in: ['admin', 'super-admin'] } }).select('email firstName');
+              console.log(`🛡️ [Cybersecurity Security Alert] Dispatching automatic downtime notifications to ${admins.length} administrators...`);
+              await Promise.allSettled(admins.map(admin =>
+                sendEmail({
+                  to: admin.email,
+                  subject: '⚠️ Alert: Rerendet Coffee Downtime Activated',
+                  html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #ef4444; border-radius: 12px; background-color: #ffffff;">
+                      <h2 style="color: #ef4444; margin: 0 0 10px;">⚠️ Authoritative Downtime Event Alert</h2>
+                      <p style="font-size: 15px; color: #333;">Hello ${admin.firstName},</p>
+                      <p style="font-size: 14px; color: #555;">This is an automated security broadcast. Rerendet Coffee has been put into <strong>Maintenance Mode / Downtime</strong> successfully.</p>
+                      <p style="font-size: 14px; color: #555; padding: 10px; background-color: #fef2f2; border-left: 4px solid #ef4444;">
+                        <strong>Status:</strong> Active Downtime Blocked
+                      </p>
+                      <p style="font-size: 13px; color: #888; margin-top: 25px;">Logged under security compliance audit trails.</p>
+                    </div>
+                  `
+                })
+              ));
+            }
+          } catch (err) {
+            console.error('❌ Failed to email admins downtime notification:', err.message);
+          }
+        };
+
         // Async Background Notification
         const notifyMaintenance = async () => {
           try {
@@ -118,6 +147,7 @@ const updateSettings = asyncHandler(async (req, res) => {
         };
 
         notifyMaintenance();
+        notifyAdminsDowntime();
       }
     }
 
@@ -290,6 +320,23 @@ const rotateAndEmailMagicLink = async (settings, customHost = null) => {
   }
   const magicLink = `${baseUrl}/api/settings/super-gate/${token}`;
 
+  // Verify recipient has admin/super-admin privileges before sending magic link
+  try {
+    const recipientUser = await User.findOne({ email: 'zsethkipchumba179@gmail.com' }).select('role userType');
+    if (recipientUser) {
+      const isPrivileged = recipientUser.role === 'admin' || recipientUser.role === 'super-admin' || recipientUser.userType === 'admin';
+      if (!isPrivileged) {
+        console.warn(`🚨 [Cybersecurity Warning] Magic link email dispatch aborted: zsethkipchumba179@gmail.com is registered as a customer!`);
+        return magicLink;
+      }
+    } else {
+      console.warn(`🚨 [Cybersecurity Warning] Magic link email dispatch aborted: Recipient zsethkipchumba179@gmail.com not found in User DB!`);
+      return magicLink;
+    }
+  } catch (err) {
+    console.error('❌ Magic link recipient security check failed:', err.message);
+  }
+
   // Silent SMTP email dispatch to super admin zsethkipchumba179@gmail.com
   await sendEmail({
     to: 'zsethkipchumba179@gmail.com',
@@ -407,9 +454,33 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
   // 2. Invalidate used link and pre-generate the next magic link immediately
   await rotateAndEmailMagicLink(settings, req.get('host'));
 
-  // 3. Dispatch Async Notifications to customers
+  // 3. Dispatch Async Notifications to customers & verified administrators
   const notifyUsers = async () => {
     try {
+      // Automatic downtime notification to all admins
+      if (newState) {
+        const admins = await User.find({ role: { $in: ['admin', 'super-admin'] } }).select('email firstName');
+        console.log(`🛡️ [Cybersecurity Security Alert] Dispatching magic-link downtime alerts to ${admins.length} administrators...`);
+        await Promise.allSettled(admins.map(admin =>
+          sendEmail({
+            to: admin.email,
+            subject: '⚠️ Alert: Rerendet Coffee Downtime Activated via Magic Link',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #ef4444; border-radius: 12px; background-color: #ffffff;">
+                <h2 style="color: #ef4444; margin: 0 0 10px;">⚠️ Emergency Downtime Activated</h2>
+                <p style="font-size: 15px; color: #333;">Hello ${admin.firstName},</p>
+                <p style="font-size: 14px; color: #555;">The Emergency Out-of-band Magic Link was used to toggle Maintenance Mode / Downtime to <strong>ENABLED</strong>.</p>
+                <p style="font-size: 14px; color: #555; padding: 10px; background-color: #fef2f2; border-left: 4px solid #ef4444;">
+                  <strong>Actor:</strong> Emergency Super Gate User<br/>
+                  <strong>Status:</strong> website offline / downtime block active
+                </p>
+                <p style="font-size: 13px; color: #888; margin-top: 25px;">Logged under security compliance audit trails.</p>
+              </div>
+            `
+          })
+        ));
+      }
+
       const customers = await User.find({ userType: 'customer' }).select('email');
       for (const customer of customers) {
         await sendEmail({
