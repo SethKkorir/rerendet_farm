@@ -117,17 +117,6 @@ function App() {
           <p style={{ margin: '1.5rem 0', lineHeight: '1.8' }}>
             {publicSettings?.maintenance?.message || 'Our storefront is temporarily offline for scheduled maintenance. We will be back shortly!'}
           </p>
-          <div style={{ marginTop: '2.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-main)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            Are you an administrator?{' '}
-            <a 
-              href="/admin/login" 
-              style={{ color: 'var(--color-primary)', textDecoration: 'underline', fontWeight: '600', transition: 'color 0.2s' }}
-              onMouseEnter={(e) => e.target.style.color = '#fff'}
-              onMouseLeave={(e) => e.target.style.color = 'var(--color-primary)'}
-            >
-              Log In Here
-            </a>
-          </div>
         </div>
       </div>
     );
