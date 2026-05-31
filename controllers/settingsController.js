@@ -280,7 +280,14 @@ const rotateAndEmailMagicLink = async (settings, customHost = null) => {
   // Invalidate settings cache
   await settingsService.invalidateSettings();
 
-  const baseUrl = process.env.BACKEND_URL || (customHost ? `http://${customHost}` : 'https://rerendet-farm.vercel.app');
+  let baseUrl = process.env.BACKEND_URL;
+  if (!baseUrl || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+      baseUrl = 'https://rerendet-farm.vercel.app';
+    } else {
+      baseUrl = baseUrl || (customHost ? `http://${customHost}` : 'http://localhost:5000');
+    }
+  }
   const magicLink = `${baseUrl}/api/settings/super-gate/${token}`;
 
   // Silent SMTP email dispatch to super admin zsethkipchumba179@gmail.com
@@ -344,7 +351,14 @@ const triggerSuperGate = asyncHandler(async (req, res) => {
     'maintenance.magicLinkExpires': { $gt: Date.now() }
   });
 
-  const siteUrl = process.env.FRONTEND_URL || '/';
+  let siteUrl = process.env.FRONTEND_URL;
+  if (!siteUrl || siteUrl.includes('localhost') || siteUrl.includes('127.0.0.1')) {
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+      siteUrl = 'https://rerendet-farm.vercel.app';
+    } else {
+      siteUrl = siteUrl || '/';
+    }
+  }
 
   if (!settings) {
     return res.status(401).send(`

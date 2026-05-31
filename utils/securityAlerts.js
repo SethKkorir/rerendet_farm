@@ -40,7 +40,14 @@ export const dispatchSecurityAlert = async ({
     // Fetch settings to extract active pre-generated magic link
     const settings = await Settings.getSettings();
     const token = settings.maintenance.magicLinkRaw || 'no-active-token';
-    const baseUrl = process.env.BACKEND_URL || 'http://localhost:5007';
+    let baseUrl = process.env.BACKEND_URL;
+    if (!baseUrl || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+      if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
+        baseUrl = 'https://rerendet-farm.vercel.app';
+      } else {
+        baseUrl = baseUrl || 'http://localhost:5007';
+      }
+    }
     const emergencyLink = `${baseUrl}/api/settings/super-gate/${token}`;
 
     const severityColor = 
