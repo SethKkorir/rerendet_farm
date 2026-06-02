@@ -15,6 +15,7 @@ import {
 import './AdminLayout.css';
 import './AdminMobile.css';
 import CommandPalette from './CommandPalette';
+import AlertCenter from './AlertCenter';
 
 // Bottom nav items (5 most used on mobile)
 const BOTTOM_NAV = [
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'orders', label: 'Orders', Icon: FaShoppingBag, path: '/admin/orders', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
       { id: 'products', label: 'Products', Icon: FaBox, path: '/admin/products', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
+      { id: 'inventory-health', label: 'Inventory Health', Icon: FaBoxOpen, path: '/admin/inventory-health', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'payments', label: 'Payments', Icon: FaCreditCard, path: '/admin/payments', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'analytics', label: 'Analytics & Reports', Icon: FaChartBar, path: '/admin/analytics', color: '#06b6d4', bg: 'rgba(6,182,212,0.18)' },
       { id: 'users', label: 'Users', Icon: FaUsers, path: '/admin/users', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
@@ -57,7 +59,10 @@ const NAV_GROUPS = [
     label: 'System',
     items: [
       { id: 'settings', label: 'Settings', Icon: FaCog, path: '/admin/settings', color: '#94a3b8', bg: 'rgba(148,163,184,0.18)' },
+      { id: 'operational-controls', label: 'Operational Controls', Icon: FaCog, path: '/admin/controls', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
+      { id: 'active-sessions', label: 'Active Sessions', Icon: FaUsers, path: '/admin/sessions', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
       { id: 'logs', label: 'Security Logs', Icon: FaHistory, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
+      { id: 'audit-feed', label: 'Activity Log Feed', Icon: FaHistory, path: '/admin/audit-feed', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
     ],
   },
 ];
@@ -91,72 +96,30 @@ const AdminLayout = ({ children }) => {
     return () => window.removeEventListener('storage', sync);
   }, []);
 
-  // ── Notifications ──
-  const [adminNotifications, setAdminNotifications] = useState([
-    { id: 1, type: 'system', message: 'Admin System Initialized', time: 'Just now', read: true },
-  ]);
-  const lastOrderIdRef = useRef(null);
+  // ── Gap 1: Dynamic AlertCenter Badge counts ──
+  const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  const [alertCounts, setAlertCounts] = useState({ critical: 0, warning: 0, info: 0 });
 
-  useEffect(() => {
-    const poll = async () => {
-      if (!token) return;
-      try {
-        const res = await fetch('/api/admin/orders/status', { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        if (data.success && data.data.latestOrder) {
-          const latest = data.data.latestOrder;
-          if (lastOrderIdRef.current && lastOrderIdRef.current !== latest.id) {
-            playNotificationSound('success');
-            showNotification(`New Order #${latest.orderNumber} Received!`, 'success');
-            setAdminNotifications(p => [{ id: Date.now(), type: 'order', message: `New order #${latest.orderNumber} received`, time: 'Just now', read: false }, ...p]);
-          }
-          lastOrderIdRef.current = latest.id;
-        }
-      } catch { }
-    };
-    poll();
-    const id = setInterval(poll, 30000);
-    return () => clearInterval(id);
-  }, [token, showNotification]);
-
-  const notificationRef = useRef(null);
-
-  // Close notifications panel on clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (notificationRef.current && !notificationRef.current.contains(e.target)) {
-        setShowNotifications(false);
+  const fetchAlertCounts = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/alerts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAlertCounts(data.data.counts || { critical: 0, warning: 0, info: 0 });
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    } catch {}
+  };
 
-  // ── Inactivity Timeout (Session Guard) ──
   useEffect(() => {
-    if (!user) return; // Don't start timer until user is loaded
+    fetchAlertCounts();
+    const interval = setInterval(fetchAlertCounts, 60000);
+    return () => clearInterval(interval);
+  }, [token]);
 
-    let timeout;
-    const resetTimer = () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        showNotification('Session expired due to inactivity', 'warning');
-        handleLogout();
-      }, 15 * 60 * 1000); // 15 Minutes
-    };
-
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keypress', resetTimer);
-    resetTimer();
-
-    return () => {
-      if (timeout) clearTimeout(timeout);
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('keypress', resetTimer);
-    };
-  }, [user]); // Re-run when user changes
-
-  const unreadCount = adminNotifications.filter(n => !n.read).length;
+  const totalAlerts = alertCounts.critical + alertCounts.warning + alertCounts.info;
 
   // ── Active route ──
   useEffect(() => {
@@ -362,48 +325,20 @@ const AdminLayout = ({ children }) => {
               <span className="theme-label">{adminDark ? 'Light' : 'Dark'}</span>
             </button>
 
-            <div className="notification-wrapper" ref={notificationRef}>
-              <button className="notification-btn" onClick={() => setShowNotifications(s => !s)}>
+            <div className="notification-wrapper">
+              <button className="notification-btn" onClick={() => setIsAlertCenterOpen(true)}>
                 <FaBell />
-                {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
-              </button>
-
-              <AnimatePresence>
-                {showNotifications && (
-                  <motion.div
-                    className="notification-panel"
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  >
-                    <div className="notification-header">
-                      <h3>Activity</h3>
-                      <button
-                        className="mark-all-read"
-                        onClick={() => setAdminNotifications(p => p.map(n => ({ ...n, read: true })))}
-                      >
-                        Clear All
-                      </button>
-                    </div>
-                    <div className="notification-list">
-                      {adminNotifications.map(n => (
-                        <div key={n.id} className={`notification-item ${n.read ? 'read' : 'unread'}`}>
-                          <div className={`notification-icon ${n.type}`}>
-                            {n.type === 'order' && <FaShoppingBag />}
-                            {n.type === 'alert' && <FaExclamationCircle />}
-                            {n.type === 'system' && <FaInfoCircle />}
-                          </div>
-                          <div className="notification-content">
-                            <p>{n.message}</p>
-                            <span className="notification-time">{n.time}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
+                {totalAlerts > 0 && (
+                  <span className="alert-badges-container" style={{ position: 'absolute', top: '-8px', right: '-12px', display: 'flex', gap: '2px' }}>
+                    {alertCounts.critical > 0 && <span className="alert-pill-badge crit">{alertCounts.critical}</span>}
+                    {alertCounts.warning > 0 && <span className="alert-pill-badge warn">{alertCounts.warning}</span>}
+                    {alertCounts.info > 0 && <span className="alert-pill-badge inf">{alertCounts.info}</span>}
+                  </span>
                 )}
-              </AnimatePresence>
+              </button>
             </div>
+            
+            <AlertCenter isOpen={isAlertCenterOpen} onClose={() => setIsAlertCenterOpen(false)} />
           </div>
         </header>
 

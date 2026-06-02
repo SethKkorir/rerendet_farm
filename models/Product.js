@@ -69,16 +69,21 @@ const productSchema = new mongoose.Schema({
 
   // Inventory Management
   inventory: {
-    stock: {
+    physicalStock: {
       type: Number,
       required: true,
       default: 0,
-      min: [0, 'Stock cannot be negative']
+      min: [0, 'Physical stock cannot be negative']
     },
-    lowStockAlert: {
+    reservedStock: {
+      type: Number,
+      default: 0,
+      min: [0, 'Reserved stock cannot be negative']
+    },
+    lowStockThreshold: {
       type: Number,
       default: 5,
-      min: [0, 'Low stock alert cannot be negative']
+      min: [0, 'Low stock threshold cannot be negative']
     }
   },
 
@@ -154,41 +159,46 @@ const productSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Virtual for checking if product is low stock
-productSchema.virtual('isLowStock').get(function () {
-  return this.inventory.stock <= this.inventory.lowStockAlert;
+// Virtual for available stock
+productSchema.virtual('availableStock').get(function () {
+  return this.inventory.physicalStock - this.inventory.reservedStock;
 });
 
-// Virtual for display name (CoffeeShop uses this)
+// Virtual for checking if product is low stock
+productSchema.virtual('isLowStock').get(function () {
+  return this.availableStock <= this.inventory.lowStockThreshold;
+});
+
+// Virtual for display name (CoffeeShop expects this)
 productSchema.virtual('displayName').get(function () {
   return this.name;
 });
 
 // Method to check availability
 productSchema.methods.checkAvailability = function (quantity = 1) {
-  return this.inStock && this.inventory.stock >= quantity;
+  return this.isActive && this.availableStock >= quantity;
 };
 
-// Method to update stock
-productSchema.methods.updateStock = function (newStock) {
-  this.inventory.stock = newStock;
-  this.inStock = newStock > 0;
+// Method to update stock directly (requires permission and restricts reserved changes)
+productSchema.methods.updateStock = function (newPhysicalStock) {
+  this.inventory.physicalStock = newPhysicalStock;
+  this.inStock = this.availableStock > 0;
   return this.save();
 };
 
-// Method to decrease stock
+// Method to decrease stock (safe fallback deprecation)
 productSchema.methods.decreaseStock = function (quantity = 1) {
-  if (this.inventory.stock >= quantity) {
-    this.inventory.stock -= quantity;
-    this.inStock = this.inventory.stock > 0;
+  if (this.inventory.physicalStock >= quantity) {
+    this.inventory.physicalStock -= quantity;
+    this.inStock = this.availableStock > 0;
     return this.save();
   }
   throw new Error('Insufficient stock');
 };
 
-// Method to increase stock
+// Method to increase stock (safe fallback deprecation)
 productSchema.methods.increaseStock = function (quantity = 1) {
-  this.inventory.stock += quantity;
+  this.inventory.physicalStock += quantity;
   this.inStock = true;
   return this.save();
 };
@@ -221,8 +231,8 @@ productSchema.pre('save', async function (next) {
     }
   }
 
-  // Ensure inStock reflects actual stock
-  this.inStock = this.inventory.stock > 0;
+  // Ensure inStock reflects actual available stock
+  this.inStock = this.availableStock > 0;
 
   next();
 });
@@ -248,7 +258,7 @@ productSchema.index({
 productSchema.index({ category: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'sizes.price': 1 });
 productSchema.index({ isFeatured: 1, isActive: 1, createdAt: -1 });
-productSchema.index({ 'inventory.stock': 1 });
+productSchema.index({ 'inventory.physicalStock': 1 });
 productSchema.index({ 'seo.slug': 1 });
 productSchema.index({ isActive: 1, inStock: 1 });
 
@@ -275,7 +285,7 @@ productSchema.statics.getLowStock = function () {
   return this.find({
     isActive: true,
     $expr: {
-      $lte: ['$inventory.stock', '$inventory.lowStockAlert']
+      $lte: ['$inventory.physicalStock', '$inventory.lowStockThreshold']
     }
   });
 };

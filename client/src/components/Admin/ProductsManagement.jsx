@@ -355,14 +355,21 @@ const ProductsManagement = () => {
                   </div>
                 )}
                 <div className="card-footer" onClick={e => e.stopPropagation()}>
-                  <div className="quick-stock-adjust">
-                    <button className="stock-btn" onClick={() => handleQuickStockUpdate(product._id, -1)} disabled={(product.inventory?.stock || 0) <= 0}>–</button>
-                    <span className={`stock-chip ${(product.inventory?.stock || 0) <= (product.inventory?.lowStockAlert || 5) ? 'low' : 'ok'}`}>
-                      {product.inventory?.stock || 0}
-                    </span>
-                    <button className="stock-btn" onClick={() => handleQuickStockUpdate(product._id, 1)}>+</button>
+                  <div className="quick-stock-adjust-hardened" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%', fontSize: '0.8rem', color: '#a1a1aa' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Physical: <strong>{product.inventory?.physicalStock || 0}</strong></span>
+                      <span>Reserved: <strong>{product.inventory?.reservedStock || 0}</strong></span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                      <span>Available:</span>
+                      <span className={`stock-chip ${
+                        (product.inventory?.physicalStock - product.inventory?.reservedStock) <= (product.inventory?.lowStockThreshold || 5) ? 'low' : 'ok'
+                      }`} style={{ fontWeight: 'bold' }}>
+                        {product.inventory?.physicalStock - product.inventory?.reservedStock || 0}
+                      </span>
+                    </div>
                   </div>
-                  <div className="card-actions">
+                  <div className="card-actions" style={{ marginTop: '0.5rem' }}>
                     <button className="btn-card-action edit" title="Edit"
                       onClick={() => { setEditingProduct(product); setShowProductModal(true); }}><FaEdit /></button>
                     <button className="btn-card-action delete" title="Delete"
@@ -397,12 +404,11 @@ const ProductsManagement = () => {
                   </td>
                   <td className="price-col">KES {product.sizes?.[0]?.price?.toLocaleString() || '—'}</td>
                   <td>
-                    <div className="quick-stock-adjust align-left">
-                      <button className="stock-btn" onClick={() => handleQuickStockUpdate(product._id, -1)} disabled={(product.inventory?.stock || 0) <= 0}>–</button>
-                      <span className={`stock-chip ${(product.inventory?.stock || 0) <= (product.inventory?.lowStockAlert || 5) ? 'low' : 'ok'}`}>
-                        {product.inventory?.stock || 0}
-                      </span>
-                      <button className="stock-btn" onClick={() => handleQuickStockUpdate(product._id, 1)}>+</button>
+                    <div style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>
+                      P: {product.inventory?.physicalStock || 0} | R: {product.inventory?.reservedStock || 0} | 
+                      <strong style={{ marginLeft: '0.25rem' }}>
+                        Avail: {product.inventory?.physicalStock - product.inventory?.reservedStock || 0}
+                      </strong>
                     </div>
                   </td>
                   <td>{getCatLabel(product.category)}</td>
@@ -458,8 +464,8 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     brand: product?.brand || '',
     capacity: product?.capacity || '',
     inventory: {
-      stock: product?.inventory?.stock ?? 0,
-      lowStockAlert: product?.inventory?.lowStockAlert ?? 5,
+      physicalStock: product?.inventory?.physicalStock ?? 0,
+      lowStockThreshold: product?.inventory?.lowStockThreshold ?? 5,
     },
     tags: product?.tags?.join(', ') || '',
     isFeatured: product?.isFeatured || false,
@@ -555,7 +561,10 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
         material: formData.material?.trim() || undefined,
         brand: formData.brand?.trim() || undefined,
         capacity: formData.capacity?.trim() || undefined,
-        inventory: { stock, lowStockAlert: parseInt(formData.inventory.lowStockAlert) || 5 },
+        inventory: { 
+          physicalStock: stock, 
+          lowStockThreshold: parseInt(formData.inventory.lowStockThreshold) || 5 
+        },
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         isFeatured: formData.isFeatured,
       };
@@ -917,12 +926,12 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                     <div className="stock-card">
                       <div className="stock-card-icon green"><FaCheckCircle /></div>
                       <div className="pm-field">
-                        <label>Current Stock <span className="req">*</span></label>
+                        <label>Physical Stock <span className="req">*</span></label>
                         <input type="number"
-                          value={formData.inventory.stock}
-                          onChange={e => set('inventory', { ...formData.inventory, stock: parseInt(e.target.value) || 0 })}
+                          value={formData.inventory.physicalStock}
+                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: parseInt(e.target.value) || 0 })}
                           min="0" required />
-                        <span className="pm-field-hint">Number of units available for sale</span>
+                        <span className="pm-field-hint">Actual physical stock in warehouse</span>
                       </div>
                     </div>
                     <div className="stock-card">
@@ -930,23 +939,12 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                       <div className="pm-field">
                         <label>Low Stock Alert Threshold</label>
                         <input type="number"
-                          value={formData.inventory.lowStockAlert}
-                          onChange={e => set('inventory', { ...formData.inventory, lowStockAlert: parseInt(e.target.value) || 5 })}
+                          value={formData.inventory.lowStockThreshold}
+                          onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: parseInt(e.target.value) || 5 })}
                           min="0" />
-                        <span className="pm-field-hint">Alert when stock falls to or below this number</span>
+                        <span className="pm-field-hint">Alert threshold configured for warnings</span>
                       </div>
                     </div>
-                  </div>
-                  <div className="stock-status-preview">
-                    <h4>Stock Status Preview</h4>
-                    <div className={`stock-meter ${formData.inventory.stock === 0 ? 'out' : formData.inventory.stock <= formData.inventory.lowStockAlert ? 'low' : 'good'}`}>
-                      <div className="meter-bar" style={{ width: `${Math.min(100, (formData.inventory.stock / Math.max(formData.inventory.stock, 50)) * 100)}%` }} />
-                    </div>
-                    <p className="stock-status-label">
-                      {formData.inventory.stock === 0 ? '🔴 Out of stock' :
-                        formData.inventory.stock <= formData.inventory.lowStockAlert ? '🟡 Low stock — alert will trigger' :
-                          '🟢 In stock — healthy inventory'}
-                    </p>
                   </div>
                 </motion.div>
               )}

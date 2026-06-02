@@ -124,14 +124,14 @@ const createOrder = asyncHandler(async (req, res) => {
         });
       }
 
-      // Check stock availability
-      if (product.inventory.stock < item.quantity) {
-        console.warn('⚠️ Stock failure:', { product: product.name, available: product.inventory.stock, requested: item.quantity });
+      // Check stock availability (GAP 2)
+      if (product.availableStock < item.quantity) {
+        console.warn('⚠️ Stock failure:', { product: product.name, available: product.availableStock, requested: item.quantity });
         await session.abortTransaction();
         session.endSession();
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for ${product.name}. Available: ${product.inventory.stock}, Requested: ${item.quantity}`
+          message: `Insufficient stock for: ${product.name}`
         });
       }
 
@@ -153,7 +153,7 @@ const createOrder = asyncHandler(async (req, res) => {
       stockUpdates.push({
         productId: product._id,
         quantity: itemQuantity,
-        currentStock: product.inventory.stock
+        currentStock: product.availableStock
       });
     }
 
@@ -290,45 +290,40 @@ const createOrder = asyncHandler(async (req, res) => {
       await subscription.save({ session });
     }
 
-    // Update product stock (Atomic Reservation)
+    // Update product stock (Atomic Reservation - GAP 2)
     for (const update of stockUpdates) {
       // Find the product being updated
       const baseProduct = await Product.findById(update.productId).session(session);
 
       if (baseProduct.isBundle) {
-        // Decrement from kids if it's a bundle
+        // Increment reservedStock for kids if it's a bundle
         for (const detail of baseProduct.bundleDetails) {
-          const totalToDecrement = detail.quantity * update.quantity;
+          const totalToIncrement = detail.quantity * update.quantity;
 
           const updatedChild = await Product.findOneAndUpdate(
-            { _id: detail.product, "inventory.stock": { $gte: totalToDecrement } },
-            { $inc: { "inventory.stock": -totalToDecrement } },
+            { _id: detail.product },
+            { $inc: { "inventory.reservedStock": totalToIncrement } },
             { session, new: true }
           );
 
           if (!updatedChild) {
-            throw new Error(`Insufficient stock for bundle component: ${detail.product}`);
+            throw new Error(`Failed to reserve stock for bundle component: ${detail.product}`);
           }
         }
       } else {
-        // Standard Atomic Update for single product
+        // Standard Atomic Update for single product - increment reservedStock
         const updatedProduct = await Product.findOneAndUpdate(
-          { _id: update.productId, "inventory.stock": { $gte: update.quantity } },
-          { $inc: { "inventory.stock": -update.quantity } },
+          { _id: update.productId },
+          { $inc: { "inventory.reservedStock": update.quantity } },
           { session, new: true }
         );
 
         if (!updatedProduct) {
-          throw new Error(`Insufficient stock for product: ${baseProduct.name}`);
-        }
-
-        // Automatic inStock sync
-        if (updatedProduct.inventory.stock <= 0) {
-          await Product.updateOne({ _id: update.productId }, { $set: { inStock: false } }, { session });
+          throw new Error(`Failed to reserve stock for product: ${baseProduct.name}`);
         }
 
         // Low Stock Alert
-        if (updatedProduct.inventory.stock <= updatedProduct.inventory.lowStockAlert) {
+        if (updatedProduct.availableStock <= updatedProduct.inventory.lowStockThreshold) {
           sendLowStockAlert(updatedProduct).catch(console.error);
         }
       }
@@ -360,6 +355,14 @@ const createOrder = asyncHandler(async (req, res) => {
       message: 'Order placed successfully!',
       data: populatedOrder
     });
+
+    // Alert administrators about new order placement
+    try {
+      const { sendNewOrderAdminAlert } = await import('../utils/adminNotificationService.js');
+      sendNewOrderAdminAlert(savedOrder).catch(console.error);
+    } catch (alertErr) {
+      console.error('❌ Failed to trigger admin order alert:', alertErr.message);
+    }
 
     // Send order confirmation email only if paid or Cash on Delivery
     if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
@@ -1020,17 +1023,16 @@ const cancelOrder = asyncHandler(async (req, res) => {
   });
   await order.save();
 
-  // Replenish stock atomically!
+  // Replenish stock atomically by decrementing reservedStock (GAP 2)
   for (const item of order.items) {
     await Product.findByIdAndUpdate(item.product, {
-      $inc: { 'inventory.stock': item.quantity },
-      $set: { inStock: true }
+      $inc: { 'inventory.reservedStock': -item.quantity }
     });
   }
 
   res.json({
     success: true,
-    message: 'Order cancelled successfully and inventory replenished',
+    message: 'Order cancelled successfully and inventory reservations restored',
     data: order
   });
 });

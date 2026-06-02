@@ -55,6 +55,12 @@ const AdsManagement = lazy(() => import('./components/Admin/AdsManagement'));
 const CouponManagement = lazy(() => import('./components/Admin/CouponManagement'));
 const BlogManagement = lazy(() => import('./components/Admin/BlogManagement'));
 
+// HARDENED UPGRADE GAPS COMPONENTS
+const LazyInventoryHealth = lazy(() => import('./components/Admin/InventoryHealth'));
+const LazyOperationalControls = lazy(() => import('./components/Admin/OperationalControlsHardened'));
+const LazyActiveSessions = lazy(() => import('./components/Admin/ActiveSessionsHardened'));
+const LazyActivityFeed = lazy(() => import('./components/Admin/ActivityLogsHardened'));
+
 const PageLoader = () => (
   <div className="page-loader">
     <div className="loader-spinner"></div>
@@ -173,11 +179,23 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/orders" element={<OrdersManagement />} />
                     <Route path="/products" element={<ProductsManagement />} />
+                    <Route path="/inventory-health" element={
+                      <Suspense fallback={<PageLoader />}><LazyInventoryHealth /></Suspense>
+                    } />
                     <Route path="/users" element={<UsersManagement />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/controls" element={
+                      <Suspense fallback={<PageLoader />}><LazyOperationalControls /></Suspense>
+                    } />
+                    <Route path="/sessions" element={
+                      <Suspense fallback={<PageLoader />}><LazyActiveSessions /></Suspense>
+                    } />
                     <Route path="/payments" element={<PaymentsManagement />} />
                     <Route path="/logs" element={<ActivityLogs />} />
+                    <Route path="/audit-feed" element={
+                      <Suspense fallback={<PageLoader />}><LazyActivityFeed /></Suspense>
+                    } />
                     <Route path="/contacts" element={<ContactsManagement />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/ads" element={<AdsManagement />} />

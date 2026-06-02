@@ -59,6 +59,7 @@ const useRealQueues = redisClient && (isRedisConnected || process.env.NODE_ENV =
 export let emailQueue;
 export let subscriptionQueue;
 export let retryQueue;
+export let callbackDLQ;
 
 if (useRealQueues) {
   console.log('🚀 [BullMQ] Initializing real Redis queues...');
@@ -96,10 +97,37 @@ if (useRealQueues) {
       removeOnFail: false,
     }
   });
-  console.log('🚀 [BullMQ] Real queues initialized successfully (Email • Subscription • STK Retry)');
+
+  /**
+   * callbackDLQ — Dead Letter Queue for failed M-Pesa webhook callbacks.
+   *
+   * When the webhook handler throws an exception, the raw payload is enqueued
+   * here instead of surfacing a 500 to Safaricom. The dlqWorker retries up to
+   * 3 times with exponential backoff (1 min → 5 min → 15 min). On exhaustion,
+   * all active admin accounts receive an emergency alert email.
+   *
+   * removeOnFail: false — failed DLQ jobs are kept in Redis indefinitely for
+   * manual inspection and forensic recovery.
+   */
+  callbackDLQ = new Queue('callbackDLQ', {
+    connection,
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 60 * 1000, // 1 min → 5 min → 15 min
+      },
+      removeOnComplete: true,
+      removeOnFail: false, // Keep exhausted jobs for manual review
+    }
+  });
+
+  console.log('🚀 [BullMQ] Real queues initialized successfully (Email • Subscription • STK Retry • Callback DLQ)');
 } else {
   console.warn('⚠️  [BullMQ] Redis is offline. Initializing MockQueues for development fallback.');
   emailQueue = new MockQueue('emailQueue');
   subscriptionQueue = new MockQueue('subscriptionQueue');
   retryQueue = new MockQueue('retryQueue');
+  callbackDLQ = new MockQueue('callbackDLQ');
 }
+

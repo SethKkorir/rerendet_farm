@@ -1,5 +1,8 @@
 // middleware/mpesaWebhookAuth.js
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
+import { RedisStore } from 'rate-limit-redis';
+import { redisClient, isRedisConnected } from '../config/redis.js';
 
 dotenv.config();
 
@@ -59,5 +62,55 @@ export const mpesaWebhookAuth = (req, res, next) => {
 
   next();
 };
+
+/**
+ * mpesaCallbackRateLimiter
+ * 
+ * Rate limits the M-Pesa callback route to 20 requests per IP per 60 seconds.
+ * Safaricom's production system sends at most 1 callback per transaction — this
+ * allows generous burst (20) while completely blocking flood attacks.
+ *
+ * Uses Redis store when Redis is live (shared across all server instances).
+ * Falls back to in-memory store in development / Redis-offline environments.
+ *
+ * Returns a Daraja-compatible JSON body on 429 so Safaricom can parse the
+ * error response correctly if it ever receives one.
+ */
+const buildRateLimiter = () => {
+  const useRedis = redisClient && (isRedisConnected || process.env.NODE_ENV === 'production');
+
+  const options = {
+    windowMs: 60 * 1000, // 60-second window
+    max: 20,             // Max 20 requests per IP per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Resolve real IP behind Vercel/proxy
+      const forwarded = req.headers['x-forwarded-for'];
+      return forwarded ? forwarded.split(',')[0].trim() : (req.ip || 'unknown');
+    },
+    handler: (req, res) => {
+      console.warn(`🚦 [M-Pesa Rate Limiter] 429 Too Many Requests from IP: ${req.ip}`);
+      return res.status(429).json({
+        ResultCode: 1,
+        ResultDesc: 'Rate limit exceeded. Too many requests from this IP address.'
+      });
+    }
+  };
+
+  if (useRedis) {
+    options.store = new RedisStore({
+      sendCommand: (...args) => redisClient.call(...args),
+      prefix: 'mpesa_rl:'
+    });
+    console.log('🚀 [M-Pesa Rate Limiter] Redis-backed rate limiter initialized');
+  } else {
+    console.warn('⚠️ [M-Pesa Rate Limiter] Redis offline — using in-memory rate limit store');
+  }
+
+  return rateLimit(options);
+};
+
+export const mpesaCallbackRateLimiter = buildRateLimiter();
 
 export default mpesaWebhookAuth;

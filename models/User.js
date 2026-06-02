@@ -53,8 +53,17 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['customer', 'admin', 'super-admin'],
+    enum: ['customer', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff', 'admin'],
     default: 'customer'
+  },
+  isSuspended: {
+    type: Boolean,
+    default: false
+  },
+  suspendedAt: Date,
+  suspendedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
 
   // Admin specific fields

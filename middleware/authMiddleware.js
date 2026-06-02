@@ -44,6 +44,25 @@ const protect = asyncHandler(async (req, res, next) => {
         }
       }
 
+      // === GAP 7: Concurrent Admin Session check ===
+      const decodedRole = decoded.role || 'customer';
+      const isAdminUser = decodedRole === 'admin' || decodedRole === 'super-admin' || decodedRole === 'super_admin' || decodedRole === 'owner' || decodedRole === 'fulfillment_staff';
+      
+      if (isAdminUser && decoded.jti) {
+        const AdminSession = (await import('../models/AdminSession.js')).default;
+        const sessionDoc = await AdminSession.findOne({ jti: decoded.jti });
+        if (!sessionDoc || sessionDoc.isRevoked || Date.now() > sessionDoc.expiresAt.getTime()) {
+          return res.status(401).json({
+            success: false,
+            code: 'SESSION_REVOKED',
+            message: 'Session expired or revoked. Please authenticate again.'
+          });
+        }
+        
+        // Update lastActivityAt asynchronously to keep overhead low
+        AdminSession.updateOne({ jti: decoded.jti }, { $set: { lastActivityAt: new Date() } }).catch(console.error);
+      }
+
       // Build stateless req.user completely from the access token
       req.user = {
         _id: decoded.userId,
@@ -51,12 +70,13 @@ const protect = asyncHandler(async (req, res, next) => {
         email: decoded.email || '',
         firstName: decoded.firstName || '',
         lastName: decoded.lastName || '',
-        role: decoded.role || 'customer',
-        userType: decoded.role === 'admin' || decoded.role === 'super-admin' ? 'admin' : 'customer',
+        role: decodedRole,
+        userType: isAdminUser ? 'admin' : 'customer',
         tokenVersion: decoded.tokenVersion || 0,
         twoFactorEnabled: !!decoded.twoFactorEnabled,
         isActive: true,
-        isVerified: true
+        isVerified: true,
+        jti: decoded.jti || null
       };
 
       next();

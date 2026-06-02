@@ -9,6 +9,7 @@ import sendEmail from './sendEmail.js';
 import { getFraudAlert } from './emailTemplates.js';
 import { queryMpesaStkStatusService } from '../services/mpesaService.js';
 import { getPayPalOrderService, capturePayPalOrderService } from '../services/paypalService.js';
+import { runPaymentReconciliation } from '../scripts/reconcilePayments.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const DELETE_AGE_DAYS = 7;
@@ -137,167 +138,14 @@ const checkCardFraud = async () => {
     }
 };
 
-// ── Elite Payment Reconciliation Worker (Every 15 mins) ──────────────────────
+// ── Elite Payment Reconciliation Worker (Delegated to hardened reconcilePayments.js) ─────────
+// The full implementation lives in scripts/reconcilePayments.js (Pillar 4).
+// This wrapper preserves the existing export name for backward compatibility.
 export const reconcilePendingOrders = async () => {
     try {
-        console.log('[ReconciliationWorker] Starting automated gateway audit for pending orders...');
-        
-        // Scan for transactions that are still PENDING and created in the last 24 hours
-        const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const pendingTransactions = await PaymentTransaction.find({
-            status: 'PENDING',
-            createdAt: { $gte: since }
-        });
-
-        if (pendingTransactions.length === 0) {
-            console.log('[ReconciliationWorker] Clean ledger: Zero pending transactions require verification.');
-            return;
-        }
-
-        console.log(`[ReconciliationWorker] Auditing ${pendingTransactions.length} pending transactions...`);
-
-        for (const tx of pendingTransactions) {
-            const order = await Order.findById(tx.order);
-            if (!order) {
-                console.warn(`[ReconciliationWorker] Associated order missing for Tx: ${tx._id}`);
-                continue;
-            }
-
-            // Skip if the order has already been marked paid elsewhere (e.g. manual override or late webhook)
-            if (order.paymentStatus === 'paid') {
-                tx.status = 'SUCCESS';
-                await tx.save();
-                console.log(`[ReconciliationWorker] Auto-aligned transaction ${tx._id} to SUCCESS since Order was already paid.`);
-                continue;
-            }
-
-            // ── A. Process M-Pesa Reconciliation ───────────────────
-            if (tx.provider === 'MPESA') {
-                const POLL_INTERVAL_MS = 15000;
-                const timeSinceLastQuery = tx.lastQueriedAt ? (Date.now() - new Date(tx.lastQueriedAt).getTime()) : Infinity;
-
-                if (timeSinceLastQuery < POLL_INTERVAL_MS) {
-                    console.log(`[ReconciliationWorker] Skipping Daraja query for checkoutID: ${tx.transactionId} to prevent Spike Arrest (last queried ${Math.round(timeSinceLastQuery / 1000)}s ago)`);
-                    continue;
-                }
-
-                try {
-                    console.log(`[ReconciliationWorker] Querying Daraja status for checkoutID: ${tx.transactionId}`);
-                    tx.lastQueriedAt = Date.now();
-                    await tx.save();
-
-                    const result = await queryMpesaStkStatusService(tx.transactionId);
-
-                    if (result.ResultCode === '0' || result.ResultCode === 0) {
-                        // Success! Parse metadata if present to fetch receipt, or use checkoutRequestId as fallback
-                        let receiptNumber = tx.transactionId;
-                        if (result.ResultDesc?.includes('Receipt:')) {
-                            // Safaricom sandbox may append receipt number in desc
-                            const parts = result.ResultDesc.split('Receipt:');
-                            if (parts[1]) receiptNumber = parts[1].trim().split(' ')[0];
-                        }
-
-                        // Update ledger status and swap key with official receipt number
-                        tx.status = 'SUCCESS';
-                        tx.transactionId = receiptNumber;
-                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
-                        await tx.save();
-
-                        // Mark Order paid
-                        order.paymentStatus = 'paid';
-                        order.orderStatus = 'open'; // Keep lifecycle open until fulfilled; status virtual = 'Confirmed'
-                        order.transactionId = receiptNumber;
-                        order.orderEvents.push({
-                            status: 'PAYMENT_CONFIRMED',
-                            note: `Reconciled PAID via M-Pesa automated background worker. Receipt: ${receiptNumber}`,
-                            user: null
-                        });
-                        await order.save();
-                        console.log(`🎉 [ReconciliationWorker] [M-Pesa] Order ${order.orderNumber} successfully recovered and marked PAID`);
-
-                    } else if (['1032', '1037', '2001', '9002'].includes(result.ResultCode?.toString())) {
-                        // Failed at gateway
-                        tx.status = 'FAILED';
-                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
-                        await tx.save();
-
-                        order.paymentStatus = 'failed';
-                        order.orderEvents.push({
-                            status: 'PAYMENT_FAILED',
-                            note: `M-Pesa transaction expired or cancelled. Reason: ${result.ResultDesc}`,
-                            user: null
-                        });
-                        await order.save();
-                        console.log(`❌ [ReconciliationWorker] [M-Pesa] Order ${order.orderNumber} updated to FAILED`);
-                    }
-                } catch (mpesaErr) {
-                    console.error(`[ReconciliationWorker] M-Pesa query failed for Order ${order.orderNumber}:`, mpesaErr.message);
-                }
-            }
-
-            // ── B. Process PayPal Reconciliation ───────────────────
-            else if (tx.provider === 'PAYPAL') {
-                try {
-                    console.log(`[ReconciliationWorker] Querying PayPal status for orderID: ${tx.transactionId}`);
-                    const result = await getPayPalOrderService(tx.transactionId);
-
-                    if (result.status === 'COMPLETED') {
-                        tx.status = 'SUCCESS';
-                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
-                        await tx.save();
-
-                        order.paymentStatus = 'paid';
-                        order.orderStatus = 'open'; // Keep lifecycle open; status virtual = 'Confirmed'
-                        order.orderEvents.push({
-                            status: 'PAYMENT_CONFIRMED',
-                            note: 'Reconciled PAID via PayPal automated background worker.',
-                            user: null
-                        });
-                        await order.save();
-                        console.log(`🎉 [ReconciliationWorker] [PayPal] Order ${order.orderNumber} recovered and marked PAID`);
-
-                    } else if (result.status === 'APPROVED') {
-                        // Approved but not captured yet! Let's complete the capture right now to secure the payment
-                        console.log(`[ReconciliationWorker] [PayPal] Transaction is APPROVED but not captured. Sending capture query...`);
-                        const captureResult = await capturePayPalOrderService(tx.transactionId);
-
-                        if (captureResult.status === 'COMPLETED') {
-                            tx.status = 'SUCCESS';
-                            tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, captureResult };
-                            await tx.save();
-
-                            order.paymentStatus = 'paid';
-                            order.orderStatus = 'open'; // Keep lifecycle open; status virtual = 'Confirmed'
-                            order.orderEvents.push({
-                                status: 'PAYMENT_CONFIRMED',
-                                note: 'PayPal Payment JIT Captured & Reconciled via automated background worker.',
-                                user: null
-                            });
-                            await order.save();
-                            console.log(`🎉 [ReconciliationWorker] [PayPal] JIT Capture success for Order ${order.orderNumber}`);
-                        }
-                    } else if (['VOIDED', 'EXPIRED'].includes(result.status)) {
-                        tx.status = 'FAILED';
-                        tx.rawResponse = { ...tx.rawResponse, cronReconciled: true, gatewayQueryResult: result };
-                        await tx.save();
-
-                        order.paymentStatus = 'failed';
-                        order.orderEvents.push({
-                            status: 'PAYMENT_FAILED',
-                            note: `PayPal checkout session was ${result.status.toLowerCase()}.`,
-                            user: null
-                        });
-                        await order.save();
-                        console.log(`❌ [ReconciliationWorker] [PayPal] Order ${order.orderNumber} updated to FAILED`);
-                    }
-                } catch (paypalErr) {
-                    console.error(`[ReconciliationWorker] PayPal check failed for Order ${order.orderNumber}:`, paypalErr.message);
-                }
-            }
-        }
-
+        await runPaymentReconciliation();
     } catch (error) {
-        console.error('❌ [ReconciliationWorker] Error during pending payment reconciliation:', error);
+        console.error('❌ [ReconciliationWorker] Unhandled error in reconciliation run:', error.message);
     }
 };
 
@@ -313,9 +161,171 @@ export const startCronJobs = () => {
     cron.schedule('0 */12 * * *', checkCardFraud);
     setTimeout(checkCardFraud, 35_000); // 35s delay (after contact cleanup)
 
-    // 3. Payment Reconciliation Worker — runs every 15 minutes
-    cron.schedule('*/15 * * * *', reconcilePendingOrders);
+    // 3. Payment Reconciliation Worker — runs every 5 minutes (Pillar 4)
+    //    Scans orders stuck in paymentStatus:'pending' for >15 min and resolves via Daraja API.
+    cron.schedule('*/5 * * * *', reconcilePendingOrders);
     setTimeout(reconcilePendingOrders, 65_000); // 65s delay to allow system to fully warm up
 
-    console.log('✅ [Cron] All node-cron jobs scheduled successfully: Contact Cleanup (Daily) • Fraud Detection (12h) • Payment Reconciliation (15m)');
+    // GAP 1: SLA Breach scanner running every 15 minutes
+    cron.schedule('*/15 * * * *', async () => {
+        try {
+            console.log('[Cron] Scanning for SLA breaches (orders stuck > 2 hours in confirmed)...');
+            const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+            
+            // Query unfulfilled confirmed orders older than 2 hours
+            const SLAOrders = await Order.find({
+                fulfillmentStatus: 'unfulfilled',
+                createdAt: { $lt: twoHoursAgo }
+            });
+
+            const { createAlert } = await import('../models/AdminAlert.js');
+
+            for (const order of SLAOrders) {
+                const AdminAlert = (await import('../models/AdminAlert.js')).default;
+                const existingAlert = await AdminAlert.findOne({
+                    category: 'sla_breach',
+                    orderId: order._id,
+                    isResolved: false
+                });
+
+                if (!existingAlert) {
+                    await createAlert(
+                        'warning',
+                        'sla_breach',
+                        `SLA Breach: Order #${order.orderNumber} placed at ${order.createdAt} is still unfulfilled.`,
+                        { orderId: order._id }
+                    );
+                    console.log(`[Cron] SLA Breach alert created for Order #${order.orderNumber}`);
+                }
+            }
+        } catch (err) {
+            console.error('[Cron] SLA Breach scanner error:', err.message);
+        }
+    });
+
+    // GAP 1: Low stock scanner running every 30 minutes
+    cron.schedule('*/30 * * * *', async () => {
+        try {
+            console.log('[Cron] Running Low Stock scanner...');
+            const Product = (await import('../models/Product.js')).default;
+            const lowStockProducts = await Product.find({
+                isActive: true,
+                $expr: {
+                  $lte: [
+                    { $subtract: ["$inventory.physicalStock", "$inventory.reservedStock"] },
+                    "$inventory.lowStockThreshold"
+                  ]
+                }
+            });
+
+            const { createAlert } = await import('../models/AdminAlert.js');
+
+            for (const prod of lowStockProducts) {
+                const AdminAlert = (await import('../models/AdminAlert.js')).default;
+                const existingAlert = await AdminAlert.findOne({
+                    category: 'low_stock',
+                    productId: prod._id,
+                    isResolved: false
+                });
+
+                if (!existingAlert) {
+                    await createAlert(
+                        'warning',
+                        'low_stock',
+                        `Low Stock Alert: Product ${prod.name} has dropped below threshold. Available: ${prod.inventory.physicalStock - prod.inventory.reservedStock}`,
+                        { productId: prod._id }
+                    );
+                    console.log(`[Cron] Low Stock alert created for Product ${prod.name}`);
+                }
+            }
+        } catch (err) {
+            console.error('[Cron] Low stock scanner error:', err.message);
+        }
+    });
+
+    // GAP 3: Audit log anomaly detection running every 60 minutes
+    cron.schedule('0 * * * *', async () => {
+        try {
+            console.log('[Cron] Running audit log anomaly detection scans...');
+            const { createAlert } = await import('../models/AdminAlert.js');
+            const ActivityLog = (await import('../models/ActivityLog.js')).default;
+            const User = (await import('../models/User.js')).default;
+
+            const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            // Anomaly 1: >10 payment overrides in 24 hours
+            const overrideStats = await ActivityLog.aggregate([
+                {
+                    $match: {
+                        action: 'MANUAL_PAYMENT_OVERRIDE',
+                        createdAt: { $gte: twentyFourHoursAgo }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$admin',
+                        count: { $sum: 1 }
+                    }
+                },
+                {
+                    $match: {
+                        count: { $gt: 10 }
+                    }
+                }
+            ]);
+
+            for (const stat of overrideStats) {
+                if (stat._id) {
+                    const adminUser = await User.findById(stat._id);
+                    if (adminUser) {
+                        await createAlert(
+                            'critical',
+                            'failed_payment',
+                            `Anomaly: Admin ${adminUser.firstName} ${adminUser.lastName} (${adminUser.email}) has performed ${stat.count} payment overrides in the last 24 hours.`
+                        );
+                    }
+                }
+            }
+
+            // Anomaly 2: 3 or more manual payment overrides without receipt in 60 minutes
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const overrideNoReceiptStats = await ActivityLog.aggregate([
+                {
+                    $match: {
+                        action: 'MANUAL_PAYMENT_OVERRIDE',
+                        createdAt: { $gte: oneHourAgo },
+                        'details.receiptProvided': false
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$admin',
+                        count: { $sum: 1 }
+                    }
+                },
+                {
+                    $match: {
+                        count: { $gte: 3 }
+                    }
+                }
+            ]);
+
+            for (const stat of overrideNoReceiptStats) {
+                if (stat._id) {
+                    const adminUser = await User.findById(stat._id);
+                    if (adminUser) {
+                        await createAlert(
+                            'critical',
+                            'failed_payment',
+                            `Anomaly: Admin ${adminUser.firstName} ${adminUser.lastName} (${adminUser.email}) marked ${stat.count} orders paid without M-Pesa receipt in 60 minutes.`
+                        );
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('[Cron] Anomaly detection scanner error:', err.message);
+        }
+    });
+
+    console.log('✅ [Cron] All node-cron jobs scheduled: Contact Cleanup (Daily) • Fraud Detection (12h) • Payment Reconciliation (5m) • SLA Breach (15m) • Low Stock (30m) • Audit Anomaly (60m)');
 };

@@ -71,8 +71,10 @@ import redisClient from '../config/redis.js';
 
 const createSession = async (req, res, user) => {
   const jti = crypto.randomUUID();
-  const ip = req ? (req.ip || req.socket?.remoteAddress || '') : '';
-  const userAgent = req ? (req.headers['user-agent'] || '') : '';
+  const ip = req ? (req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1') : '127.0.0.1';
+  const userAgent = req ? (req.headers['user-agent'] || 'Unknown') : 'Unknown';
+
+  const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
 
   const accessToken = generateAccessToken(
     user._id,
@@ -83,12 +85,31 @@ const createSession = async (req, res, user) => {
     user.lastName,
     ip,
     userAgent,
-    user.twoFactorEnabled || false
+    user.twoFactorEnabled || false,
+    isUserAdmin ? jti : null
   );
   const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti, ip, userAgent);
 
   setTokenCookie(res, accessToken);
   setRefreshTokenCookie(res, refreshToken);
+
+  // GAP 7: Create AdminSession database record
+  if (isUserAdmin) {
+    try {
+      const AdminSession = (await import('../models/AdminSession.js')).default;
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // matching refreshToken expiry (7d)
+      await AdminSession.create({
+        jti,
+        adminId: user._id,
+        deviceInfo: userAgent,
+        ipAddress: ip,
+        expiresAt
+      });
+      console.log(`🔑 AdminSession document logged in DB for admin ${user.email} (jti: ${jti})`);
+    } catch (sessionDbErr) {
+      console.error('❌ Failed to log AdminSession in database:', sessionDbErr.message);
+    }
+  }
 
   if (redisClient && redisClient.status === 'ready') {
     try {

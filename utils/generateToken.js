@@ -21,7 +21,7 @@ export const generateFingerprintHash = (ip, userAgent) => {
 };
 
 // ── Access Token — short-lived (15 minutes), lives in HttpOnly cookie / auth header ────────────────────
-export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '', userAgent = '', twoFactorEnabled = false) => {
+export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '', userAgent = '', twoFactorEnabled = false, jti = null) => {
   let role = 'customer';
   let tokenVersion = 0;
   let email = '';
@@ -42,6 +42,10 @@ export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '
 
   const payload = { userId, role, tokenVersion, email, firstName, lastName, type: 'access', twoFactorEnabled: !!twoFactorEnabled };
   
+  if (jti) {
+    payload.jti = jti;
+  }
+
   if (ip || userAgent) {
     payload.fpt = generateFingerprintHash(ip, userAgent);
   }

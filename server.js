@@ -48,6 +48,7 @@ import maintenanceMode from './middleware/maintenanceMiddleware.js';
 import { startEmailWorker } from './workers/emailWorker.js';
 import { startSubscriptionWorker } from './workers/subscriptionWorker.js';
 import { startRetryWorker } from './workers/retryWorker.js';
+import { startDlqWorker } from './workers/dlqWorker.js';
 import { redisClient, isRedisConnected } from './config/redis.js';
 
 dotenv.config();
@@ -254,7 +255,16 @@ app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/payments', paymentRoutes);
+import adminReportingRoutes from './routes/adminReportingRoutes.js';
+import adminControlsRoutes from './routes/adminControlsRoutes.js';
+import adminAlertRoutes from './routes/adminAlertRoutes.js';
+import adminSessionRoutes from './routes/adminSessionRoutes.js';
+import adminAuditRoutes from './routes/adminAuditRoutes.js';
+app.use('/api/admin/reports', adminReportingRoutes);
+app.use('/api/admin/controls', adminControlsRoutes);
+app.use('/api/admin/alerts', adminAlertRoutes);
+app.use('/api/admin/sessions', adminSessionRoutes);
+app.use('/api/admin/audit-log', adminAuditRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/cron', cronRoutes);
@@ -296,7 +306,8 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
         startEmailWorker();
         startSubscriptionWorker();
         startRetryWorker();
-        console.log('✅ [BullMQ] All background workers started successfully!');
+        startDlqWorker();
+        console.log('✅ [BullMQ] All background workers started successfully (Email • Subscription • STK Retry • Callback DLQ)!');
       } catch (workerErr) {
         console.error('❌ [BullMQ] Failed to start background workers:', workerErr.message);
       }

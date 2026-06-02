@@ -577,8 +577,8 @@ const createProduct = asyncHandler(async (req, res) => {
     brand: brand?.toString().trim() || undefined,
     capacity: capacity?.toString().trim() || undefined,
     inventory: {
-      stock: stock,
-      lowStockAlert: lowStockAlert
+      physicalStock: stock,
+      lowStockThreshold: lowStockAlert
     },
     tags: parsedTags,
     isFeatured: parsedIsFeatured,
@@ -721,43 +721,43 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   // Update inventory with validation
   if (inventory) {
-    let stock = product.inventory.stock;
-    let lowStockAlert = product.inventory.lowStockAlert;
+    let stock = product.inventory.physicalStock;
+    let lowStockAlert = product.inventory.lowStockThreshold;
 
     try {
-      let invObj = inventory;
-      if (typeof inventory === 'string') {
-        invObj = JSON.parse(inventory);
-      }
+       let invObj = inventory;
+       if (typeof inventory === 'string') {
+         invObj = JSON.parse(inventory);
+       }
 
-      if (typeof invObj === 'object') {
-        if (invObj.stock !== undefined) {
-          stock = parseInt(invObj.stock);
-          if (isNaN(stock) || stock < 0) {
-            res.status(400);
-            throw new Error('Invalid stock quantity');
-          }
-        }
-        if (invObj.lowStockAlert !== undefined) {
-          lowStockAlert = parseInt(invObj.lowStockAlert);
-          if (isNaN(lowStockAlert) || lowStockAlert < 0) {
-            res.status(400);
-            throw new Error('Invalid low stock alert value');
-          }
-        }
-      }
+       if (typeof invObj === 'object') {
+         if (invObj.physicalStock !== undefined) {
+           stock = parseInt(invObj.physicalStock);
+           if (isNaN(stock) || stock < 0) {
+             res.status(400);
+             throw new Error('Invalid physical stock quantity');
+           }
+         }
+         if (invObj.lowStockThreshold !== undefined) {
+           lowStockAlert = parseInt(invObj.lowStockThreshold);
+           if (isNaN(lowStockAlert) || lowStockAlert < 0) {
+             res.status(400);
+             throw new Error('Invalid low stock threshold value');
+           }
+         }
+       }
     } catch (e) {
-      // If parsing fails but it's not an intentional 400 error we already threw
-      if (res.statusCode !== 400) {
-        res.status(400);
-        throw new Error('Invalid inventory format');
-      }
-      throw e;
+       if (res.statusCode !== 400) {
+         res.status(400);
+         throw new Error('Invalid inventory format');
+       }
+       throw e;
     }
 
     product.inventory = {
-      stock: stock,
-      lowStockAlert: lowStockAlert
+      physicalStock: stock,
+      lowStockThreshold: lowStockAlert,
+      reservedStock: product.inventory.reservedStock || 0
     };
   }
 
@@ -799,9 +799,6 @@ const updateProduct = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Quick stock update
-// @route   PATCH /api/admin/products/:id/stock
-// @access  Private/Admin
 const updateProductStock = asyncHandler(async (req, res) => {
   console.log('📦 [STOCK_UPDATE_HIT]', { id: req.params.id, body: req.body });
   const product = await Product.findById(req.params.id);
@@ -811,37 +808,41 @@ const updateProductStock = asyncHandler(async (req, res) => {
     throw new Error('Product not found');
   }
 
-  const { stock, lowStockAlert, adjustment, mode } = req.body;
+  const { physicalStock, lowStockThreshold, adjustment, mode } = req.body;
 
   if (mode === 'adjust' && adjustment !== undefined) {
-    // Relative adjust: +5 or -3
     const delta = parseInt(adjustment);
     if (isNaN(delta)) { res.status(400); throw new Error('Invalid adjustment value'); }
-    product.inventory.stock = Math.max(0, (product.inventory.stock || 0) + delta);
-  } else if (stock !== undefined) {
-    // Absolute set
-    const newStock = parseInt(stock);
-    if (isNaN(newStock) || newStock < 0) { res.status(400); throw new Error('Invalid stock value'); }
-    product.inventory.stock = newStock;
+    product.inventory.physicalStock = Math.max(0, (product.inventory.physicalStock || 0) + delta);
+  } else if (physicalStock !== undefined) {
+    const newStock = parseInt(physicalStock);
+    if (isNaN(newStock) || newStock < 0) { res.status(400); throw new Error('Invalid physical stock value'); }
+    product.inventory.physicalStock = newStock;
   }
 
-  if (lowStockAlert !== undefined) {
-    const alert = parseInt(lowStockAlert);
-    if (!isNaN(alert) && alert >= 0) product.inventory.lowStockAlert = alert;
+  if (lowStockThreshold !== undefined) {
+    const alert = parseInt(lowStockThreshold);
+    if (!isNaN(alert) && alert >= 0) product.inventory.lowStockThreshold = alert;
   }
 
-  product.inStock = product.inventory.stock > 0;
+  product.inStock = product.availableStock > 0;
   const updated = await product.save();
 
   // Invalidate product catalog cache
   await invalidateCatalog();
 
-  console.log(`📦 Stock updated: ${product.name} → ${product.inventory.stock} units`);
+  console.log(`📦 Stock updated: ${product.name} → ${product.inventory.physicalStock} units`);
 
   res.json({
     success: true,
-    message: `Stock updated to ${updated.inventory.stock} units`,
-    data: { stock: updated.inventory.stock, lowStockAlert: updated.inventory.lowStockAlert, inStock: updated.inStock }
+    message: `Stock updated to ${updated.inventory.physicalStock} units`,
+    data: { 
+      physicalStock: updated.inventory.physicalStock, 
+      reservedStock: updated.inventory.reservedStock, 
+      availableStock: updated.availableStock, 
+      lowStockThreshold: updated.inventory.lowStockThreshold, 
+      inStock: updated.inStock 
+    }
   });
 });
 
