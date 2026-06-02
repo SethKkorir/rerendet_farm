@@ -10,7 +10,7 @@ import {
   FaBars, FaTimes, FaBell, FaUserCircle,
   FaInfoCircle, FaExclamationCircle, FaBullhorn, FaAd,
   FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt,
-  FaCreditCard, FaFileInvoiceDollar
+  FaCreditCard, FaFileInvoiceDollar, FaBoxOpen
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
