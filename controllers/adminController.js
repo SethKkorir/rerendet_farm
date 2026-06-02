@@ -1169,6 +1169,7 @@ const updateSettings = asyncHandler(async (req, res) => {
   // Fetch current settings BEFORE update to compare maintenance state
   const currentSettings = await Settings.findOne();
   const wasMaintenance = currentSettings?.maintenance?.enabled || false;
+  const isMaintenanceNow = req.body.maintenance?.enabled === true || req.body.maintenance?.enabled === 'true';
 
   const updatedSettings = await Settings.findOneAndUpdate(
     {},
@@ -1260,7 +1261,6 @@ const updateSettings = asyncHandler(async (req, res) => {
     // Execute functionality strictly after response or async
     notifyCustomers();
     notifyAdminsDowntime();
-  }
 
   res.json({
     success: true,
