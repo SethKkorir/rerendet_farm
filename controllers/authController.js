@@ -132,6 +132,7 @@ const createSession = async (req, res, user) => {
           await redisClient.del(`refresh:${user._id}:${oldestSession.jti}`);
         }
 
+        /*
         await sendEmail({
           to: user.email,
           subject: '🔒 Security Update: Admin Session Revoked',
@@ -182,6 +183,7 @@ const createSession = async (req, res, user) => {
             </div>
           `
         });
+        */
       }
 
       // Geo-anomaly check

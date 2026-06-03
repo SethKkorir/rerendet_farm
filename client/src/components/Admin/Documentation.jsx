@@ -50,7 +50,7 @@ const Documentation = () => {
 
   // Simple Markdown-to-HTML parser for rendering docs beautifully
   const renderMarkdown = (md) => {
-    if (!md) return '';
+    if (!md) return { __html: '' };
     let html = md
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
