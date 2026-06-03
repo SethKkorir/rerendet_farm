@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaSave, FaStore, FaCreditCard, FaEnvelope,
   FaShieldAlt, FaBell, FaGlobe, FaTools,
-  FaTimes, FaUpload, FaImage, FaFileAlt,
+  FaTimes, FaUpload, FaImage, FaFileAlt, FaDownload,
   FaLock, FaUserShield, FaCheck, FaExclamationTriangle,
   FaMoneyBillWave, FaShippingFast, FaTruck,
   FaFacebook, FaInstagram, FaTwitter, FaWhatsapp,
@@ -150,6 +150,60 @@ const Settings = () => {
   // 🛡️ Super Gate States
   const [magicLink, setMagicLink] = useState(null);
   const [generatingLink, setGeneratingLink] = useState(false);
+
+  // Documentation States & Logic
+  const [docsList, setDocsList] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'policies') {
+      fetchDocsList();
+    }
+  }, [activeTab]);
+
+  const fetchDocsList = async () => {
+    try {
+      setLoadingDocs(true);
+      const res = await fetch('/api/admin/documentation', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setDocsList(data.data);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const handleDownloadDoc = async (docName, docLabel) => {
+    try {
+      const res = await fetch(`/api/admin/documentation/${docName}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const blob = new Blob([data.content], { type: 'text/markdown' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = docName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          showNotification(`Downloaded ${docLabel}`, 'success');
+        }
+      }
+    } catch (err) {
+      showNotification('Failed to download document', 'error');
+    }
+  };
 
   // 🛡️ Super Gate Logic
   const handleGenerateMagicLink = async () => {
@@ -857,6 +911,40 @@ const Settings = () => {
                       <p className="st-hint" style={{ marginTop: '0.5rem', marginLeft: '1.75rem' }}>
                         When enabled, an update notification will be sent to all registered customers the next time you save settings.
                       </p>
+                    </div>
+                  </Section>
+
+                  <Section title="System Documentation & Reference Manuals" subtitle="View and download all developer guidelines, legal agreements, and training checklists stored in the database" icon={<FaFileAlt />} accent="#10b981">
+                    <div className="st-docs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                      {loadingDocs ? (
+                        <div style={{ padding: '2rem', textAlign: 'center', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
+                          <FaSync className="st-spin" /> Loading documentation list...
+                        </div>
+                      ) : docsList.length > 0 ? (
+                        docsList.map(doc => (
+                          <div key={doc.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <FaFileAlt style={{ color: '#D4AF37', fontSize: '1.1rem' }} />
+                              <div>
+                                <strong style={{ fontSize: '0.9rem', color: 'var(--text-main)', display: 'block' }}>{doc.label}</strong>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{doc.name}</span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDoc(doc.name, doc.label)}
+                              style={{ background: 'none', border: 'none', color: '#D4AF37', cursor: 'pointer', fontSize: '1.1rem', padding: '0.5rem' }}
+                              title="Download Markdown Document"
+                            >
+                              <FaDownload />
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: '2rem', textAlign: 'center', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
+                          No documentation files synced to database.
+                        </div>
+                      )}
                     </div>
                   </Section>
                 </>

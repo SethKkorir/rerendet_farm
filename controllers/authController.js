@@ -134,8 +134,53 @@ const createSession = async (req, res, user) => {
 
         await sendEmail({
           to: user.email,
-          subject: 'Admin Session Revoked - Session Cap Reached',
-          html: `<p>Your oldest active admin session (${oldestSession.deviceInfo} from ${oldestSession.ipAddress}) has been automatically revoked because you reached the concurrent session limit of 3 sessions.</p>`
+          subject: '🔒 Security Update: Admin Session Revoked',
+          html: `
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+              <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px;">
+                <div style="display: inline-block; padding: 12px; background-color: rgba(212, 175, 55, 0.1); border-radius: 50%; color: #D4AF37; font-size: 28px; margin-bottom: 10px;">🛡️</div>
+                <h2 style="color: #0f172a; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px;">Security Update: Admin Session Revoked</h2>
+                <span style="color: #64748b; font-size: 13px; font-weight: 500;">Rerendet Farm Cybersecurity Protocol</span>
+              </div>
+              
+              <p style="font-size: 15px; line-height: 1.6; color: #334155; margin-top: 0;">Hello ${user.firstName || 'Administrator'},</p>
+              
+              <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+                As part of our proactive system security policies, Rerendet Farm limits active administrative connections to a maximum of <strong>3 concurrent sessions</strong>. This safeguards your account by ensuring that stale login sessions on old or forgotten devices do not remain active indefinitely.
+              </p>
+
+              <div style="background-color: #f8fafc; border-left: 4px solid #D4AF37; border-radius: 6px; padding: 15px; margin: 20px 0;">
+                <h4 style="margin: 0 0 10px; color: #0f172a; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Revoked Session Details</h4>
+                <table style="width: 100%; font-size: 13px; color: #475569; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 4px 0; font-weight: 600; width: 100px;">Device Info:</td>
+                    <td style="padding: 4px 0;">${oldestSession.deviceInfo || 'Unknown Device'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; font-weight: 600;">IP Address:</td>
+                    <td style="padding: 4px 0;"><code>${oldestSession.ipAddress || 'Unknown IP'}</code></td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 0; font-weight: 600;">Revoked At:</td>
+                    <td style="padding: 4px 0;">${new Date().toLocaleString()}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+                <strong>What this means:</strong> Your oldest login session has been automatically signed out because you reached the concurrent session limit. No action is required unless this login was unexpected.
+              </p>
+
+              <p style="font-size: 14px; line-height: 1.6; color: #334155; margin-bottom: 0;">
+                If you did not initiate a new login recently, please contact your security officer or system administrator immediately to lock your credentials and inspect the system access logs.
+              </p>
+              
+              <div style="margin-top: 30px; border-top: 1px solid #f1f5f9; padding-top: 20px; text-align: center; font-size: 12px; color: #94a3b8;">
+                <p style="margin: 0;">This is an automated system security notification. Please do not reply directly to this email.</p>
+                <p style="margin: 5px 0 0;">© ${new Date().getFullYear()} Rerendet Coffee. All rights reserved.</p>
+              </div>
+            </div>
+          `
         });
       }
 

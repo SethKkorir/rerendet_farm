@@ -144,6 +144,13 @@ const settingsSchema = new mongoose.Schema({
     shippingPolicy: { type: String, default: '' }
   },
   cancellationFeeKES: { type: Number, default: 200 },
+  documentations: [
+    {
+      name: { type: String },
+      label: { type: String },
+      content: { type: String }
+    }
+  ],
 
   // Features toggle
   features: {
@@ -241,6 +248,62 @@ settingsSchema.statics.getSettings = async function () {
     settings.maintenance.magicLinkRaw = token;
     settings.maintenance.magicLinkExpires = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     await settings.save();
+  }
+
+  // Sync documentation files to database
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const docFiles = [
+      { name: 'ARCHITECTURE.md', label: 'Architecture Reference' },
+      { name: 'API_REFERENCE.md', label: 'API Reference Manual' },
+      { name: 'DATABASE.md', label: 'Database Schema & Design' },
+      { name: 'DEPLOYMENT.md', label: 'Deployment Guide' },
+      { name: 'MONITORING.md', label: 'Telemetry & Monitoring' },
+      { name: 'RUNBOOK.md', label: 'Incident & Operations Runbook' },
+      { name: 'SECURITY.md', label: 'Security Controls & Audit' },
+      { name: 'ADMIN_MANUAL.md', label: 'Admin Manual (Training)' },
+      { name: 'FULFILMENT_SOP.md', label: 'Fulfillment SOP (Checklist)' },
+      { name: 'SOFTWARE_CONTRACT.md', label: 'Software License Contract' },
+      { name: 'DATA_PROCESSING_AGREEMENT.md', label: 'Data Processing Agreement' },
+      { name: 'THIRD_PARTY_SERVICES.md', label: 'Third Party Disclosures' },
+      { name: 'PRIVACY_POLICY.md', label: 'Privacy Policy' },
+      { name: 'TERMS_AND_CONDITIONS.md', label: 'Commercial Terms' },
+      { name: 'CREDENTIALS_HANDOVER.md', label: 'Platform Credentials' }
+    ];
+
+    const searchDirs = [
+      path.resolve(process.cwd(), 'docs'),
+      path.resolve(process.cwd(), 'docs/training'),
+      path.resolve(process.cwd(), 'docs/legal')
+    ];
+
+    const docListWithContent = [];
+    for (const doc of docFiles) {
+      let content = '';
+      for (const dir of searchDirs) {
+        try {
+          const filePath = path.join(dir, doc.name);
+          content = await fs.readFile(filePath, 'utf-8');
+          break;
+        } catch {}
+      }
+      if (content) {
+        docListWithContent.push({
+          name: doc.name,
+          label: doc.label,
+          content: content
+        });
+      }
+    }
+    
+    // Save only if different to avoid infinite hooks/updates
+    if (JSON.stringify(settings.documentations || []) !== JSON.stringify(docListWithContent)) {
+      settings.documentations = docListWithContent;
+      await settings.save();
+    }
+  } catch (err) {
+    console.error('Error syncing documentation to DB:', err);
   }
 
   return settings;

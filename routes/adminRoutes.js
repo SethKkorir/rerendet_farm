@@ -151,6 +151,14 @@ router.get('/export/customers', adminAuth(['analytics:view']), exportCustomersCS
 
 // ==================== DOCUMENTATION VIEWER ====================
 router.get('/documentation', adminAuth(['settings:manage']), asyncHandler(async (req, res) => {
+  const Settings = (await import('../models/Settings.js')).default;
+  const settings = await Settings.getSettings();
+  
+  if (settings.documentations && settings.documentations.length > 0) {
+    const list = settings.documentations.map(d => ({ name: d.name, label: d.label }));
+    return res.json({ success: true, data: list });
+  }
+
   res.json({
     success: true,
     data: [
@@ -174,9 +182,17 @@ router.get('/documentation', adminAuth(['settings:manage']), asyncHandler(async 
 }));
 
 router.get('/documentation/:filename', adminAuth(['settings:manage']), asyncHandler(async (req, res) => {
+  const { filename } = req.params;
+  const Settings = (await import('../models/Settings.js')).default;
+  const settings = await Settings.getSettings();
+
+  const found = settings.documentations?.find(d => d.name === filename);
+  if (found) {
+    return res.json({ success: true, filename: found.name, content: found.content });
+  }
+
   const fs = await import('fs/promises');
   const path = await import('path');
-  const { filename } = req.params;
   const safeFilename = filename.replace(/\.\./g, '').replace(/[\/\\]/g, '');
   
   const searchDirs = [
