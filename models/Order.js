@@ -95,7 +95,7 @@ const orderSchema = new mongoose.Schema({
   // Roast stages & substages
   roastStage: {
     type: String,
-    enum: [null, 'roast_scheduled', 'roasting_in_progress', 'resting_quality_check', 'packaged', 'handed_to_courier'],
+    enum: [null, 'pending', 'none', 'roast_scheduled', 'roasting_in_progress', 'resting_quality_check', 'packaged', 'handed_to_courier'],
     default: null,
     index: true
   },
