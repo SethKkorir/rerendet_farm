@@ -138,7 +138,8 @@ const AdminLayout = ({ children }) => {
 
   const handleLogout = async () => {
     try { await logout(); showNotification('Logged out', 'info'); } catch { }
-    navigate('/admin/login');
+    const adminSegment = import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin';
+    navigate(`/admin/${adminSegment}/login`);
   };
 
   const activeItem = ALL_ITEMS.find(i => i.id === activeMenu);

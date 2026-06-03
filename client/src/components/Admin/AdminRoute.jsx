@@ -41,7 +41,8 @@ const AdminRoute = ({ children, requiredRole = 'admin' }) => {
     }
 
     console.log('❌ No user or not authenticated, redirecting to login');
-    return <Navigate to="/admin/login" replace />;
+    const adminSegment = import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin';
+    return <Navigate to={`/admin/${adminSegment}/login`} replace />;
   }
 
   // PRIMARY FIX: Simplified logic - use BOTH state and user object for robustness

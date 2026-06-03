@@ -122,7 +122,8 @@ API.interceptors.response.use(
         }
         
         if (window.location.pathname.startsWith('/admin') && !window.location.pathname.includes('/login')) {
-          window.location.href = '/admin/login';
+          const adminSegment = import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin';
+          window.location.href = `/admin/${adminSegment}/login`;
         }
         return Promise.reject(refreshError);
       }
