@@ -19,6 +19,7 @@ router.use(protect);
 
 router.post('/card', processCardPayment);
 router.post('/mpesa/stk', processMpesaPayment);
+router.post('/mpesa/stk-push', processMpesaPayment);
 router.get('/mpesa/status/:checkoutRequestId', checkMpesaPaymentStatus);
 
 // PayPal integration
