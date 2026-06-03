@@ -10,7 +10,7 @@ import {
   FaBars, FaTimes, FaBell, FaUserCircle,
   FaInfoCircle, FaExclamationCircle, FaBullhorn, FaAd,
   FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt,
-  FaCreditCard, FaFileInvoiceDollar, FaBoxOpen
+  FaCreditCard, FaFileInvoiceDollar, FaBoxOpen, FaBook
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
@@ -61,6 +61,7 @@ const NAV_GROUPS = [
       { id: 'settings', label: 'Settings', Icon: FaCog, path: '/admin/settings', color: '#94a3b8', bg: 'rgba(148,163,184,0.18)' },
       { id: 'operational-controls', label: 'Operational Controls', Icon: FaCog, path: '/admin/controls', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
       { id: 'active-sessions', label: 'Active Sessions', Icon: FaUsers, path: '/admin/sessions', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
+      { id: 'documentation', label: 'Documentation', Icon: FaBook, path: '/admin/documentation', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'logs', label: 'Security Logs', Icon: FaHistory, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
       { id: 'audit-feed', label: 'Activity Log Feed', Icon: FaHistory, path: '/admin/audit-feed', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
     ],

@@ -54,6 +54,7 @@ const Marketing = lazy(() => import('./components/Admin/Marketing'));
 const AdsManagement = lazy(() => import('./components/Admin/AdsManagement'));
 const CouponManagement = lazy(() => import('./components/Admin/CouponManagement'));
 const BlogManagement = lazy(() => import('./components/Admin/BlogManagement'));
+const Documentation = lazy(() => import('./components/Admin/Documentation'));
 
 // HARDENED UPGRADE GAPS COMPONENTS
 const LazyInventoryHealth = lazy(() => import('./components/Admin/InventoryHealth'));
@@ -170,7 +171,7 @@ function App() {
           <Route path="/shipping-policy" element={<PolicyPage type="shippingPolicy" title="Shipping & Delivery" />} />
 
           {/* Admin Routes (Code Splitted Bundle) */}
-          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path={`/admin/${import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin'}/login`} element={<AdminLogin />} />
           <Route path="/admin/*" element={
             <AdminRoute>
               <AdminLayout>
@@ -201,6 +202,7 @@ function App() {
                     <Route path="/ads" element={<AdsManagement />} />
                     <Route path="/coupons" element={<CouponManagement />} />
                     <Route path="/blogs" element={<BlogManagement />} />
+                    <Route path="/documentation" element={<Documentation />} />
                   </Routes>
                 </Suspense>
               </AdminLayout>

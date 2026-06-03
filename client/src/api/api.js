@@ -71,7 +71,7 @@ API.interceptors.response.use(
 
     // Avoid silent token refresh for standard login/auth paths where a 401 indicates invalid credentials
     const isLoginOrAuth = original?.url?.includes('/auth/customer/login') || 
-                          original?.url?.includes('/auth/admin/login') || 
+                          original?.url?.includes('/login') || 
                           original?.url?.includes('/auth/customer/register') ||
                           original?.url?.includes('/auth/google') ||
                           original?.url?.includes('/auth/forgot-password') ||
@@ -134,7 +134,7 @@ API.interceptors.response.use(
 
 // ---- Auth ----
 export const login = (payload) => API.post('/auth/customer/login', payload);
-export const loginAdmin = (payload) => API.post('/auth/admin/login', payload);
+export const loginAdmin = (payload) => API.post(`/auth/${import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin'}/login`, payload);
 export const googleLogin = (payload) => API.post('/auth/google', payload);
 export const register = (payload) => API.post('/auth/customer/register', payload);
 export const logout = () => API.post('/auth/logout');
@@ -170,7 +170,7 @@ export const createProduct = (payload) => API.post('/admin/products', payload);
 export const updateProduct = (id, payload) => API.put(`/admin/products/${id}`, payload);
 export const deleteProduct = (id) => API.delete(`/admin/products/${id}`);
 export const updateProductStock = (id, payload) => API.patch(`/admin/products/${id}/stock`, payload);
-export const unlockUserAccount = (id) => API.put(`/auth/admin/unlock/${id}`);
+export const unlockUserAccount = (id) => API.put(`/auth/${import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin'}/unlock/${id}`);
 export const getSystemHealth = () => API.get('/admin/system-health');
 export const invalidateCache = (payload) => API.post('/admin/cache/invalidate', payload);
 

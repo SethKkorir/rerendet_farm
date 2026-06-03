@@ -1,5 +1,5 @@
-// routes/productRoutes.js - UPDATED
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import {
   getProducts,
   getProductById,
@@ -18,12 +18,21 @@ import { upload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again in 15 minutes.'
+  }
+});
+
 router.route('/')
-  .get(getProducts)
+  .get(apiLimiter, getProducts)
   .post(protect, admin, upload.array('images', 5), createProduct); // ADD IMAGE UPLOAD
 
 router.route('/:id')
-  .get(getProductById)
+  .get(apiLimiter, getProductById)
   .put(protect, admin, upload.array('images', 5), updateProduct) // ADD IMAGE UPLOAD
   .delete(protect, admin, deleteProduct);
 

@@ -5,6 +5,14 @@ import { protect, admin } from '../middleware/authMiddleware.js';
 import { adminAuth } from '../middleware/adminAuth.js';
 import { ipAllowlist } from '../middleware/ipAllowlistMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
+import { assertActiveAdmin } from '../middleware/assertActiveAdmin.js';
+import { requirePermission } from '../middleware/permissions.js';
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory
+} from '../controllers/categoryController.js';
 import {
   getDashboardStats,
   getOrders,
@@ -86,6 +94,12 @@ router.put('/products/:id', adminAuth(['products:manage']), upload.array('images
 router.patch('/products/:id/stock', adminAuth(['products:manage']), updateProductStock);
 router.delete('/products/:id', adminAuth(['products:manage']), deleteProduct);
 
+// ==================== CATEGORY MANAGEMENT ====================
+router.get('/categories', protect, assertActiveAdmin, requirePermission('inventory.write'), getCategories);
+router.post('/categories', protect, assertActiveAdmin, requirePermission('inventory.write'), createCategory);
+router.put('/categories/:id', protect, assertActiveAdmin, requirePermission('inventory.write'), updateCategory);
+router.delete('/categories/:id', protect, assertActiveAdmin, requirePermission('inventory.write'), deleteCategory);
+
 // ==================== USER MANAGEMENT ====================
 router.get('/users', adminAuth(['users:view']), getUsers);
 router.put('/users/:id/role', adminAuth(['users:manage']), updateUserRole);
@@ -134,5 +148,58 @@ router.delete('/coupons/:id', adminAuth(['marketing:manage']), deleteCoupon);
 // ==================== CSV EXPORTS ====================
 router.get('/export/orders', adminAuth(['analytics:view']), exportOrdersCSV);
 router.get('/export/customers', adminAuth(['analytics:view']), exportCustomersCSV);
+
+// ==================== DOCUMENTATION VIEWER ====================
+router.get('/documentation', adminAuth(['settings:manage']), asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: [
+      { name: 'ARCHITECTURE.md', label: 'Architecture Reference' },
+      { name: 'API_REFERENCE.md', label: 'API Reference Manual' },
+      { name: 'DATABASE.md', label: 'Database Schema & Design' },
+      { name: 'DEPLOYMENT.md', label: 'Deployment Guide' },
+      { name: 'MONITORING.md', label: 'Telemetry & Monitoring' },
+      { name: 'RUNBOOK.md', label: 'Incident & Operations Runbook' },
+      { name: 'SECURITY.md', label: 'Security Controls & Audit' },
+      { name: 'ADMIN_MANUAL.md', label: 'Admin Manual (Training)' },
+      { name: 'FULFILMENT_SOP.md', label: 'Fulfillment SOP (Checklist)' },
+      { name: 'SOFTWARE_CONTRACT.md', label: 'Software License Contract' },
+      { name: 'DATA_PROCESSING_AGREEMENT.md', label: 'Data Processing Agreement' },
+      { name: 'THIRD_PARTY_SERVICES.md', label: 'Third Party Disclosures' },
+      { name: 'PRIVACY_POLICY.md', label: 'Privacy Policy' },
+      { name: 'TERMS_AND_CONDITIONS.md', label: 'Commercial Terms' },
+      { name: 'CREDENTIALS_HANDOVER.md', label: 'Platform Credentials' }
+    ]
+  });
+}));
+
+router.get('/documentation/:filename', adminAuth(['settings:manage']), asyncHandler(async (req, res) => {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  const { filename } = req.params;
+  const safeFilename = filename.replace(/\.\./g, '').replace(/[\/\\]/g, '');
+  
+  const searchDirs = [
+    path.resolve(process.cwd(), 'docs'),
+    path.resolve(process.cwd(), 'docs/training'),
+    path.resolve(process.cwd(), 'docs/legal')
+  ];
+  
+  let fileContent = null;
+  for (const dir of searchDirs) {
+    try {
+      const filePath = path.join(dir, safeFilename);
+      fileContent = await fs.readFile(filePath, 'utf-8');
+      break;
+    } catch {}
+  }
+  
+  if (!fileContent) {
+    res.status(404);
+    throw new Error('Documentation file not found');
+  }
+  
+  res.json({ success: true, filename: safeFilename, content: fileContent });
+}));
 
 export default router;

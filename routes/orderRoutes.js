@@ -11,6 +11,9 @@ import {
   logAbandonedCheckout,
   getAbandonedCheckouts,
   cancelOrder,
+  getCancelOrderWarning,
+  getOrderAggregates,
+  updateRoastStage,
   trackOrderPublic
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
@@ -30,12 +33,15 @@ router.post('/validate-coupon', validateCoupon);
 router.post('/abandoned', logAbandonedCheckout);
 router.post('/', checkoutLimiter, createOrder);
 router.get('/my', getUserOrders);
+router.get('/:id/cancel-warning', getCancelOrderWarning);
 router.post('/:id/cancel', cancelOrder);
 
 // Admin routes — MUST be before /:id to avoid being swallowed by the wildcard
 router.get('/abandoned', admin, getAbandonedCheckouts);
+router.get('/reports/aggregates', admin, getOrderAggregates);
 router.get('/', admin, getOrders);
 router.put('/:id/status', admin, updateOrderStatus);
+router.put('/:id/roast-stage', admin, updateRoastStage);
 
 // /:id routes LAST — wildcard must not swallow named routes above
 router.get('/:id', getOrderById);

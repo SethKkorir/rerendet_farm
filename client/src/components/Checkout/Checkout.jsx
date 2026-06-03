@@ -34,12 +34,16 @@ function Checkout() {
     email: user?.email || '',
     phone: user?.shippingInfo?.phone || user?.phone || '+254 ',
     address: user?.shippingInfo?.address || '',
+    landmark: user?.shippingInfo?.landmark || '',
     county: user?.shippingInfo?.county || '',
     town: user?.shippingInfo?.town || '',
     city: user?.shippingInfo?.city || '',
     country: user?.shippingInfo?.country || 'Kenya',
     postalCode: user?.shippingInfo?.zip || ''
   });
+
+  const [applyStoreCredit, setApplyStoreCredit] = useState(false);
+  const [deliveryEstimate, setDeliveryEstimate] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState('');
 
@@ -107,7 +111,9 @@ function Checkout() {
   }, [subtotal, couponData, isSubscription]);
 
   const [shippingCost, setShippingCost] = useState(0);
-  const total = Math.max(0, subtotal - discount + shippingCost);
+  const storeCreditAvailable = user?.storeCreditBalance || 0;
+  const appliedStoreCredit = applyStoreCredit ? Math.min(storeCreditAvailable, subtotal - discount + shippingCost) : 0;
+  const total = Math.max(0, subtotal - discount + shippingCost - appliedStoreCredit);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -125,6 +131,7 @@ function Checkout() {
         email: prev.email || user.email || '',
         phone: prev.phone || user.shippingInfo?.phone || user.phone || '+254 ',
         address: prev.address || user.shippingInfo?.address || '',
+        landmark: prev.landmark || user.shippingInfo?.landmark || '',
         city: prev.city || user.shippingInfo?.city || '',
         county: prev.county || user.shippingInfo?.county || '',
         town: prev.town || user.shippingInfo?.town || '',
@@ -161,6 +168,7 @@ function Checkout() {
         const result = await response.json();
         if (result.success) {
           setShippingCost(result.data.shippingCost);
+          setDeliveryEstimate(result.data.estimatedDays || result.data.estimate || '');
         }
       }
     } catch (error) {
@@ -258,6 +266,9 @@ function Checkout() {
     }
 
     if (!shippingInfo.address?.trim()) newErrors.address = 'Street/Building is required';
+    if (shippingInfo.country === 'Kenya' && !shippingInfo.landmark?.trim()) {
+      newErrors.landmark = 'Nearest landmark/street is required';
+    }
 
     if (shippingInfo.country === 'Kenya') {
       if (!shippingInfo.county) newErrors.county = 'Please select your county';
@@ -302,6 +313,7 @@ function Checkout() {
         subtotal,
         shippingCost,
         totalAmount: total,
+        appliedStoreCredit,
         couponCode: couponData?.code,
         isSubscription,
         subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined
@@ -415,6 +427,7 @@ function Checkout() {
         subtotal,
         shippingCost,
         totalAmount: total,
+        appliedStoreCredit,
         couponCode: couponData?.code,
         isSubscription,
         subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined,
@@ -594,6 +607,20 @@ function Checkout() {
                     className="premium-input-modern"
                   />
                   {errors.city && <span className="error-text">{errors.city}</span>}
+                </div>
+              )}
+
+              {shippingInfo.country === 'Kenya' && (
+                <div className={`input-group full-width ${errors.landmark ? 'has-error' : ''}`}>
+                  <label className="input-label">Nearest Landmark / Street *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Opposite Total Petrol Station, Kimathi Street"
+                    value={shippingInfo.landmark}
+                    onChange={(e) => handleInputChange('landmark', e.target.value)}
+                    className="premium-input-modern"
+                  />
+                  {errors.landmark && <span className="error-text">{errors.landmark}</span>}
                 </div>
               )}
 
@@ -851,6 +878,22 @@ function Checkout() {
                 </button>
               </div>
               {couponData && <div className="promo-success-badge"><FaPercent /> Discount Active</div>}
+              {storeCreditAvailable > 0 && (
+                <div className="store-credit-area" style={{ marginTop: '15px', padding: '12px', background: 'rgba(212, 175, 55, 0.05)', border: '1px dashed #d4af37', borderRadius: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={applyStoreCredit}
+                      onChange={(e) => setApplyStoreCredit(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 'bold', fontSize: '0.85rem', color: '#f5efe6' }}>Apply Store Credit</span>
+                      <span style={{ display: 'block', fontSize: '0.75rem', color: '#a08a75' }}>Available: KES {storeCreditAvailable.toLocaleString()}</span>
+                    </div>
+                  </label>
+                </div>
+              )}
             </div>
 
             <div className="manifest-totals">
@@ -863,7 +906,23 @@ function Checkout() {
                   <span>- KES {discount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="total-row"><span>Logistics Fee</span><span>KES {shippingCost.toLocaleString()}</span></div>
+              {appliedStoreCredit > 0 && (
+                <div className="total-row discount" style={{ color: '#d4af37' }}>
+                  <span>Store Credit Applied</span>
+                  <span>- KES {appliedStoreCredit.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="total-row">
+                <span>
+                  Logistics Fee
+                  {deliveryEstimate && (
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: '#a08a75', fontWeight: 'normal' }}>
+                      Est. Delivery: {deliveryEstimate}
+                    </span>
+                  )}
+                </span>
+                <span>KES {shippingCost.toLocaleString()}</span>
+              </div>
               <div className="grand-total-highlight">
                 <div className="total-label">Total</div>
                 <div className="total-value">KES {total.toLocaleString()}</div>

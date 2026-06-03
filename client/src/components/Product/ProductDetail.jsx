@@ -77,7 +77,7 @@ const ProductDetail = () => {
                     <div className="product-info">
                         <div className="product-badges">
                             {product.isFeatured && <span className="badge featured">Featured</span>}
-                            {product.category === 'coffee-beans' && <span className="badge roast">{product.roastLevel} Roast</span>}
+                            {product.roastLevel && <span className="badge roast">{product.roastLevel} Roast</span>}
                         </div>
 
                         <h1>{product.name}</h1>
@@ -90,6 +90,19 @@ const ProductDetail = () => {
                         <div className="description">
                             <p>{product.description}</p>
                         </div>
+
+                        {product.categoryAttributes && Object.keys(product.categoryAttributes).length > 0 && (
+                            <div className="category-attributes-display" style={{ marginTop: '1rem', borderTop: '1px solid #eaeaea', paddingTop: '1rem' }}>
+                                <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Product Details:</h3>
+                                <ul style={{ listStyle: 'none', padding: 0, fontSize: '0.9rem', color: '#555' }}>
+                                    {Object.entries(product.categoryAttributes).map(([key, val]) => (
+                                        <li key={key} style={{ marginBottom: '0.25rem' }}>
+                                            <strong style={{ color: '#222' }}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}:</strong> {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val.toString()}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
 
                         {product.sizes?.length > 0 && (
                             <div className="size-selector">

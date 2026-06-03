@@ -25,7 +25,8 @@ const shippingAddressSchema = new mongoose.Schema({
   town: { type: String },
   address: { type: String, required: true },
   city: { type: String }, // Keep for legacy
-  postalCode: { type: String }
+  postalCode: { type: String },
+  landmark: { type: String }
 });
 
 const orderEventSchema = new mongoose.Schema({
@@ -77,6 +78,25 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: ['unfulfilled', 'packed', 'shipped', 'delivered', 'returned'],
     default: 'unfulfilled',
+    index: true
+  },
+
+  // Cancellation reasons and fees
+  cancellationReason: { type: String },
+  cancellationNote: { type: String },
+  cancellationFee: { type: Number, default: 0 },
+  cancellationFeeApplied: { type: Boolean, default: false },
+
+  // Delivery details
+  deliveryFee: { type: Number, default: 0 },
+  countyDeliveryRate: { type: Number },
+  estimatedDeliveryDays: { type: Number },
+
+  // Roast stages & substages
+  roastStage: {
+    type: String,
+    enum: [null, 'roast_scheduled', 'roasting_in_progress', 'resting_quality_check', 'packaged', 'handed_to_courier'],
+    default: null,
     index: true
   },
 

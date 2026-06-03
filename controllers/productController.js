@@ -1,6 +1,7 @@
 // controllers/productController.js
 import asyncHandler from 'express-async-handler';
 import Product from '../models/Product.js';
+import Category from '../models/Category.js';
 import { redisClient, isRedisConnected, invalidateCatalog } from '../config/redis.js';
 
 // Cache for high-traffic public endpoints
@@ -46,7 +47,17 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // 2. Filter logic
   if (category && category !== 'all') {
-    filter.category = category;
+    const mongoose = await import('mongoose');
+    if (mongoose.default.Types.ObjectId.isValid(category)) {
+      filter.categoryId = category;
+    } else {
+      const cat = await Category.findOne({ slug: category });
+      if (cat) {
+        filter.categoryId = cat._id;
+      } else {
+        filter.categoryId = new mongoose.default.Types.ObjectId();
+      }
+    }
   }
 
   if (featured === 'true') {
@@ -79,11 +90,12 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // 3. Optimized parallel execution with projection
   // Only fetch fields needed for the shop grid to reduce data transfer
-  const publicProjection = 'name category sizes images inStock isFeatured badge inventory.stock seo.slug ratings';
+  const publicProjection = 'name categoryId categoryAttributes sizes images inStock isFeatured badge inventory.stock seo.slug ratings';
 
   const [products, total] = await Promise.all([
     Product.find(filter)
       .select(publicProjection)
+      .populate('categoryId')
       .sort(search ? { score: { $meta: 'textScore' } } : sort)
       .skip(skip)
       .limit(parseInt(limit))
@@ -95,7 +107,8 @@ const getProducts = asyncHandler(async (req, res) => {
   // For now, only fetch if page is 1 to save overhead on pagination
   let categories = [];
   if (parseInt(page) === 1) {
-    categories = await Product.distinct('category', { isActive: true });
+    const cats = await Category.find({ isDeleted: { $ne: true } }).lean();
+    categories = cats.map(c => c.slug);
   }
 
   const responseData = {
@@ -127,7 +140,7 @@ const getProducts = asyncHandler(async (req, res) => {
 // @route   GET /api/products/:id
 // @access  Public
 const getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id).lean();
+  const product = await Product.findById(req.params.id).populate('categoryId').lean();
 
   if (!product || !product.isActive) {
     res.status(404);
@@ -157,7 +170,7 @@ const getFeaturedProducts = asyncHandler(async (req, res) => {
     isFeatured: true,
     isActive: true,
     inStock: true
-  }).limit(8).lean();
+  }).populate('categoryId').limit(8).lean();
 
   // Update cache
   productCache.featured = {
@@ -199,6 +212,8 @@ const createProduct = asyncHandler(async (req, res) => {
     description,
     sizes,
     category,
+    categoryId,
+    categoryAttributes,
     roastLevel,
     origin,
     flavorNotes,
@@ -209,9 +224,64 @@ const createProduct = asyncHandler(async (req, res) => {
   } = req.body;
 
   // Validate required fields
-  if (!name || !description || !category) {
+  if (!name || !description || !sizes) {
     res.status(400);
-    throw new Error('Name, description, and category are required');
+    throw new Error('Name, description, and sizes are required');
+  }
+
+  let targetCategoryId = categoryId;
+  if (!targetCategoryId && category) {
+    const foundCategory = await Category.findOne({
+      $or: [
+        { slug: category },
+        { name: new RegExp('^' + category + '$', 'i') }
+      ]
+    });
+    if (foundCategory) {
+      targetCategoryId = foundCategory._id.toString();
+    }
+  }
+
+  if (!targetCategoryId) {
+    res.status(400);
+    throw new Error('Category ID is required');
+  }
+
+  const dbCategory = await Category.findById(targetCategoryId);
+  if (!dbCategory) {
+    res.status(404);
+    throw new Error('Category not found');
+  }
+
+  let parsedCategoryAttributes = {};
+  if (categoryAttributes) {
+    try {
+      if (typeof categoryAttributes === 'string') {
+        parsedCategoryAttributes = JSON.parse(categoryAttributes);
+      } else if (typeof categoryAttributes === 'object') {
+        parsedCategoryAttributes = categoryAttributes;
+      }
+    } catch (e) {
+      res.status(400);
+      throw new Error('Invalid categoryAttributes format');
+    }
+  }
+
+  // Validate dynamic attributes
+  const missingAttributes = [];
+  for (const attr of dbCategory.attributeSchema) {
+    const val = parsedCategoryAttributes[attr.key];
+    if (attr.required && (val === undefined || val === null || val === '')) {
+      missingAttributes.push(attr.label || attr.key);
+    }
+  }
+
+  if (missingAttributes.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
+      missingAttributes
+    });
   }
 
   // Parse sizes
@@ -240,9 +310,10 @@ const createProduct = asyncHandler(async (req, res) => {
       price: parseFloat(size.price)
     })),
     images,
-    category,
-    roastLevel: category === 'coffee-beans' ? roastLevel : undefined,
-    origin: origin?.trim() || '',
+    categoryId: dbCategory._id,
+    categoryAttributes: parsedCategoryAttributes,
+    roastLevel: roastLevel || parsedCategoryAttributes['roastLevel'] || undefined,
+    origin: origin?.trim() || parsedCategoryAttributes['origin']?.trim() || '',
     flavorNotes: flavorNotes ?
       (typeof flavorNotes === 'string' ?
         flavorNotes.split(',').map(note => note.trim()).filter(note => note) :
@@ -293,6 +364,8 @@ const updateProduct = asyncHandler(async (req, res) => {
     description,
     sizes,
     category,
+    categoryId,
+    categoryAttributes,
     roastLevel,
     origin,
     flavorNotes,
@@ -305,9 +378,74 @@ const updateProduct = asyncHandler(async (req, res) => {
   // Update fields
   if (name) product.name = name.trim();
   if (description) product.description = description.trim();
-  if (category) product.category = category;
-  if (roastLevel && category === 'coffee-beans') product.roastLevel = roastLevel;
-  if (origin !== undefined) product.origin = origin?.trim();
+
+  let activeCategoryId = categoryId || product.categoryId;
+  if (!categoryId && category) {
+    const foundCategory = await Category.findOne({
+      $or: [
+        { slug: category },
+        { name: new RegExp('^' + category + '$', 'i') }
+      ]
+    });
+    if (foundCategory) {
+      activeCategoryId = foundCategory._id;
+    }
+  }
+
+  if (activeCategoryId) {
+    const dbCategory = await Category.findById(activeCategoryId);
+    if (!dbCategory) {
+      res.status(404);
+      throw new Error('Category not found');
+    }
+
+    product.categoryId = dbCategory._id;
+
+    let parsedCategoryAttributes = product.categoryAttributes ? Object.fromEntries(product.categoryAttributes) : {};
+    if (categoryAttributes !== undefined) {
+      try {
+        if (typeof categoryAttributes === 'string') {
+          parsedCategoryAttributes = JSON.parse(categoryAttributes);
+        } else if (typeof categoryAttributes === 'object') {
+          parsedCategoryAttributes = categoryAttributes;
+        }
+      } catch (e) {
+        res.status(400);
+        throw new Error('Invalid categoryAttributes format');
+      }
+    }
+
+    // Validate dynamic attributes
+    const missingAttributes = [];
+    for (const attr of dbCategory.attributeSchema) {
+      const val = parsedCategoryAttributes[attr.key];
+      if (attr.required && (val === undefined || val === null || val === '')) {
+        missingAttributes.push(attr.label || attr.key);
+      }
+    }
+
+    if (missingAttributes.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
+        missingAttributes
+      });
+    }
+
+    product.categoryAttributes = parsedCategoryAttributes;
+  }
+
+  if (roastLevel !== undefined) {
+    product.roastLevel = roastLevel;
+  } else if (product.categoryAttributes && product.categoryAttributes.get('roastLevel')) {
+    product.roastLevel = product.categoryAttributes.get('roastLevel');
+  }
+
+  if (origin !== undefined) {
+    product.origin = origin?.trim();
+  } else if (product.categoryAttributes && product.categoryAttributes.get('origin')) {
+    product.origin = product.categoryAttributes.get('origin');
+  }
   if (badge !== undefined) product.badge = badge?.trim();
   if (isFeatured !== undefined) {
     product.isFeatured = isFeatured === 'true' || isFeatured === true;
@@ -484,7 +622,7 @@ const deleteProductImage = asyncHandler(async (req, res) => {
 // @route   GET /api/products/slug/:slug
 // @access  Public
 const getProductBySlug = asyncHandler(async (req, res) => {
-  const product = await Product.findOne({ 'seo.slug': req.params.slug }).lean();
+  const product = await Product.findOne({ 'seo.slug': req.params.slug }).populate('categoryId').lean();
 
   if (product) {
     res.json({
@@ -493,7 +631,7 @@ const getProductBySlug = asyncHandler(async (req, res) => {
     });
   } else {
     // Also try to find by ID if slug not found (fallback)
-    const productById = await Product.findById(req.params.slug).catch(() => null);
+    const productById = await Product.findById(req.params.slug).populate('categoryId').catch(() => null);
     if (productById) {
       return res.json({ success: true, data: productById });
     }

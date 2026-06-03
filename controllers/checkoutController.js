@@ -1,288 +1,246 @@
-// controllers/checkoutController.js
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const crypto = require('crypto');
+import asyncHandler from 'express-async-handler';
+import mongoose from 'mongoose';
+import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import Settings from '../models/Settings.js';
+import User from '../models/User.js';
+import crypto from 'crypto';
+import { mutateStoreCredit, mutateLoyaltyPoints } from './authController.js';
 
-// Security middleware
+// Security validation for checkout window
 const validateSecurityToken = (req, res, next) => {
   const { securityToken, timestamp } = req.body;
-  
-  // Check if request is within reasonable time window (5 minutes)
   if (Date.now() - timestamp > 300000) {
     return res.status(419).json({
       success: false,
       message: 'Session expired. Please refresh and try again.'
     });
   }
-  
-  // Basic token validation (in production, use JWT or similar)
   if (!securityToken || securityToken.length < 10) {
     return res.status(400).json({
       success: false,
       message: 'Invalid security token'
     });
   }
-  
   next();
 };
 
-// Create new order with enhanced security
-exports.createOrder = [
+// @desc    Create new order with transactional safety
+// @route   POST /api/checkout/order
+// @access  Private
+export const createOrder = [
   validateSecurityToken,
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
+    const {
+      items,
+      shippingInfo,
+      paymentMethod,
+      subtotal,
+      deliveryFee,
+      total,
+      mpesaPhone,
+      securityToken,
+      applyStoreCredit,
+      storeCreditAmount = 0,
+      redeemPoints,
+      pointsToRedeem = 0
+    } = req.body;
+
+    // 1. Validate required fields
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      res.status(400);
+      throw new Error('Order items are required');
+    }
+
+    // 2. Validate landmark field for Kenyan addresses
+    if (!shippingInfo || !shippingInfo.landmark || shippingInfo.landmark.trim().length < 10) {
+      res.status(400);
+      throw new Error('Landmark description is required and must be at least 10 characters for Kenyan deliveries.');
+    }
+
+    // 3. Look up delivery rate based on county/region
+    const settings = await Settings.getSettings();
+    const rates = settings.deliveryRates || [];
+    const regionName = shippingInfo.county || shippingInfo.region || 'Other';
+    const rateConfig = rates.find(r => r.region.toLowerCase() === regionName.toLowerCase()) || 
+                       rates.find(r => r.region.toLowerCase() === 'other');
+    
+    const expectedDeliveryFee = rateConfig ? rateConfig.feeKES : 500;
+    const estimatedDeliveryDays = rateConfig ? rateConfig.estimatedDays : 5;
+
+    // Start database session for atomicity
+    const session = await mongoose.startSession();
     try {
-      const {
-        items,
-        shippingInfo,
-        paymentMethod,
-        subtotal,
-        deliveryFee,
-        total,
-        mpesaPhone,
-        securityToken,
-        timestamp
-      } = req.body;
+      session.startTransaction();
 
-      // Validate required fields
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Order items are required'
-        });
-      }
-
-      // Validate and calculate totals
+      // 4. Validate and calculate item totals & stock checks
       let calculatedSubtotal = 0;
       const orderItems = [];
-      const productUpdates = [];
 
       for (const item of items) {
-        const product = await Product.findById(item.productId || item._id);
+        const product = await Product.findById(item.productId || item._id).session(session);
         if (!product) {
-          return res.status(400).json({
-            success: false,
-            message: `Product ${item.name} not found`
-          });
+          throw new Error(`Product ${item.name || 'Unknown'} not found`);
         }
 
-        if (product.inventory.stock < item.quantity) {
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient stock for ${item.name}. Only ${product.inventory.stock} available.`
-          });
+        const physicalStock = product.inventory?.physicalStock || 0;
+        const reservedStock = product.inventory?.reservedStock || 0;
+        const availableStock = physicalStock - reservedStock;
+
+        if (availableStock < item.quantity) {
+          throw new Error(`Insufficient stock for ${product.name}. Only ${availableStock} available.`);
         }
 
         calculatedSubtotal += product.price * item.quantity;
         orderItems.push({
-          product: item.productId || item._id,
+          product: product._id,
           name: product.name,
           quantity: item.quantity,
           price: product.price,
+          size: item.size || '250g',
           image: product.images?.[0]?.url || product.image
         });
 
-        // Prepare stock update
-        productUpdates.push({
-          updateOne: {
-            filter: { _id: item.productId || item._id },
-            update: { $inc: { 'inventory.stock': -item.quantity } }
-          }
-        });
+        // Reserve stock atomically
+        product.inventory.reservedStock = (product.inventory.reservedStock || 0) + item.quantity;
+        await product.save({ session });
       }
 
-      // Validate totals match
-      const calculatedTotal = calculatedSubtotal + deliveryFee;
-      if (Math.abs(calculatedTotal - total) > 1) { // Allow small rounding differences
-        return res.status(400).json({
-          success: false,
-          message: 'Order total validation failed'
-        });
+      // 5. Calculate discounts (Store credit and Loyalty redemptions)
+      let storeCreditApplied = 0;
+      let pointsDiscountApplied = 0;
+
+      // Handle loyalty points redemption (100 points = KES 10)
+      if (redeemPoints && pointsToRedeem > 0) {
+        const user = await User.findById(req.user._id).session(session);
+        if (user.loyaltyPoints < pointsToRedeem) {
+          throw new Error('Insufficient loyalty points balance');
+        }
+        pointsDiscountApplied = Math.floor(pointsToRedeem / 10);
       }
 
-      // Generate unique order number
-      const orderNumber = 'RC' + Date.now() + crypto.randomBytes(2).toString('hex').toUpperCase();
+      // Handle store credit
+      if (applyStoreCredit && storeCreditAmount > 0) {
+        const user = await User.findById(req.user._id).session(session);
+        if (user.storeCreditBalance < storeCreditAmount) {
+          throw new Error('Insufficient store credit balance');
+        }
+        storeCreditApplied = storeCreditAmount;
+      }
 
-      // Create order
+      const rawTotal = calculatedSubtotal + expectedDeliveryFee - pointsDiscountApplied - storeCreditApplied;
+      const finalTotal = Math.max(0, rawTotal);
+
+      // Verify total match
+      if (Math.abs(finalTotal - total) > 5) {
+        throw new Error(`Order total validation failed. Expected KSh ${finalTotal}, received KSh ${total}`);
+      }
+
+      // 6. Generate unique order number
+      const orderNumber = 'RND-' + Date.now().toString().slice(-6) + crypto.randomBytes(2).toString('hex').toUpperCase();
+
+      // Create the order document
       const order = new Order({
         user: req.user._id,
         orderNumber,
         items: orderItems,
-        shippingInfo: {
-          ...shippingInfo,
-          deliveryFee
+        shippingAddress: {
+          name: shippingInfo.name || `${req.user.firstName} ${req.user.lastName}`,
+          phone: shippingInfo.phone || req.user.phone || '',
+          address: shippingInfo.address || '',
+          city: shippingInfo.city || '',
+          county: regionName,
+          town: shippingInfo.town || '',
+          postalCode: shippingInfo.postalCode || '',
+          landmark: shippingInfo.landmark
         },
-        paymentInfo: {
-          method: paymentMethod,
-          status: 'pending',
-          mpesaPhone: paymentMethod === 'mpesa' ? mpesaPhone : undefined,
-          securityToken: crypto.createHash('sha256').update(securityToken).digest('hex')
-        },
-        pricing: {
-          subtotal: calculatedSubtotal,
-          deliveryFee,
-          total: calculatedTotal
-        },
-        status: 'confirmed'
+        subtotal: calculatedSubtotal,
+        deliveryFee: expectedDeliveryFee,
+        countyDeliveryRate: expectedDeliveryFee,
+        estimatedDeliveryDays,
+        total: finalTotal,
+        paymentMethod,
+        transactionId: paymentMethod === 'mpesa' ? '' : undefined,
+        paymentStatus: finalTotal === 0 ? 'paid' : 'pending',
+        fulfillmentStatus: 'unfulfilled',
+        orderEvents: [{
+          status: 'ORDER_CREATED',
+          note: `Order initiated by customer. Total: KSh ${finalTotal}. Delivery fee: KSh ${expectedDeliveryFee}.`,
+          user: req.user._id
+        }]
       });
 
-      const createdOrder = await order.save();
+      const savedOrder = await order.save({ session });
 
-      // Update product stock
-      if (productUpdates.length > 0) {
-        await Product.bulkWrite(productUpdates);
+      // Apply credit debit atomically if applicable
+      if (storeCreditApplied > 0) {
+        await mutateStoreCredit(
+          req.user._id,
+          -storeCreditApplied,
+          'spent_checkout',
+          { note: `Applied to order #${orderNumber}`, orderId: savedOrder._id },
+          session
+        );
       }
 
-      // Populate order for response
-      await createdOrder.populate('items.product', 'name images price');
+      // Apply points debit atomically if applicable
+      if (pointsDiscountApplied > 0) {
+        await mutateLoyaltyPoints(
+          req.user._id,
+          -pointsToRedeem,
+          'spent_redemption',
+          { orderId: savedOrder._id },
+          session
+        );
+      }
+
+      await session.commitTransaction();
+      session.endSession();
 
       res.status(201).json({
         success: true,
         message: 'Order created successfully',
-        data: createdOrder,
-        orderId: createdOrder._id,
-        orderNumber: createdOrder.orderNumber
+        data: savedOrder,
+        orderId: savedOrder._id,
+        orderNumber: savedOrder.orderNumber
       });
 
     } catch (error) {
-      console.error('Order creation error:', error);
-      res.status(500).json({
+      await session.abortTransaction();
+      session.endSession();
+      console.error('Checkout transaction aborted:', error);
+      res.status(400).json({
         success: false,
-        message: 'Error creating order',
-        error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
+        message: error.message || 'Error processing checkout transaction'
       });
     }
-  }
+  })
 ];
 
-// Get user orders with pagination
-exports.getUserOrders = async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+// @desc    Get user orders with pagination
+// @route   GET /api/checkout/orders
+// @access  Private
+export const getUserOrders = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
 
-    const orders = await Order.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .skip(skip)
-      .populate('items.product', 'name images');
+  const orders = await Order.find({ user: req.user._id })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .skip(skip)
+    .populate('items.product', 'name images price');
 
-    const total = await Order.countDocuments({ user: req.user._id });
+  const total = await Order.countDocuments({ user: req.user._id });
 
-    res.json({
-      success: true,
-      data: orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching orders',
-      error: error.message
-    });
-  }
-};
-
-// Get order by ID with enhanced security
-exports.getOrderById = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id)
-      .populate('user', 'firstName lastName email phone')
-      .populate('items.product', 'name images price category');
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
+  res.json({
+    success: true,
+    data: orders,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
     }
-
-    // Check if order belongs to user or user is admin
-    if (order.user._id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this order'
-      });
-    }
-
-    // Sanitize sensitive data
-    const orderData = order.toObject();
-    if (orderData.paymentInfo) {
-      delete orderData.paymentInfo.securityToken;
-      // Only show last 4 digits of card if exists
-      if (orderData.paymentInfo.cardLast4) {
-        orderData.paymentInfo.cardNumber = `**** **** **** ${orderData.paymentInfo.cardLast4}`;
-      }
-    }
-
-    res.json({
-      success: true,
-      data: orderData
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching order',
-      error: error.message
-    });
-  }
-};
-
-// Cancel order
-exports.cancelOrder = async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Order not found'
-      });
-    }
-
-    // Check if order belongs to user
-    if (order.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to cancel this order'
-      });
-    }
-
-    // Check if order can be cancelled
-    if (!['confirmed', 'pending'].includes(order.status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Order cannot be cancelled at this stage'
-      });
-    }
-
-    // Restore product stock
-    for (const item of order.items) {
-      await Product.findByIdAndUpdate(
-        item.product,
-        { $inc: { 'inventory.stock': item.quantity } }
-      );
-    }
-
-    order.status = 'cancelled';
-    order.cancelledAt = new Date();
-    await order.save();
-
-    res.json({
-      success: true,
-      message: 'Order cancelled successfully',
-      data: order
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error cancelling order',
-      error: error.message
-    });
-  }
-};
+  });
+});

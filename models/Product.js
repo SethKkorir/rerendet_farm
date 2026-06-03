@@ -40,18 +40,20 @@ const productSchema = new mongoose.Schema({
   }],
 
   // Product category — open string so admins can create custom categories
-  category: {
-    type: String,
-    required: [true, 'Product category is required'],
-    trim: true,
-    default: 'coffee-beans'
+  categoryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Category',
+    required: [true, 'Product category ID is required'],
+    index: true
+  },
+  categoryAttributes: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   roastLevel: {
     type: String,
-    enum: ['light', 'medium-light', 'medium', 'medium-dark', 'dark', 'espresso'],
-    required: function () {
-      return this.category === 'coffee-beans';
-    }
+    enum: ['light', 'medium-light', 'medium', 'medium-dark', 'dark', 'espresso']
   },
   flavorNotes: [String],
   origin: String,
@@ -156,7 +158,9 @@ const productSchema = new mongoose.Schema({
   tags: [String]
 
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Virtual for available stock
@@ -167,6 +171,20 @@ productSchema.virtual('availableStock').get(function () {
 // Virtual for checking if product is low stock
 productSchema.virtual('isLowStock').get(function () {
   return this.availableStock <= this.inventory.lowStockThreshold;
+});
+
+// Virtual for category
+productSchema.virtual('category').get(function () {
+  if (this.categoryId) {
+    if (this.categoryId.slug) {
+      return this.categoryId.slug;
+    }
+    if (this.categoryId.name) {
+      return this.categoryId.name.toLowerCase().replace(/\s+/g, '-');
+    }
+    return this.categoryId.toString();
+  }
+  return 'coffee-beans';
 });
 
 // Virtual for display name (CoffeeShop expects this)
@@ -255,7 +273,7 @@ productSchema.index({
   name: 'ProductTextIndex'
 });
 
-productSchema.index({ category: 1, isActive: 1, createdAt: -1 });
+productSchema.index({ categoryId: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'sizes.price': 1 });
 productSchema.index({ isFeatured: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'inventory.physicalStock': 1 });
@@ -263,12 +281,25 @@ productSchema.index({ 'seo.slug': 1 });
 productSchema.index({ isActive: 1, inStock: 1 });
 
 // Static method to get products by category
-productSchema.statics.getByCategory = function (category, limit = 10) {
-  return this.find({
-    category,
-    isActive: true,
-    inStock: true
-  }).limit(limit);
+productSchema.statics.getByCategory = async function (category, limit = 10) {
+  let query = { isActive: true, inStock: true };
+  if (mongoose.Types.ObjectId.isValid(category)) {
+    query.categoryId = category;
+  } else {
+    const Category = mongoose.model('Category');
+    const cat = await Category.findOne({ slug: category });
+    if (cat) {
+      query.categoryId = cat._id;
+    } else {
+      const catByName = await Category.findOne({ name: new RegExp('^' + category + '$', 'i') });
+      if (catByName) {
+        query.categoryId = catByName._id;
+      } else {
+        return [];
+      }
+    }
+  }
+  return this.find(query).limit(limit);
 };
 
 // Static method to get featured products

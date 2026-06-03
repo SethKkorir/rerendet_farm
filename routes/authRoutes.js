@@ -9,6 +9,11 @@ import {
   // Admin auth
   loginAdmin,
   createAdmin,
+  requestAdminMagicLink,
+  verifyAdminMagicLink,
+  stepUpVerify,
+  getAdminChallenge,
+  handleSecurityAlert,
 
   // Common auth
   verifyEmail,
@@ -33,7 +38,12 @@ import {
   confirm2FASetup,
   disable2FA,
   verify2FATOTP,
-  verify2FABackup
+  verify2FABackup,
+  getActiveCustomerSessions,
+  revokeCustomerSession,
+  revokeAllOtherSessions,
+  getStoreCreditHistory,
+  getLoyaltyPointsHistory
 } from '../controllers/authController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { requireRecentReauth } from '../middleware/reauthMiddleware.js';
@@ -93,9 +103,17 @@ router.post('/customer/login', loginLimiter, loginCustomer);
 router.post('/customer/verify-2fa', loginLimiter, verify2FALogin);
 router.post('/google', loginLimiter, googleLogin);
 
-// Admin auth
-router.post('/admin/login', loginLimiter, loginAdmin);
-router.post('/admin/verify-2fa', loginLimiter, verify2FALogin);
+// Admin challenge & alerts (static URLs as defined in layer specification)
+router.get('/admin/challenge', getAdminChallenge);
+router.post('/admin/security-alert', handleSecurityAlert);
+
+// Admin auth mounted under dynamic segment
+const adminSegment = process.env.ADMIN_PATH_SEGMENT || 'admin';
+router.post(`/${adminSegment}/login`, loginLimiter, loginAdmin);
+router.post(`/${adminSegment}/verify-2fa`, loginLimiter, verify2FALogin);
+router.post(`/${adminSegment}/magic-link`, loginLimiter, requestAdminMagicLink);
+router.post(`/${adminSegment}/magic-link/verify`, loginLimiter, verifyAdminMagicLink);
+router.post(`/${adminSegment}/magic-link/step-up`, loginLimiter, stepUpVerify);
 
 // Common auth
 router.post('/verify-email', verifyEmail);
@@ -112,6 +130,10 @@ router.post('/2fa/verify-backup', loginLimiter, verify2FABackup);
 
 // ==================== PROTECTED ROUTES ====================
 
+// History Routes
+router.get('/store-credit/history', protect, getStoreCreditHistory);
+router.get('/loyalty/history', protect, getLoyaltyPointsHistory);
+
 // Protected User Routes
 router.put('/profile', protect, updateProfile);
 router.put('/toggle-2fa', protect, toggle2FA);
@@ -119,6 +141,9 @@ router.delete('/profile', protect, requireRecentReauth, deleteAccount);
 router.put('/change-password', protect, requireRecentReauth, changePassword);
 router.post('/verify-password', protect, verifyPassword);
 router.get('/activity', protect, getMyLogs);
+router.get('/sessions', protect, getActiveCustomerSessions);
+router.delete('/sessions/mine/all', protect, revokeAllOtherSessions);
+router.delete('/sessions/:jti', protect, revokeCustomerSession);
 
 // Modern 2FA Setup/Manage Routes (Protected)
 router.post('/2fa/setup', protect, setup2FA);
@@ -134,7 +159,7 @@ router.get('/me', protect, getCurrentUser);
 router.post('/logout', protect, logout);
 
 // Admin management (admin only - using existing admin middleware)
-router.post('/admin/create', protect, admin, createAdmin);
-router.put('/admin/unlock/:userId', protect, admin, unlockUserAccount);
+router.post(`/${adminSegment}/create`, protect, admin, createAdmin);
+router.put(`/${adminSegment}/unlock/:userId`, protect, admin, unlockUserAccount);
 
 export default router;

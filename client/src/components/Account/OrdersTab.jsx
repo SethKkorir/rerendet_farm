@@ -17,6 +17,10 @@ const OrdersTab = ({ orders = [], loading, onRefresh }) => {
     const [cancellingId, setCancellingId] = useState(null);
     const [statusFilter, setStatusFilter] = useState('all');
     const [expandedOrder, setExpandedOrder] = useState(null);
+    const [cancelReasonModal, setCancelReasonModal] = useState(null);
+    const [cancelWarningInfo, setCancelWarningInfo] = useState(null);
+    const [cancellationReasonText, setCancellationReasonText] = useState('');
+    const [warningLoading, setWarningLoading] = useState(false);
     
     const ordersPerPage = 5;
 
@@ -331,28 +335,8 @@ const OrdersTab = ({ orders = [], loading, onRefresh }) => {
                                     {isCancelable && (
                                         <button 
                                             className="btn-order-cancel"
-                                            disabled={cancellingId === order._id}
-                                            onClick={async () => {
-                                                if (!window.confirm(`Cancel order #${order.orderNumber}?`)) return;
-                                                setCancellingId(order._id);
-                                                try {
-                                                    const res = await fetch(`/api/orders/${order._id}/cancel`, {
-                                                        method: 'POST',
-                                                        headers: { 'Authorization': `Bearer ${token}` }
-                                                    });
-                                                    const data = await res.json();
-                                                    if (data.success) {
-                                                        showNotification('Order cancelled', 'success');
-                                                        if (onRefresh) onRefresh();
-                                                    } else {
-                                                        showNotification(data.message || 'Failed', 'error');
-                                                    }
-                                                } catch (err) {
-                                                    showNotification('Network error', 'error');
-                                                } finally {
-                                                    setCancellingId(null);
-                                                }
-                                            }}
+                                            disabled={cancellingId === order._id || warningLoading}
+                                            onClick={() => handleCancelClick(order)}
                                         >
                                             {cancellingId === order._id ? '...' : <><FaBan /> Cancel</>}
                                         </button>
@@ -393,6 +377,58 @@ const OrdersTab = ({ orders = [], loading, onRefresh }) => {
                     <button className="btn-order-primary" onClick={() => navigate('/', { state: { scrollTo: 'coffee-shop' } })}>
                         Shop Now
                     </button>
+                </div>
+            )}
+
+            {/* Cancellation Reason Modal */}
+            {cancelReasonModal && (
+                <div className="sec-form-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+                    <div style={{ background: '#1c1917', border: '1px solid #44403c', borderRadius: '12px', padding: '24px', maxWidth: '500px', width: '100%', color: '#f5efe6' }}>
+                        <h3 style={{ marginTop: 0, fontSize: '1.25rem' }}>Cancel Order #{cancelReasonModal.orderNumber}</h3>
+                        
+                        {warningLoading ? (
+                            <p style={{ color: '#a08a75' }}>Loading cancellation rules...</p>
+                        ) : cancelWarningInfo ? (
+                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '6px', padding: '12px', margin: '15px 0', fontSize: '0.85rem' }}>
+                                <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#f87171' }}>⚠️ Warning:</p>
+                                <p style={{ margin: 0 }}>{cancelWarningInfo.message}</p>
+                                {cancelWarningInfo.cancellationFeeApplied && (
+                                    <p style={{ margin: '8px 0 0 0', fontWeight: 'bold', color: '#f87171' }}>A cancellation fee of KES {cancelWarningInfo.cancellationFee} will be deducted from your refund.</p>
+                                )}
+                            </div>
+                        ) : null}
+
+                        <div style={{ margin: '15px 0' }}>
+                            <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#a08a75' }}>Reason for Cancellation (Required)</label>
+                            <textarea
+                                placeholder="Please let us know why you are cancelling..."
+                                value={cancellationReasonText}
+                                onChange={(e) => setCancellationReasonText(e.target.value)}
+                                style={{ width: '100%', height: '80px', padding: '10px', background: '#292524', border: '1px solid #44403c', borderRadius: '6px', color: '#f5efe6', outline: 'none', resize: 'none' }}
+                                required
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                            <button
+                                onClick={() => {
+                                    setCancelReasonModal(null);
+                                    setCancelWarningInfo(null);
+                                    setCancellationReasonText('');
+                                }}
+                                style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #44403c', color: '#a08a75', borderRadius: '6px', cursor: 'pointer' }}
+                            >
+                                Abort
+                            </button>
+                            <button
+                                onClick={submitCancellation}
+                                disabled={cancellingId === cancelReasonModal._id || !cancellationReasonText.trim()}
+                                style={{ padding: '8px 16px', background: '#ef4444', border: 'none', color: '#fff', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                            >
+                                Confirm Cancellation
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

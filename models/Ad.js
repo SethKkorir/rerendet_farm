@@ -26,6 +26,26 @@ const adSchema = new mongoose.Schema({
         subText: { type: String, trim: true },
         ctaText: { type: String, default: 'Shop Now' }
     },
+    linkedProductId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Product'
+    },
+    discountPercent: {
+        type: Number,
+        min: 0,
+        max: 100
+    },
+    originalPrice: {
+        type: Number
+    },
+    budgetCents: {
+        type: Number,
+        default: 0
+    },
+    spentCents: {
+        type: Number,
+        default: 0
+    },
     startDate: {
         type: Date,
         required: true

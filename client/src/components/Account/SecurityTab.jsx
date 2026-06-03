@@ -43,6 +43,57 @@ const SecurityTab = () => {
     // Password Change State
     const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [passwordLoading, setPasswordLoading] = useState(false);
+    const [pwnedCount, setPwnedCount] = useState(null);
+    const [hibpChecking, setHibpChecking] = useState(false);
+
+    // SubtleCrypto SHA-1 helper for HaveIBeenPwned k-anonymity
+    const sha1 = async (string) => {
+        const utf8 = new TextEncoder().encode(string);
+        const hashBuffer = await window.crypto.subtle.digest('SHA-1', utf8);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        return hashHex.toUpperCase();
+    };
+
+    const checkPasswordPwned = async (password) => {
+        if (!password || password.length < 6) return 0;
+        try {
+            setHibpChecking(true);
+            const hash = await sha1(password);
+            const prefix = hash.slice(0, 5);
+            const suffix = hash.slice(5);
+            
+            const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+            if (!response.ok) return 0;
+            const text = await response.text();
+            
+            const lines = text.split('\n');
+            for (const line of lines) {
+                const [partsSuffix, countStr] = line.split(':');
+                if (partsSuffix.trim() === suffix) {
+                    return parseInt(countStr.trim(), 10);
+                }
+            }
+            return 0;
+        } catch (err) {
+            console.error('HIBP check error:', err);
+            return 0;
+        } finally {
+            setHibpChecking(false);
+        }
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (passwordData.newPassword && passwordData.newPassword.length >= 8) {
+                const count = await checkPasswordPwned(passwordData.newPassword);
+                setPwnedCount(count);
+            } else {
+                setPwnedCount(null);
+            }
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [passwordData.newPassword]);
 
     // 2FA State
     const [twoFAData, setTwoFAData] = useState({ password: '' });
@@ -54,26 +105,132 @@ const SecurityTab = () => {
     const [deletePassword, setDeletePassword] = useState('');
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    // Activity Logs State
-    const [logs, setLogs] = useState([]);
-    const [logsLoading, setLogsLoading] = useState(false);
+    // FIX 8: Unified Security Activity state
+    const [timeline, setTimeline] = useState([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
+    const [sessions, setSessions] = useState([]);
 
-    const fetchLogs = async () => {
-        setLogsLoading(true);
+    const getJtiFromToken = (tok) => {
+        if (!tok) return null;
         try {
-            const res = await API.get('/auth/activity');
-            if (res.data.success) {
-                setLogs(res.data.data);
+            const base64Url = tok.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload).jti;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const fetchSecurityActivity = async () => {
+        setTimelineLoading(true);
+        try {
+            const [sessionsRes, logsRes] = await Promise.all([
+                fetch('/api/auth/sessions', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }),
+                fetch('/api/auth/activity', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+            ]);
+
+            const sessionsData = await sessionsRes.json();
+            const logsData = await logsRes.json();
+
+            let activeSessions = [];
+            if (sessionsData.success) {
+                activeSessions = sessionsData.data;
+                setSessions(activeSessions);
+            }
+            let accessLogs = [];
+            if (logsData.success) {
+                accessLogs = logsData.data;
+            }
+
+            // Build unified timeline
+            const unified = [];
+            accessLogs.forEach(log => {
+                const jti = log.jti || log.details?.jti || null;
+                const isSessionEvent = !!activeSessions.find(s => s.jti === jti);
+                unified.push({
+                    id: log._id,
+                    type: isSessionEvent ? 'session' : 'access',
+                    action: log.action,
+                    ip: log.ipAddress || log.details?.ipAddress || log.details?.ip || 'Unknown',
+                    userAgent: log.userAgent || log.details?.userAgent || 'Unknown Device',
+                    createdAt: new Date(log.createdAt),
+                    jti,
+                    method: log.details?.method || 'Basic'
+                });
+            });
+
+            // Make sure active sessions are represented on timeline
+            activeSessions.forEach(sess => {
+                const alreadyAdded = unified.some(item => item.jti === sess.jti);
+                if (!alreadyAdded) {
+                    unified.push({
+                        id: sess.jti,
+                        type: 'session',
+                        action: `Logged In: ${sess.deviceInfo || 'Active Session'}`,
+                        ip: sess.ipAddress || 'Unknown',
+                        userAgent: sess.userAgent || 'Unknown Device',
+                        createdAt: new Date(sess.createdAt),
+                        jti: sess.jti,
+                        method: 'Session'
+                    });
+                }
+            });
+
+            unified.sort((a, b) => b.createdAt - a.createdAt);
+            setTimeline(unified);
+
+        } catch (error) {
+            console.error('Fetch security activity error:', error);
+        } finally {
+            setTimelineLoading(false);
+        }
+    };
+
+    const handleRemoveSession = async (jti) => {
+        try {
+            const res = await fetch(`/api/auth/sessions/${jti}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showSuccess('Session revoked successfully');
+                await fetchSecurityActivity();
+            } else {
+                showError(data.message || 'Failed to revoke session');
             }
         } catch (error) {
-            console.error('Fetch logs error:', error);
-        } finally {
-            setLogsLoading(false);
+            showError('Failed to revoke session');
+        }
+    };
+
+    const handleRevokeAllOtherSessions = async () => {
+        try {
+            const res = await fetch('/api/auth/sessions/mine/all', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showSuccess('All other sessions revoked');
+                await fetchSecurityActivity();
+            } else {
+                showError(data.message || 'Failed to revoke other sessions');
+            }
+        } catch (error) {
+            showError('Failed to revoke other sessions');
         }
     };
 
     useEffect(() => {
-        fetchLogs();
+        fetchSecurityActivity();
     }, []);
 
     // --- Password Change ---
@@ -306,6 +463,23 @@ const SecurityTab = () => {
                                                     {evaluatePasswordStrength(passwordData.newPassword).feedback}
                                                 </span>
                                             </div>
+                                            {hibpChecking && (
+                                                <div style={{ fontSize: '0.75rem', color: '#a1a1aa', marginTop: '5px' }}>
+                                                    Checking password credentials leak database...
+                                                </div>
+                                            )}
+                                            {pwnedCount > 0 && (
+                                                <div style={{ marginTop: '10px', padding: '8px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid #ef4444', borderRadius: '6px', fontSize: '0.75rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <FaExclamationTriangle />
+                                                    <span>Warning: This password was leaked {pwnedCount.toLocaleString()} times in HIBP database!</span>
+                                                </div>
+                                            )}
+                                            {pwnedCount === 0 && (
+                                                <div style={{ marginTop: '10px', padding: '8px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', borderRadius: '6px', fontSize: '0.75rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <FaCheckCircle />
+                                                    <span>Safe: No known database leaks detected.</span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -366,61 +540,105 @@ const SecurityTab = () => {
                             </div>
                         )}
                     </div>
-                </div>
-
-                {/* Right Side: Activity */}
+                          {/* Right Side: Unified Security Activity */}
                 <div className="security-logs-column">
                     <div className="sec-card glass-morph activity-container">
-                        <div className="sec-card-header mb-4">
+                        <div className="sec-card-header mb-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div className="header-title">
                                 <div className="accent-icon">
                                     <FaHistory />
                                 </div>
                                 <div>
-                                    <h5>Access Logs</h5>
-                                    <p>Real-time session tracking</p>
+                                    <h5>Security Activity</h5>
+                                    <p>Unified session and access tracking</p>
                                 </div>
                             </div>
+                            {sessions.length > 1 && (
+                                <button 
+                                    className="btn-danger-minimal" 
+                                    onClick={handleRevokeAllOtherSessions}
+                                    style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem', fontWeight: 'bold' }}
+                                >
+                                    Revoke All Other Sessions
+                                </button>
+                            )}
                         </div>
 
                         <div className="activity-vault">
-                            {logsLoading ? (
+                            {timelineLoading ? (
                                 <div className="vault-loading">
                                     <div className="vault-spinner"></div>
                                     <span>Scanning Ledger...</span>
                                 </div>
-                            ) : logs.length > 0 ? (
-                                <div className="vault-list">
-                                    {logs.map(log => (
-                                        <div className="vault-entry" key={log._id}>
-                                            <div className="entry-icon">
-                                                <FaDesktop />
-                                            </div>
-                                            <div className="entry-details">
-                                                <div className="entry-header">
-                                                    <span className="entry-action">{log.action}</span>
-                                                    <span className={`entry-tag ${log.details?.method === '2FA_VERIFIED' ? 'gold' : 'silver'}`}>
-                                                        {log.details?.method === '2FA_VERIFIED' ? '2FA' : 'Basic'}
-                                                    </span>
+                            ) : timeline.length > 0 ? (
+                                <div className="vault-list" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {timeline.map(item => {
+                                        const currentJti = getJtiFromToken(token);
+                                        const isCurrent = item.jti === currentJti;
+                                        const isActive = sessions.some(s => s.jti === item.jti);
+
+                                        return (
+                                            <div className="vault-entry" key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div className="entry-details" style={{ flex: 1 }}>
+                                                    <div className="entry-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span className="entry-action" style={{ fontWeight: '600', color: '#f4f4f5' }}>{item.action}</span>
+                                                        {isActive && (
+                                                            isCurrent ? (
+                                                                <span style={{ fontSize: '0.7rem', color: '#10b981', background: 'rgba(16,185,129,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                                    This device — current session
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.7rem', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                                    Active device
+                                                                </span>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                    <div className="entry-meta" style={{ fontSize: '0.75rem', color: '#a1a1aa', display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                                        <span>IP: {item.ip}</span>
+                                                        <span>•</span>
+                                                        <span>{new Date(item.createdAt).toLocaleDateString()} {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        {item.method && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span style={{ textTransform: 'capitalize' }}>{item.method}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="entry-meta">
-                                                    <span>{new Date(log.createdAt).toLocaleDateString()}</span>
-                                                    <span>•</span>
-                                                    <span>{new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                </div>
+                                                {isActive && (
+                                                    <button
+                                                        onClick={() => handleRemoveSession(item.jti)}
+                                                        disabled={isCurrent}
+                                                        style={{
+                                                            background: 'transparent',
+                                                            border: '1px solid rgba(239,68,68,0.2)',
+                                                            color: isCurrent ? '#52525b' : '#ef4444',
+                                                            padding: '0.4rem 0.85rem',
+                                                            borderRadius: '6px',
+                                                            cursor: isCurrent ? 'not-allowed' : 'pointer',
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 'bold',
+                                                            opacity: isCurrent ? 0.4 : 1,
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        Revoke
+                                                    </button>
+                                                )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
-                                <div className="vault-empty">
-                                    <FaShieldAlt />
-                                    <p>Your security ledger is currently clean.</p>
+                                <div className="vault-empty" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                                    <FaShieldAlt style={{ fontSize: '2rem', color: '#52525b', marginBottom: '0.5rem' }} />
+                                    <p style={{ color: '#71717a', fontSize: '0.85rem' }}>Your security ledger is currently clean.</p>
                                 </div>
                             )}
                         </div>
                     </div>
-                </div>
+                </div>              </div>
             </div>
         </div>
     );

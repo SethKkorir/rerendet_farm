@@ -33,7 +33,7 @@ export const ROLE_PERMISSIONS = {
 };
 
 export const requirePermission = (scope) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -49,6 +49,28 @@ export const requirePermission = (scope) => {
         success: false,
         message: `Access denied. Required permission: ${scope}`
       });
+    }
+
+    // Security Re-Authentication Check for sensitive permissions
+    if (scope === 'settings.security' || scope === 'payments.override') {
+      if (req.user.jti) {
+        try {
+          const AdminSession = (await import('../models/AdminSession.js')).default;
+          const sessionDoc = await AdminSession.findOne({ jti: req.user.jti });
+          if (sessionDoc && sessionDoc.lastActivityAt) {
+            const idleTime = Date.now() - new Date(sessionDoc.lastActivityAt).getTime();
+            const fifteenMinutesMs = 15 * 60 * 1000;
+            if (idleTime > fifteenMinutesMs) {
+              return res.status(401).json({
+                success: false,
+                message: 'Session idle too long. Please re-authenticate to perform this action.'
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Error during idle timeout check:', err);
+        }
+      }
     }
 
     next();

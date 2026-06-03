@@ -110,11 +110,8 @@ const ProductsManagement = () => {
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState([]);
-  // Custom categories stored in localStorage so they persist
-  const [customCategories, setCustomCategories] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('pm_custom_categories') || '[]'); }
-    catch { return []; }
-  });
+  // Database categories fetched from the backend
+  const [categoriesList, setCategoriesList] = useState([]);
   // Hidden category values
   const [hiddenCategories, setHiddenCategories] = useState(() => {
     try { return JSON.parse(localStorage.getItem('pm_hidden_categories') || '[]'); }
@@ -122,8 +119,35 @@ const ProductsManagement = () => {
   });
   const [showCatManager, setShowCatManager] = useState(false);
 
-  // All categories (built-in + custom), visible filter excludes hidden
-  const allCategories = [...DEFAULT_CATEGORIES, ...customCategories];
+  const fetchCategories = useCallback(async () => {
+    try {
+      const authToken = getToken();
+      const res = await fetch('/api/admin/categories', {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCategoriesList(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load categories', err);
+    }
+  }, [getToken]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  // All categories mapped, visible filter excludes hidden
+  const allCategories = categoriesList.map(c => ({
+    value: c._id,
+    slug: c.slug,
+    label: c.name,
+    icon: c.icon || '📦',
+    color: '#D4AF37',
+    attributeSchema: c.attributeSchema,
+    isCustom: true
+  }));
   const visibleCategories = allCategories.filter(c => !hiddenCategories.includes(c.value));
 
   const getToken = useCallback(() => {
@@ -231,7 +255,10 @@ const ProductsManagement = () => {
     showAlert(`Category "${cat.label}" deleted`, 'success');
   };
 
-  const getCatLabel = (val) => allCategories.find(c => c.value === val)?.label || val;
+  const getCatLabel = (val) => {
+    const catId = val?._id || val;
+    return allCategories.find(c => c.value === catId || c.slug === catId)?.label || val;
+  };
 
   return (
     <div className="products-management">
@@ -334,13 +361,13 @@ const ProductsManagement = () => {
                 </div>
               ) : (
                 <div className="card-image placeholder">
-                  <span style={{ fontSize: '2rem' }}>{allCategories.find(c => c.value === product.category)?.icon || '📦'}</span>
+                  <span style={{ fontSize: '2rem' }}>{allCategories.find(c => c.value === (product.categoryId?._id || product.categoryId) || c.slug === product.category)?.icon || '📦'}</span>
                   {product.isFeatured && <span className="featured-star"><FaStar /></span>}
                 </div>
               )}
               <div className="card-body">
-                <div className="card-category" style={{ color: allCategories.find(c => c.value === product.category)?.color || '#9ca3af' }}>
-                  {getCatLabel(product.category)}
+                <div className="card-category" style={{ color: allCategories.find(c => c.value === (product.categoryId?._id || product.categoryId) || c.slug === product.category)?.color || '#9ca3af' }}>
+                  {getCatLabel(product.categoryId || product.category)}
                 </div>
                 <h4 className="card-name">{product.name}</h4>
                 {product.origin && <p className="card-origin"><FaGlobe /> {product.origin}</p>}
@@ -398,7 +425,7 @@ const ProductsManagement = () => {
                     <div className="table-product-info">
                       {product.images?.[0]
                         ? <img src={product.images[0].url} alt={product.name} className="table-thumb" />
-                        : <div className="table-thumb placeholder">{allCategories.find(c => c.value === product.category)?.icon || '📦'}</div>}
+                        : <div className="table-thumb placeholder">{allCategories.find(c => c.value === (product.categoryId?._id || product.categoryId) || c.slug === product.category)?.icon || '📦'}</div>}
                       <div><strong>{product.name}</strong>{product.badge && <span className="table-badge">{product.badge}</span>}</div>
                     </div>
                   </td>
@@ -411,7 +438,7 @@ const ProductsManagement = () => {
                       </strong>
                     </div>
                   </td>
-                  <td>{getCatLabel(product.category)}</td>
+                  <td>{getCatLabel(product.categoryId || product.category)}</td>
                   <td>
                     <div className="table-actions">
                       <button className="btn-card-action edit" onClick={() => { setEditingProduct(product); setShowProductModal(true); }}><FaEdit /></button>
@@ -455,8 +482,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     name: product?.name || '',
     description: product?.description || '',
     sizes: product?.sizes || [{ size: '250g', price: '' }],
-    category: product?.category || 'coffee-beans',
-    roastLevel: product?.roastLevel || 'medium',
+    category: product?.categoryId?._id || product?.categoryId || product?.category || '',
+    categoryAttributes: product?.categoryAttributes || {},
+    roastLevel: product?.roastLevel || '',
     origin: product?.origin || '',
     flavorNotes: product?.flavorNotes || [],
     badge: product?.badge || '',
@@ -473,23 +501,20 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   const [images, setImages] = useState(product?.images || []);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
-  const cfg = getCategoryConfig(formData.category);
+  const catObj = allCategories.find(c => c.value === formData.category || c.slug === formData.category);
+  const cfg = getCategoryConfig(catObj?.slug || formData.category);
 
   // Update size default when category changes
   const handleCategoryChange = (val) => {
-    const newCfg = getCategoryConfig(val);
     set('category', val);
-    // Reset sizes to the default for this category
-    if (formData.sizes.length === 1 && !formData.sizes[0].price) {
-      set('sizes', [{ size: newCfg.sizeDefault, price: '' }]);
-    }
+    set('categoryAttributes', {});
   };
 
   // Build nav sections dynamically based on category
   const SECTIONS = [
     { id: 'basic', label: 'Basic Info', icon: '🏷️' },
     { id: 'pricing', label: 'Pricing', icon: '💰' },
-    { id: 'details', label: cfg.detailsTab, icon: cfg.hasRoast ? '☕' : '📋' },
+    { id: 'details', label: '📋 Product Details', icon: '📋' },
     { id: 'media', label: 'Media', icon: '🖼️' },
     { id: 'stock', label: 'Inventory', icon: '📦' },
   ];
@@ -516,7 +541,7 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   };
 
   /* ── Size handling ── */
-  const addSize = () => set('sizes', [...formData.sizes, { size: cfg.sizeDefault, price: '' }]);
+  const addSize = () => set('sizes', [...formData.sizes, { size: 'Standard', price: '' }]);
   const removeSize = (i) => set('sizes', formData.sizes.filter((_, idx) => idx !== i));
   const updateSize = (i, field, value) => set('sizes', formData.sizes.map((s, idx) =>
     idx === i ? { ...s, [field]: field === 'price' ? (value === '' ? '' : parseFloat(value) || 0) : value } : s
@@ -538,7 +563,7 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     }
     const invalidSizes = formData.sizes.filter(s => !s.size || !s.price || parseFloat(s.price) <= 0);
     if (invalidSizes.length) { showAlert('All sizes need a valid price > 0.', 'error'); return; }
-    const stock = parseInt(formData.inventory.stock);
+    const stock = parseInt(formData.inventory.stock || formData.inventory.physicalStock);
     if (isNaN(stock) || stock < 0) { showAlert('Stock must be a valid number ≥ 0.', 'error'); return; }
 
     setSaving(true);
@@ -553,14 +578,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
         name: formData.name.trim(),
         description: formData.description.trim(),
         sizes: formData.sizes.map(s => ({ size: s.size, price: parseFloat(s.price) })),
-        category: formData.category,
-        roastLevel: cfg.hasRoast ? formData.roastLevel : undefined,
-        origin: formData.origin?.trim() || undefined,
-        flavorNotes: cfg.hasFlavors ? formData.flavorNotes : [],
+        categoryId: formData.category,
+        categoryAttributes: formData.categoryAttributes,
         badge: formData.badge.trim(),
-        material: formData.material?.trim() || undefined,
-        brand: formData.brand?.trim() || undefined,
-        capacity: formData.capacity?.trim() || undefined,
         inventory: { 
           physicalStock: stock, 
           lowStockThreshold: parseInt(formData.inventory.lowStockThreshold) || 5 
@@ -606,7 +626,6 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   };
 
   const primaryImage = images.find(i => !i.file) || images[0];
-  const catObj = allCategories.find(c => c.value === formData.category);
 
   return (
     <motion.div className="pm-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
@@ -795,91 +814,52 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
               {/* ═══ DETAILS (category-aware) ═══ */}
               {activeSection === 'details' && (
                 <motion.div key="details" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">{cfg.detailsTab}</h3>
+                  <h3 className="pm-section-title">📋 Product Details</h3>
+                  <p className="pm-section-hint">Provide specific details for this category to help customers filter and browse.</p>
 
-                  {/* Coffee beans */}
-                  {cfg.hasRoast && (
-                    <div className="pm-field">
-                      <label>Roast Level</label>
-                      <div className="roast-selector">
-                        {ROAST_LEVELS.map(r => (
-                          <button key={r.value} type="button"
-                            className={`roast-btn ${formData.roastLevel === r.value ? 'active' : ''}`}
-                            style={{ '--roast-color': r.color }}
-                            onClick={() => set('roastLevel', r.value)}>
-                            <span className="roast-emoji">{r.emoji}</span>
-                            <span className="roast-label">{r.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {cfg.hasOrigin && (
-                    <div className="pm-field">
-                      <label><FaGlobe /> Origin / Region</label>
-                      <input type="text" value={formData.origin} onChange={e => set('origin', e.target.value)}
-                        placeholder={cfg.hasRoast ? 'e.g., Nyeri, Kenya' : 'e.g., Kenya, Ethiopia, China'} />
-                    </div>
-                  )}
-
-                  {cfg.hasFlavors && (
-                    <div className="pm-field">
-                      <label>Flavor Notes <span className="hint">(press Enter or comma to add)</span></label>
-                      <div className="flavor-tag-input">
-                        <div className="flavor-tags-container">
-                          {formData.flavorNotes.map((note, i) => (
-                            <span key={i} className="flavor-tag-pill">
-                              {note}
-                              <button type="button" onClick={() => removeFlavor(note)}><FaTimes /></button>
-                            </span>
-                          ))}
-                          <input type="text" value={flavorInput}
-                            onChange={e => setFlavorInput(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addFlavor(flavorInput); } }}
-                            onBlur={() => flavorInput.trim() && addFlavor(flavorInput)}
-                            placeholder={formData.flavorNotes.length === 0 ? 'Type a flavor note and press Enter...' : ''} />
-                        </div>
-                      </div>
-                      <div className="flavor-suggestions">
-                        {['Citrus', 'Chocolate', 'Caramel', 'Floral', 'Nutty', 'Berry', 'Honey', 'Earthy', 'Spicy'].map(s =>
-                          !formData.flavorNotes.includes(s) && (
-                            <button key={s} type="button" className="flavor-suggest-chip" onClick={() => addFlavor(s)}>+ {s}</button>
-                          )
+                  {catObj && catObj.attributeSchema && catObj.attributeSchema.length > 0 ? (
+                    catObj.attributeSchema.map(attr => (
+                      <div key={attr.key} className="pm-field">
+                        <label>
+                          {attr.label} {attr.required && <span className="req">*</span>} {attr.unit && <span className="hint">({attr.unit})</span>}
+                        </label>
+                        {attr.type === 'select' ? (
+                          <select
+                            value={formData.categoryAttributes[attr.key] || attr.defaultValue || ''}
+                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
+                            required={attr.required}
+                          >
+                            <option value="">Select option...</option>
+                            {attr.options && attr.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                        ) : attr.type === 'boolean' ? (
+                          <input
+                            type="checkbox"
+                            checked={!!(formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? false)}
+                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.checked })}
+                          />
+                        ) : attr.type === 'number' ? (
+                          <input
+                            type="number"
+                            value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
+                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: parseFloat(e.target.value) || '' })}
+                            placeholder={`Enter ${attr.label.toLowerCase()}`}
+                            required={attr.required}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
+                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
+                            placeholder={`Enter ${attr.label.toLowerCase()}`}
+                            required={attr.required}
+                          />
                         )}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Equipment / Accessories extra fields */}
-                  {cfg.hasBrand && (
-                    <div className="pm-field">
-                      <label>Brand / Manufacturer</label>
-                      <input type="text" value={formData.brand} onChange={e => set('brand', e.target.value)}
-                        placeholder="e.g., Hario, Aeropress, Rerendet" />
-                    </div>
-                  )}
-
-                  {cfg.hasMaterial && (
-                    <div className="pm-field">
-                      <label>Material / Composition</label>
-                      <input type="text" value={formData.material} onChange={e => set('material', e.target.value)}
-                        placeholder="e.g., Borosilicate Glass, Stainless Steel, 100% Cotton" />
-                    </div>
-                  )}
-
-                  {cfg.hasCapacity && (
-                    <div className="pm-field">
-                      <label>Capacity / Dimensions</label>
-                      <input type="text" value={formData.capacity} onChange={e => set('capacity', e.target.value)}
-                        placeholder="e.g., 600ml, 30cm × 20cm, 1 litre" />
-                    </div>
-                  )}
-
-                  {/* If no category-specific fields at all, show generic hint */}
-                  {!cfg.hasRoast && !cfg.hasOrigin && !cfg.hasFlavors && !cfg.hasMaterial && !cfg.hasBrand && !cfg.hasCapacity && (
+                    ))
+                  ) : (
                     <div className="pm-no-coffee">
-                      <span style={{ fontSize: '2.5rem' }}>{allCategories.find(c => c.value === formData.category)?.icon || '📦'}</span>
+                      <span style={{ fontSize: '2.5rem' }}>{catObj?.icon || '📦'}</span>
                       <p>No specific extra details for this category. You can add product specifics in the <strong>Tags</strong> field (Basic Info tab) or add info in the description.</p>
                     </div>
                   )}

@@ -243,4 +243,35 @@ router.get('/revenue-trend', asyncHandler(async (req, res) => {
   res.json({ success: true, data: trend });
 }));
 
+// 7. Cancellation Reasons breakdown
+router.get('/cancellation-reasons', asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days, 10) || 30;
+  const sinceDate = moment().subtract(days, 'days').toDate();
+
+  const reasons = await Order.aggregate([
+    {
+      $match: {
+        orderStatus: 'cancelled',
+        createdAt: { $gte: sinceDate }
+      }
+    },
+    {
+      $group: {
+        _id: '$cancellationReason',
+        count: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        reason: { $ifNull: ['$_id', 'not_specified'] },
+        count: 1,
+        _id: 0
+      }
+    },
+    { $sort: { count: -1 } }
+  ]);
+
+  res.json({ success: true, data: reasons });
+}));
+
 export default router;

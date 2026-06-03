@@ -42,14 +42,8 @@ import subscriberRoutes from './routes/subscriberRoutes.js';
 import marketingRoutes from './routes/marketingRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
-import { startCronJobs } from './utils/cronJobs.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import maintenanceMode from './middleware/maintenanceMiddleware.js';
-import { startEmailWorker } from './workers/emailWorker.js';
-import { startSubscriptionWorker } from './workers/subscriptionWorker.js';
-import { startRetryWorker } from './workers/retryWorker.js';
-import { startDlqWorker } from './workers/dlqWorker.js';
-import { redisClient, isRedisConnected } from './config/redis.js';
 
 dotenv.config();
 
@@ -71,12 +65,24 @@ if (process.env.SENTRY_DSN) {
 }
 
 // Validate critical environment variables at startup
-const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET'];
-const missing = REQUIRED_ENV.filter(key => !process.env[key]);
-if (missing.length > 0) {
-  console.error(`❌ FATAL: Missing required environment variables: ${missing.join(', ')}`);
-  process.exit(1);
+const CRITICAL_ENV = ['MONGO_URI', 'JWT_SECRET', 'FRONTEND_URL'];
+const missingEnv = CRITICAL_ENV.filter(key => !process.env[key]);
+if (missingEnv.length > 0) {
+  console.warn(`⚠️  WARNING: Missing critical environment variables: ${missingEnv.join(', ')}`);
+  console.warn('   The app will attempt to start, but some features may not work correctly.');
 }
+
+const validEnvs = ['development', 'staging', 'production'];
+if (!process.env.NODE_ENV || !validEnvs.includes(process.env.NODE_ENV)) {
+  throw new Error("NODE_ENV must be set to development, staging, or production");
+}
+
+const rawPort = process.env.PORT;
+const parsedPort = parseInt(rawPort, 10);
+if (!rawPort || isNaN(parsedPort) || parsedPort < 1 || parsedPort > 65535 || parsedPort.toString() !== rawPort.trim()) {
+  throw new Error("PORT must be a valid port number");
+}
+
 if (!process.env.JWT_REFRESH_SECRET) {
   console.warn('⚠️  JWT_REFRESH_SECRET not set. Using fallback (UNSAFE for production).');
 }
@@ -99,7 +105,67 @@ console.log("🔗 Connecting to MongoDB...");
 connectDB();
 console.log("✅ connectDB initiated");
 
+// CSP Override Middleware for Admin Pages (Layer 8)
+app.use((req, res, next) => {
+  const adminSegment = process.env.ADMIN_PATH_SEGMENT || 'admin';
+  const path = req.path.toLowerCase();
+  
+  if (path.startsWith('/admin') || (adminSegment && path.includes(adminSegment.toLowerCase()))) {
+    const originalSetHeader = res.setHeader;
+    res.setHeader = function (name, value) {
+      const lowerName = name.toLowerCase();
+      if (
+        lowerName === 'content-security-policy' ||
+        lowerName === 'x-frame-options' ||
+        lowerName === 'x-content-type-options' ||
+        lowerName === 'referrer-policy' ||
+        lowerName === 'permissions-policy' ||
+        lowerName === 'cache-control'
+      ) {
+        return this;
+      }
+      return originalSetHeader.apply(this, arguments);
+    };
+    
+    originalSetHeader.call(res, 'Content-Security-Policy', 
+      `default-src 'self'; ` +
+      `script-src 'self'; ` +
+      `style-src 'self' 'unsafe-inline'; ` +
+      `img-src 'self' data: https://res.cloudinary.com; ` +
+      `connect-src 'self' ${process.env.VITE_API_URL || ''}; ` +
+      `font-src 'self'; ` +
+      `frame-ancestors 'none'; ` +
+      `form-action 'self'; ` +
+      `base-uri 'self';`
+    );
+    originalSetHeader.call(res, 'X-Frame-Options', 'DENY');
+    originalSetHeader.call(res, 'X-Content-Type-Options', 'nosniff');
+    originalSetHeader.call(res, 'Referrer-Policy', 'no-referrer');
+    originalSetHeader.call(res, 'Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    originalSetHeader.call(res, 'Cache-Control', 'no-store, no-cache, must-revalidate');
+  }
+  next();
+});
+
+// Old path interceptor (Layer 3)
+app.use((req, res, next) => {
+  const forbiddenPaths = [
+    '/admin/login',
+    '/admin',
+    '/admin/dashboard',
+    '/wp-admin'
+  ];
+  const normalizedPath = req.path.replace(/\/+$/, '');
+  if (forbiddenPaths.includes(normalizedPath)) {
+    res.status(404);
+    return next(new Error(`Not Found - ${req.originalUrl}`));
+  }
+  next();
+});
+
 // ================= SECURITY =================
+
+// Helmet - enterprise-grade security headers
 
 // Helmet - enterprise-grade security headers
 app.use(helmet({
@@ -255,6 +321,8 @@ app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+import customerRoutes from './routes/customerRoutes.js';
+app.use('/api/customer', customerRoutes);
 import adminReportingRoutes from './routes/adminReportingRoutes.js';
 import adminControlsRoutes from './routes/adminControlsRoutes.js';
 import adminAlertRoutes from './routes/adminAlertRoutes.js';
@@ -277,12 +345,105 @@ app.use('/api/marketing', marketingRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
+// ================= PUBLIC DELIVERY RATES =================
+app.get('/api/delivery-rates', async (req, res) => {
+  try {
+    const Settings = (await import('./models/Settings.js')).default;
+    const settings = await Settings.getSettings();
+    res.json({
+      success: true,
+      data: settings.deliveryRates || []
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ================= HEALTH =================
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    db: 'connected'
-  });
+app.get('/api/health', async (req, res) => {
+  const healthStatus = {
+    status: 'healthy',
+    timestamp: new Date(),
+    services: {
+      mongodb: { status: 'healthy', latencyMs: 0 },
+      redis: { status: 'healthy', latencyMs: 0 },
+      queues: { status: 'healthy', latencyMs: 0 },
+      cloudinary: { status: 'healthy', latencyMs: 0 }
+    }
+  };
+
+  let hasError = false;
+
+  // 1. MongoDB check
+  const mongoStart = Date.now();
+  try {
+    const mongoose = (await import('mongoose')).default;
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.db.admin().ping();
+      healthStatus.services.mongodb.latencyMs = Date.now() - mongoStart;
+    } else {
+      throw new Error(`Connection status is ${mongoose.connection.readyState}`);
+    }
+  } catch (err) {
+    hasError = true;
+    healthStatus.services.mongodb.status = 'unhealthy';
+    healthStatus.services.mongodb.error = err.message;
+  }
+
+  // 2. Redis check
+  const redisStart = Date.now();
+  try {
+    const { redisClient, isRedisConnected } = await import('./lib/redis.js');
+    if (redisClient && isRedisConnected) {
+      await redisClient.ping();
+      healthStatus.services.redis.latencyMs = Date.now() - redisStart;
+    } else {
+      throw new Error('Redis client not connected');
+    }
+  } catch (err) {
+    hasError = true;
+    healthStatus.services.redis.status = 'unhealthy';
+    healthStatus.services.redis.error = err.message;
+  }
+
+  // 3. Queue check
+  const queueStart = Date.now();
+  try {
+    const { emailQueue } = await import('./queues/index.js');
+    if (emailQueue) {
+      await emailQueue.getJobCounts();
+      healthStatus.services.queues.latencyMs = Date.now() - queueStart;
+    } else {
+      throw new Error('BullMQ queues not initialized');
+    }
+  } catch (err) {
+    hasError = true;
+    healthStatus.services.queues.status = 'unhealthy';
+    healthStatus.services.queues.error = err.message;
+  }
+
+  // 4. Cloudinary check
+  const cloudinaryStart = Date.now();
+  try {
+    const cloudinary = (await import('./config/cloudinary.js')).default;
+    if (cloudinary && cloudinary.config().api_key) {
+      await cloudinary.api.ping();
+      healthStatus.services.cloudinary.latencyMs = Date.now() - cloudinaryStart;
+    } else {
+      throw new Error('Cloudinary not configured');
+    }
+  } catch (err) {
+    // Cloudinary warning but doesn't necessarily fail critical app boot
+    healthStatus.services.cloudinary.status = 'unhealthy';
+    healthStatus.services.cloudinary.error = err.message;
+  }
+
+  if (hasError) {
+    healthStatus.status = 'unhealthy';
+    return res.status(503).json(healthStatus);
+  }
+
+  res.json(healthStatus);
 });
 
 // ================= ERROR =================
@@ -297,22 +458,5 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
 
   app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    // Boot up automated system-wide background jobs (Cleanups, Fraud scans, Payment Reconciliations)
-    startCronJobs();
-    
-    // Boot up BullMQ asynchronous workers only if Redis is active
-    if (redisClient && (isRedisConnected || process.env.NODE_ENV === 'production')) {
-      try {
-        startEmailWorker();
-        startSubscriptionWorker();
-        startRetryWorker();
-        startDlqWorker();
-        console.log('✅ [BullMQ] All background workers started successfully (Email • Subscription • STK Retry • Callback DLQ)!');
-      } catch (workerErr) {
-        console.error('❌ [BullMQ] Failed to start background workers:', workerErr.message);
-      }
-    } else {
-      console.warn('⚠️  [BullMQ] Redis is offline. Asynchronous workers will not be started.');
-    }
   });
 }

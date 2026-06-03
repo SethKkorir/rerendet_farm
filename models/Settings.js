@@ -143,6 +143,7 @@ const settingsSchema = new mongoose.Schema({
     refundPolicy: { type: String, default: '' },
     shippingPolicy: { type: String, default: '' }
   },
+  cancellationFeeKES: { type: Number, default: 200 },
 
   // Features toggle
   features: {
@@ -175,7 +176,17 @@ const settingsSchema = new mongoose.Schema({
         timestamp: { type: Date, default: Date.now }
       }
     ]
-  }
+  },
+  
+  // Custom delivery rates
+  deliveryRates: [
+    {
+      region: { type: String, required: true },
+      displayName: { type: String, required: true },
+      feeKES: { type: Number, required: true },
+      estimatedDays: { type: Number, required: true }
+    }
+  ]
 
 }, {
   timestamps: true
@@ -208,6 +219,17 @@ settingsSchema.statics.getSettings = async function () {
 
   if (!settings.countyShipping || settings.countyShipping.length === 0) {
     settings.countyShipping = COUNTIES.map(c => ({ county: c, price: 500 }));
+    await settings.save();
+  }
+
+  if (!settings.deliveryRates || settings.deliveryRates.length === 0) {
+    settings.deliveryRates = [
+      { region: 'Nairobi', displayName: 'Nairobi Same-Day', feeKES: 150, estimatedDays: 1 },
+      { region: 'Kiambu', displayName: 'Kiambu Next-Day', feeKES: 200, estimatedDays: 1 },
+      { region: 'Mombasa', displayName: 'Mombasa Courier', feeKES: 400, estimatedDays: 3 },
+      { region: 'Kisumu', displayName: 'Kisumu Courier', feeKES: 400, estimatedDays: 3 },
+      { region: 'Other', displayName: 'Other Regions Courier', feeKES: 500, estimatedDays: 5 }
+    ];
     await settings.save();
   }
 

@@ -4,6 +4,7 @@ import moment from 'moment';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import Category from '../models/Category.js';
 import Contact from '../models/Contact.js';
 import Settings from '../models/Settings.js';
 import { logActivity } from '../utils/activityLogger.js';
@@ -16,6 +17,7 @@ import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { invalidateCatalog, redisClient, isRedisConnected } from '../config/redis.js';
 import { emailQueue, subscriptionQueue, retryQueue } from '../queues/index.js';
+import SystemHealthLog from '../models/SystemHealthLog.js';
 // Optimization: Simple in-memory cache for dashboard stats
 let statsCache = {
   data: null,
@@ -384,7 +386,16 @@ const getProducts = asyncHandler(async (req, res) => {
   let filter = { isActive: true };
 
   if (category && category !== 'all') {
-    filter.category = category;
+    if (mongoose.Types.ObjectId.isValid(category)) {
+      filter.categoryId = category;
+    } else {
+      const cat = await Category.findOne({ slug: category });
+      if (cat) {
+        filter.categoryId = cat._id;
+      } else {
+        filter.categoryId = new mongoose.Types.ObjectId();
+      }
+    }
   }
 
   if (search) {
@@ -399,18 +410,19 @@ const getProducts = asyncHandler(async (req, res) => {
   }
 
   const products = await Product.find(filter)
+    .populate('categoryId')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
 
   const total = await Product.countDocuments(filter);
-  const categories = await Product.distinct('category', { isActive: true });
+  const categories = await Category.find({ isDeleted: { $ne: true } });
 
   res.json({
     success: true,
     data: {
       products,
-      categories,
+      categories: categories.map(c => c.slug),
       pagination: {
         current: parseInt(page),
         pages: Math.ceil(total / limit),
@@ -442,6 +454,8 @@ const createProduct = asyncHandler(async (req, res) => {
     description,
     sizes,
     category,
+    categoryId,
+    categoryAttributes,
     roastLevel,
     origin,
     flavorNotes,
@@ -455,9 +469,64 @@ const createProduct = asyncHandler(async (req, res) => {
   } = requestBody;
 
   // Validate required fields
-  if (!name || !description || !sizes || !category) {
+  if (!name || !description || !sizes) {
     res.status(400);
-    throw new Error('Please fill in all required fields: name, description, sizes, category');
+    throw new Error('Please fill in all required fields: name, description, sizes');
+  }
+
+  let targetCategoryId = categoryId;
+  if (!targetCategoryId && category) {
+    const foundCategory = await Category.findOne({
+      $or: [
+        { slug: category },
+        { name: new RegExp('^' + category + '$', 'i') }
+      ]
+    });
+    if (foundCategory) {
+      targetCategoryId = foundCategory._id.toString();
+    }
+  }
+
+  if (!targetCategoryId) {
+    res.status(400);
+    throw new Error('Category ID is required');
+  }
+
+  const dbCategory = await Category.findById(targetCategoryId);
+  if (!dbCategory) {
+    res.status(404);
+    throw new Error('Category not found');
+  }
+
+  let parsedCategoryAttributes = {};
+  if (categoryAttributes) {
+    try {
+      if (typeof categoryAttributes === 'string') {
+        parsedCategoryAttributes = JSON.parse(categoryAttributes);
+      } else if (typeof categoryAttributes === 'object') {
+        parsedCategoryAttributes = categoryAttributes;
+      }
+    } catch (e) {
+      res.status(400);
+      throw new Error('Invalid categoryAttributes format');
+    }
+  }
+
+  // Validate required properties in category's attributeSchema
+  const missingAttributes = [];
+  for (const attr of dbCategory.attributeSchema) {
+    const val = parsedCategoryAttributes[attr.key];
+    if (attr.required && (val === undefined || val === null || val === '')) {
+      missingAttributes.push(attr.label || attr.key);
+    }
+  }
+
+  if (missingAttributes.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
+      missingAttributes
+    });
   }
 
   // Parse sizes - handle both string and array formats
@@ -568,9 +637,10 @@ const createProduct = asyncHandler(async (req, res) => {
     description: description.toString().trim(),
     sizes: validatedSizes,
     images: images.filter(img => img.url),
-    category: category.toString(),
-    roastLevel: category === 'coffee-beans' ? (roastLevel?.toString() || 'medium') : undefined,
-    origin: origin?.toString().trim() || '',
+    categoryId: dbCategory._id,
+    categoryAttributes: parsedCategoryAttributes,
+    roastLevel: roastLevel?.toString() || parsedCategoryAttributes['roastLevel']?.toString() || undefined,
+    origin: origin?.toString().trim() || parsedCategoryAttributes['origin']?.toString().trim() || '',
     flavorNotes: parsedFlavorNotes,
     badge: badge?.toString().trim() || '',
     material: material?.toString().trim() || undefined,
@@ -651,6 +721,8 @@ const updateProduct = asyncHandler(async (req, res) => {
     description,
     sizes,
     category,
+    categoryId,
+    categoryAttributes,
     roastLevel,
     origin,
     flavorNotes,
@@ -666,16 +738,78 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   if (name !== undefined) product.name = name.toString().trim();
   if (description !== undefined) product.description = description.toString().trim();
-  if (category !== undefined) product.category = category.toString();
+
+  let activeCategoryId = categoryId || product.categoryId;
+  if (!categoryId && category) {
+    const foundCategory = await Category.findOne({
+      $or: [
+        { slug: category },
+        { name: new RegExp('^' + category + '$', 'i') }
+      ]
+    });
+    if (foundCategory) {
+      activeCategoryId = foundCategory._id;
+    }
+  }
+
+  if (activeCategoryId) {
+    const dbCategory = await Category.findById(activeCategoryId);
+    if (!dbCategory) {
+      res.status(404);
+      throw new Error('Category not found');
+    }
+
+    product.categoryId = dbCategory._id;
+
+    let parsedCategoryAttributes = product.categoryAttributes ? Object.fromEntries(product.categoryAttributes) : {};
+    if (categoryAttributes !== undefined) {
+      try {
+        if (typeof categoryAttributes === 'string') {
+          parsedCategoryAttributes = JSON.parse(categoryAttributes);
+        } else if (typeof categoryAttributes === 'object') {
+          parsedCategoryAttributes = categoryAttributes;
+        }
+      } catch (e) {
+        res.status(400);
+        throw new Error('Invalid categoryAttributes format');
+      }
+    }
+
+    // Validate attributes
+    const missingAttributes = [];
+    for (const attr of dbCategory.attributeSchema) {
+      const val = parsedCategoryAttributes[attr.key];
+      if (attr.required && (val === undefined || val === null || val === '')) {
+        missingAttributes.push(attr.label || attr.key);
+      }
+    }
+
+    if (missingAttributes.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
+        missingAttributes
+      });
+    }
+
+    product.categoryAttributes = parsedCategoryAttributes;
+  }
+
   if (material !== undefined) product.material = material?.toString().trim() || undefined;
   if (brand !== undefined) product.brand = brand?.toString().trim() || undefined;
   if (capacity !== undefined) product.capacity = capacity?.toString().trim() || undefined;
 
-  if (roastLevel !== undefined && category === 'coffee-beans') {
+  if (roastLevel !== undefined) {
     product.roastLevel = roastLevel.toString();
+  } else if (product.categoryAttributes && product.categoryAttributes.get('roastLevel')) {
+    product.roastLevel = product.categoryAttributes.get('roastLevel').toString();
   }
 
-  if (origin !== undefined) product.origin = origin.toString().trim();
+  if (origin !== undefined) {
+    product.origin = origin.toString().trim();
+  } else if (product.categoryAttributes && product.categoryAttributes.get('origin')) {
+    product.origin = product.categoryAttributes.get('origin').toString().trim();
+  }
   if (badge !== undefined) product.badge = badge.toString().trim();
 
   if (isFeatured !== undefined) {
@@ -1525,6 +1659,9 @@ const replyContact = asyncHandler(async (req, res) => {
   contact.status = 'replied';
   contact.adminResponse = message;
   contact.respondedAt = new Date();
+  if (!contact.firstAdminReplyAt) {
+    contact.firstAdminReplyAt = new Date();
+  }
   await contact.save();
 
   logActivity(req, 'REPLY_CONTACT', contact.subject, contact._id, { to: contact.email });
@@ -2425,6 +2562,55 @@ const getSystemHealth = asyncHandler(async (req, res) => {
   const memoryUsage = process.memoryUsage();
   const uptime = process.uptime();
 
+  // 5. Uptime aggregates from SystemHealthLog (last 24 hours)
+  let uptimeStats = {
+    totalChecks: 0,
+    healthyChecks: 0,
+    uptimePercent: 100,
+    last24hAvgLatency: { mongodb: 0, redis: 0, queues: 0 },
+    recentLogs: []
+  };
+
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [totalChecks, healthyChecks, avgLatencyResult, recentLogs] = await Promise.all([
+      SystemHealthLog.countDocuments({ timestamp: { $gte: twentyFourHoursAgo } }),
+      SystemHealthLog.countDocuments({ timestamp: { $gte: twentyFourHoursAgo }, status: 'healthy' }),
+      SystemHealthLog.aggregate([
+        { $match: { timestamp: { $gte: twentyFourHoursAgo } } },
+        {
+          $group: {
+            _id: null,
+            avgMongoLatency: { $avg: '$services.mongodb.latencyMs' },
+            avgRedisLatency: { $avg: '$services.redis.latencyMs' },
+            avgQueuesLatency: { $avg: '$services.queues.latencyMs' }
+          }
+        }
+      ]),
+      SystemHealthLog.find()
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .lean()
+    ]);
+
+    const latencyAgg = avgLatencyResult[0] || {};
+
+    uptimeStats = {
+      totalChecks,
+      healthyChecks,
+      uptimePercent: totalChecks > 0 ? Math.round((healthyChecks / totalChecks) * 10000) / 100 : 100,
+      last24hAvgLatency: {
+        mongodb: Math.round(latencyAgg.avgMongoLatency || 0),
+        redis: Math.round(latencyAgg.avgRedisLatency || 0),
+        queues: Math.round(latencyAgg.avgQueuesLatency || 0)
+      },
+      recentLogs
+    };
+  } catch (err) {
+    console.error('Failed to query SystemHealthLog aggregates:', err.message);
+  }
+
   res.json({
     success: true,
     data: {
@@ -2440,7 +2626,8 @@ const getSystemHealth = asyncHandler(async (req, res) => {
         memoryRssMb: Math.round(memoryUsage.rss / (1024 * 1024)),
         memoryHeapUsedMb: Math.round(memoryUsage.heapUsed / (1024 * 1024)),
         nodeVersion: process.version
-      }
+      },
+      uptimeStats
     }
   });
 });

@@ -21,9 +21,12 @@ export const OperationalControlsHardened = () => {
       const data = await res.json();
       if (data.success) {
         setControls(data.data);
+      } else {
+        setControls(null);
       }
     } catch (err) {
       console.error('Failed to load operational controls:', err);
+      setControls(null);
     } finally {
       setLoading(false);
     }
@@ -81,6 +84,19 @@ export const OperationalControlsHardened = () => {
   };
 
   if (loading) return <div style={{ padding: '2rem', color: '#e4e4e7' }}>Querying active system gates...</div>;
+
+  if (!controls) {
+    return (
+      <div className="operational-controls-page" style={{ padding: '2rem', color: '#e4e4e7', background: '#09090b', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#18181b', border: '1px solid #ef4444', padding: '2.5rem', borderRadius: '12px', textAlign: 'center', maxWidth: '450px' }}>
+          <h3 style={{ color: '#ef4444', marginBottom: '1rem' }}>⚠️ Access Denied</h3>
+          <p style={{ color: '#a1a1aa', fontSize: '0.95rem', lineHeight: '1.5' }}>
+            You do not have the required permissions to view or modify operational system overrides. This panel is restricted to Administrators with the <code>settings.manage</code> scope.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="operational-controls-page" style={{ padding: '2rem', color: '#e4e4e7', background: '#09090b', minHeight: '100vh' }}>

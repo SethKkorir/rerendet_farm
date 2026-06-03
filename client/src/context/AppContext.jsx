@@ -601,7 +601,7 @@ export function AppProvider({ children }) {
   const verifyAdmin2FA = useCallback(async (email, code) => {
     setLoading(true);
     try {
-      const response = await API.post('/auth/admin/verify-2fa', { email, code });
+      const response = await API.post(`/auth/${import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin'}/verify-2fa`, { email, code });
       const { user: userData, token: authToken } = response.data.data;
 
       if (!validateToken(authToken)) throw new Error('Invalid token received');

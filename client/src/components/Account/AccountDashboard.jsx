@@ -99,6 +99,65 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
         </div>
       )}
 
+      {/* Running Low Streak Banner */}
+      {(() => {
+        if (!user.lastReorderDate) return null;
+        const avg = user.reorderAverageDays || 30;
+        const lastDate = new Date(user.lastReorderDate);
+        const nextDeadline = new Date(lastDate.getTime() + avg * 24 * 60 * 60 * 1000);
+        const diffMs = nextDeadline - new Date();
+        const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        
+        if (daysLeft <= 2 && user.reorderStreak > 0) {
+          return (
+            <div className="noir-alert-banner running-low-banner" style={{ background: '#3b2520', borderColor: '#5c3e35', color: '#fff', marginBottom: '20px' }} onClick={() => window.location.href = '/products'}>
+              <div className="alert-icon-box" style={{ background: '#5c3e35', color: '#f5efe6' }}>☕</div>
+              <div className="alert-content">
+                <span className="alert-title" style={{ color: '#f5efe6', fontWeight: 'bold' }}>Running low on coffee?</span>
+                <span className="alert-desc" style={{ color: '#dcd3c9' }}>
+                  Place your next order in the next {daysLeft} {daysLeft === 1 ? 'day' : 'days'} to preserve your <strong>{user.reorderStreak}-order reorder streak</strong>!
+                </span>
+              </div>
+              <FaChevronRight className="alert-chevron" style={{ color: '#f5efe6' }} />
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Streak Milestone Progress Card */}
+      {user.reorderStreak > 0 && user.lastReorderDate && (
+        <div className="noir-section-card streak-card" style={{ marginBottom: '20px', padding: '15px' }}>
+          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🔥 Streak: {user.reorderStreak} {user.reorderStreak === 1 ? 'Order' : 'Orders'}
+            </h3>
+            <span style={{ fontSize: '0.85rem', color: '#a08a75' }}>
+              Avg interval: {user.reorderAverageDays || 30} days
+            </span>
+          </div>
+          {(() => {
+            const avg = user.reorderAverageDays || 30;
+            const lastDate = new Date(user.lastReorderDate);
+            const nextDeadline = new Date(lastDate.getTime() + avg * 24 * 60 * 60 * 1000);
+            const diffMs = nextDeadline - new Date();
+            const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+            const progressPercent = Math.max(0, Math.min(100, (daysLeft / avg) * 100));
+            return (
+              <div style={{ marginTop: '10px' }}>
+                <div style={{ background: '#25211e', borderRadius: '4px', height: '8px', overflow: 'hidden', margin: '5px 0' }}>
+                  <div style={{ background: '#d4af37', height: '100%', width: `${progressPercent}%`, transition: 'width 0.4s ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#a08a75' }}>
+                  <span>Last ordered: {new Date(user.lastReorderDate).toLocaleDateString()}</span>
+                  <span>{daysLeft} days left to save streak</span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Active Order Snapshot */}
       {activeOrder && (
         <div className="noir-active-order" onClick={() => onNavigate('orders')}>

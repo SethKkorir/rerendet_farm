@@ -1,18 +1,11 @@
-// routes/checkout.js
-const express = require('express');
+import express from 'express';
+import { protect } from '../middleware/authMiddleware.js';
+import { createOrder, getUserOrders } from '../controllers/checkoutController.js';
+
 const router = express.Router();
-const { protect } = require('../middleware/auth');
-const {
-  createOrder,
-  getUserOrders,
-  getOrderById
-} = require('../controllers/checkoutController');
 
 router.route('/')
   .post(protect, createOrder)
   .get(protect, getUserOrders);
 
-router.route('/:id')
-  .get(protect, getOrderById);
-
-module.exports = router;
+export default router;

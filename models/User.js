@@ -51,6 +51,28 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  reorderStreak: {
+    type: Number,
+    default: 0
+  },
+  lastOrderDate: {
+    type: Date
+  },
+  streakBonusMultiplier: {
+    type: Number,
+    default: 1.0
+  },
+  pointsExpiryDate: {
+    type: Date
+  },
+  averageReorderDays: {
+    type: Number,
+    default: null
+  },
+  storeCreditBalance: {
+    type: Number,
+    default: 0
+  },
   role: {
     type: String,
     enum: ['customer', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff', 'admin'],
@@ -91,7 +113,7 @@ const userSchema = new mongoose.Schema({
   resetPasswordExpires: { type: Date, select: false },
   loginAttempts: { type: Number, default: 0, select: false },
   lockUntil: { type: Date, select: false },
-  passwordChangedAt: Date,
+  passwordChangedAt: { type: Date, default: null },
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: { type: String, select: false },
   twoFactorBackupCodes: { type: [String], select: false },
@@ -120,6 +142,7 @@ const userSchema = new mongoose.Schema({
     zip: String,
     country: String,
     deliveryOption: String,
+    landmark: String,
     additionalAddresses: { type: Array, default: [] }
   },
 

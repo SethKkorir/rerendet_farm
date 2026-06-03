@@ -1,7 +1,7 @@
-// server/scripts/seedProducts.js
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Product from '../models/Product.js';
+import Category from '../models/Category.js';
 
 // Load environment variables
 dotenv.config();
@@ -127,12 +127,36 @@ const seedProducts = async () => {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('✅ Connected to MongoDB');
 
+    // Seed categories first
+    await Category.seedCategories();
+
+    // Fetch the seeded Coffee category
+    const coffeeCategory = await Category.findOne({ name: 'Coffee' });
+    if (!coffeeCategory) {
+      throw new Error('Coffee category was not seeded successfully.');
+    }
+
     // Clear existing products
     await Product.deleteMany({});
     console.log('🗑️  Cleared existing products');
 
+    // Update sample products with categoryId and categoryAttributes
+    const processedProducts = sampleProducts.map(p => {
+      const { category, roastLevel, origin, ...rest } = p;
+      return {
+        ...rest,
+        categoryId: coffeeCategory._id,
+        categoryAttributes: {
+          roastLevel: roastLevel || 'medium',
+          origin: origin || ''
+        },
+        roastLevel: roastLevel || 'medium',
+        origin: origin || ''
+      };
+    });
+
     // Insert sample products
-    const createdProducts = await Product.insertMany(sampleProducts);
+    const createdProducts = await Product.insertMany(processedProducts);
     console.log(`✅ ${createdProducts.length} sample products inserted successfully`);
 
     // Display created products

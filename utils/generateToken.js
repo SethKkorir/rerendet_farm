@@ -1,6 +1,11 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import {
+  REFRESH_TOKEN_EXPIRY_SECONDS,
+  REFRESH_TOKEN_EXPIRY_JWT,
+  ACCESS_TOKEN_EXPIRY_JWT
+} from '../config/tokenConfig.js';
 
 dotenv.config();
 
@@ -40,7 +45,17 @@ export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '
     tokenVersion = arg2 || 0;
   }
 
-  const payload = { userId, role, tokenVersion, email, firstName, lastName, type: 'access', twoFactorEnabled: !!twoFactorEnabled };
+  const payload = { 
+    userId, 
+    role, 
+    tokenVersion, 
+    email, 
+    firstName, 
+    lastName, 
+    type: 'access', 
+    stage: 'authenticated', 
+    twoFactorEnabled: !!twoFactorEnabled 
+  };
   
   if (jti) {
     payload.jti = jti;
@@ -53,7 +68,7 @@ export const generateAccessToken = (userId, arg2, arg3, arg4, arg5, arg6, ip = '
   return jwt.sign(
     payload,
     ACCESS_TOKEN_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: ACCESS_TOKEN_EXPIRY_JWT }
   );
 };
 
@@ -68,7 +83,7 @@ export const generateRefreshToken = (userId, tokenVersion = 0, jti = crypto.rand
   return jwt.sign(
     payload,
     REFRESH_TOKEN_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: REFRESH_TOKEN_EXPIRY_JWT }
   );
 };
 
@@ -105,11 +120,15 @@ export const clearTokenCookie = (res) => {
 
 // ── Set Refresh Token as HttpOnly Cookie ─────────────────────────────────────
 export const setRefreshTokenCookie = (res, refreshToken) => {
+  const cookieExpireDays = process.env.JWT_COOKIE_EXPIRE;
+  if (cookieExpireDays === undefined || isNaN(Number(cookieExpireDays))) {
+    throw new Error("JWT_COOKIE_EXPIRE environment variable is not set");
+  }
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,          // JS cannot read this — XSS-proof
     secure: process.env.NODE_ENV === 'production', // Enforce secure/HTTPS-only in production
     sameSite: 'strict',      // No cross-site requests
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+    maxAge: Number(cookieExpireDays) * 24 * 60 * 60 * 1000,
     path: '/' // Global route access for logout and refresh endpoint
   });
 };

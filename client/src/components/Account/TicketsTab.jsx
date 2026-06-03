@@ -220,9 +220,9 @@ const TicketsTab = () => {
                     <span className="ticket-date-tag">
                       Opened on {new Date(ticket.createdAt).toLocaleDateString()}
                     </span>
-                    {ticket.order && (
+                    {(ticket.order || ticket.linkedOrderId || ticket.orderSnapshot) && (
                       <span className="ticket-order-tag">
-                        <FaTag /> Order #{ticket.order.orderNumber}
+                        <FaTag /> Order #{(ticket.order?.orderNumber || ticket.linkedOrderId?.orderNumber || ticket.orderSnapshot?.orderNumber || 'Attached')}
                       </span>
                     )}
                   </div>

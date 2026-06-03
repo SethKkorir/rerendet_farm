@@ -274,7 +274,8 @@ const getPublicSettings = asyncHandler(async (req, res) => {
         currencySymbol: settings.payment.currencySymbol,
         freeShippingThreshold: settings.payment.freeShippingThreshold,
         shippingPrice: settings.payment.shippingPrice,
-        paymentMethods: settings.payment.paymentMethods
+        paymentMethods: settings.payment.paymentMethods,
+        countyShipping: settings.countyShipping
       },
       seo: settings.seo,
       policies: settings.policies,

@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
+import Settings from '../models/Settings.js';
 import { calculateShipping } from '../utils/shippingCalculator.js';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,23 +34,11 @@ const createOrder = asyncHandler(async (req, res) => {
       notes,
       couponCode,
       isSubscription,
-      subscriptionFrequency
+      subscriptionFrequency,
+      useStoreCredit
     } = req.body;
 
     const userId = req.user._id;
-
-    // ✅ RELAXED SECURITY: Allow Admins to place orders for testing flow
-    /*
-    if (req.user.userType === 'admin' || req.user.role === 'admin' || req.user.role === 'super-admin') {
-      console.warn('🚫 Admin attempted to create order:', req.user.email);
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(403).json({
-        success: false,
-        message: 'Administrators are not allowed to place orders. Please use a regular customer account.'
-      });
-    }
-    */
 
     console.log('🛒 Creating order for user:', userId);
     console.log('📦 Order items:', items?.length);
@@ -87,6 +76,16 @@ const createOrder = asyncHandler(async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Valid email and phone number are required'
+      });
+    }
+
+    // Check landmark requirement
+    if (!sanitizedAddress.landmark || !sanitizedAddress.landmark.trim()) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({
+        success: false,
+        message: 'Landmark or delivery instructions are required.'
       });
     }
 
@@ -160,7 +159,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // ✅ DISCOUNT LOGIC
     let discount = 0;
     if (couponCode) {
-      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true }).session(session);
       if (coupon && coupon.isValid() && calculatedSubtotal >= coupon.minOrderAmount) {
         if (coupon.discountType === 'percentage') {
           discount = sanitizeAmount(calculatedSubtotal * (coupon.discountAmount / 100));
@@ -184,33 +183,38 @@ const createOrder = asyncHandler(async (req, res) => {
     const taxableAmount = Math.max(0, finalSubtotal - discount);
     const finalTax = 0; // No VAT — tax disabled
     const calculatedTotal = sanitizeAmount(taxableAmount + finalShippingCost);
+
+    // Apply Store Credit if requested
+    const userObj = await User.findById(userId).session(session);
+    let storeCreditApplied = 0;
+    if (useStoreCredit && userObj && userObj.storeCreditBalance > 0) {
+      storeCreditApplied = Math.min(userObj.storeCreditBalance, calculatedTotal);
+    }
+    const finalTotalAfterCredit = sanitizeAmount(calculatedTotal - storeCreditApplied);
+
     const clientTotal = sanitizeAmount(totalAmount);
 
     console.log('💰 Validating order amounts:', {
       itemsSubtotal: calculatedSubtotal,
       discount: discount,
       shipping: finalShippingCost,
-      total: calculatedTotal
+      storeCreditApplied,
+      totalBeforeCredit: calculatedTotal,
+      totalAfterCredit: finalTotalAfterCredit
     });
 
     // Prevent price manipulation (tolerance: KES 2)
-    if (Math.abs(calculatedTotal - clientTotal) > 2.0) {
+    if (Math.abs(finalTotalAfterCredit - clientTotal) > 2.0) {
       await session.abortTransaction();
       session.endSession();
-      console.warn(`⚠️ Price mismatch: Client=${clientTotal}, Server=${calculatedTotal}, Discount=${discount}`);
+      console.warn(`⚠️ Price mismatch: Client=${clientTotal}, Server=${finalTotalAfterCredit}, Discount=${discount}, StoreCreditApplied=${storeCreditApplied}`);
       return res.status(400).json({
         success: false,
         message: 'Order amount validation failed. Please refresh your cart.'
       });
     }
 
-    const finalTotal = calculatedTotal;
-
-    console.log('✅ Order amounts validated:', {
-      subtotal: finalSubtotal,
-      shipping: finalShippingCost,
-      total: finalTotal
-    });
+    const finalTotal = finalTotalAfterCredit;
 
     // Create order with granular status
     const order = new Order({
@@ -226,7 +230,8 @@ const createOrder = asyncHandler(async (req, res) => {
         city: sanitizedAddress.city,
         county: sanitizedAddress.county,
         country: sanitizedAddress.country || 'Kenya',
-        postalCode: sanitizedAddress.postalCode || ''
+        postalCode: sanitizedAddress.postalCode || '',
+        landmark: sanitizedAddress.landmark
       },
       subtotal: finalSubtotal,
       shippingCost: finalShippingCost,
@@ -236,6 +241,7 @@ const createOrder = asyncHandler(async (req, res) => {
       couponCode: couponCode ? couponCode.toUpperCase() : undefined,
       isSubscription: isSubscription || false,
       subscriptionFrequency: subscriptionFrequency,
+      storeCreditApplied: storeCreditApplied,
 
       // Metadata
       paymentMethod: paymentMethod,
@@ -243,8 +249,9 @@ const createOrder = asyncHandler(async (req, res) => {
 
       // === NEW LIFECYCLE STATE ===
       orderStatus: 'open', // Default open
-      paymentStatus: 'pending', // Always start as pending regardless of method (except specialized flows)
+      paymentStatus: finalTotal === 0 ? 'paid' : 'pending', // Paid if fully covered by store credit
       fulfillmentStatus: 'unfulfilled',
+      roastStage: 'pending',
 
       // Initial History
       orderEvents: [
@@ -266,6 +273,51 @@ const createOrder = asyncHandler(async (req, res) => {
     console.log('📝 Saving order to database...');
 
     const savedOrder = await order.save({ session });
+
+    // Deduct Store Credit if applied
+    if (storeCreditApplied > 0 && userObj) {
+      userObj.storeCreditBalance = sanitizeAmount(userObj.storeCreditBalance - storeCreditApplied);
+      await userObj.save({ session });
+
+      const StoreCreditTransaction = (await import('../models/StoreCreditTransaction.js')).default;
+      await StoreCreditTransaction.create([{
+        user: userId,
+        amount: -storeCreditApplied,
+        type: 'purchase',
+        balanceAfter: userObj.storeCreditBalance,
+        description: `Applied store credit to order #${orderNumber}`,
+        order: order._id
+      }], { session });
+    }
+
+    // Update customer reorder streak and average days
+    if (userObj) {
+      const now = new Date();
+      if (userObj.lastReorderDate) {
+        const diffTime = Math.abs(now - new Date(userObj.lastReorderDate));
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        // Update average reorder days
+        if (userObj.reorderAverageDays > 0) {
+          userObj.reorderAverageDays = Math.round((userObj.reorderAverageDays + diffDays) / 2);
+        } else {
+          userObj.reorderAverageDays = diffDays;
+        }
+
+        // Streak logic
+        const threshold = userObj.reorderAverageDays || 30;
+        if (diffDays <= threshold + 2) {
+          userObj.reorderStreak += 1;
+        } else {
+          userObj.reorderStreak = 1;
+        }
+      } else {
+        userObj.reorderStreak = 1;
+        userObj.reorderAverageDays = 0;
+      }
+      userObj.lastReorderDate = now;
+      await userObj.save({ session });
+    }
 
     // ✅ SUBSCRIPTION LOGIC: Create Subscription if requested
     if (isSubscription) {
@@ -292,11 +344,9 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // Update product stock (Atomic Reservation - GAP 2)
     for (const update of stockUpdates) {
-      // Find the product being updated
       const baseProduct = await Product.findById(update.productId).session(session);
 
       if (baseProduct.isBundle) {
-        // Increment reservedStock for kids if it's a bundle
         for (const detail of baseProduct.bundleDetails) {
           const totalToIncrement = detail.quantity * update.quantity;
 
@@ -311,7 +361,6 @@ const createOrder = asyncHandler(async (req, res) => {
           }
         }
       } else {
-        // Standard Atomic Update for single product - increment reservedStock
         const updatedProduct = await Product.findOneAndUpdate(
           { _id: update.productId },
           { $inc: { "inventory.reservedStock": update.quantity } },
@@ -332,8 +381,23 @@ const createOrder = asyncHandler(async (req, res) => {
     // ✅ LOYALTY POINTS: Award 1 point per 100 KES of PRODUCT VALUE (Subtotal)
     try {
       const pointsEarned = Math.floor(finalSubtotal / 100);
-      if (pointsEarned > 0) {
-        await User.findByIdAndUpdate(userId, { $inc: { loyaltyPoints: pointsEarned } }, { session });
+      if (pointsEarned > 0 && userObj) {
+        const updatedUserObj = await User.findByIdAndUpdate(userId, { $inc: { loyaltyPoints: pointsEarned } }, { session, new: true });
+        
+        const LoyaltyTransaction = (await import('../models/LoyaltyTransaction.js')).default;
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 12); // expires in 12 months
+
+        await LoyaltyTransaction.create([{
+          user: userId,
+          points: pointsEarned,
+          type: 'earning',
+          balanceAfter: updatedUserObj.loyaltyPoints,
+          description: `Earned from order #${orderNumber}`,
+          order: savedOrder._id,
+          expiresAt
+        }], { session });
+
         console.log(`✨ Awarded ${pointsEarned} loyalty points to user ${userId}`);
       }
     } catch (loyaltyError) {
@@ -720,6 +784,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       throw new Error('Tracking number is required when marking an order as shipped.');
     }
 
+    const previousFulfillmentStatus = order.fulfillmentStatus;
     order.fulfillmentStatus = fulfillmentStatus;
     const fulfillmentLabel = STATUS_LABELS[fulfillmentStatus] || fulfillmentStatus;
     changes.push(`Fulfillment status updated to ${fulfillmentLabel}`);
@@ -730,6 +795,77 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       note: `Fulfillment status changed to ${fulfillmentLabel} by admin`,
       user: req.user._id
     });
+
+    // Award loyalty points and update streak if marked delivered
+    if (fulfillmentStatus === 'delivered' && previousFulfillmentStatus !== 'delivered') {
+      const User = (await import('../models/User.js')).default;
+      const user = await User.findById(order.user);
+      if (user) {
+        let streak = user.reorderStreak || 0;
+        let multiplier = user.streakBonusMultiplier || 1.0;
+        const lastOrder = user.lastOrderDate;
+        const now = new Date();
+
+        if (lastOrder) {
+          const diffTime = Math.abs(now - new Date(lastOrder));
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (diffDays <= 28) {
+            streak += 1;
+          } else {
+            streak = 1;
+          }
+        } else {
+          streak = 1;
+        }
+
+        multiplier = Math.min(2.0, 1.0 + Math.floor(streak / 3) * 0.1);
+
+        user.reorderStreak = streak;
+        user.streakBonusMultiplier = multiplier;
+        user.lastOrderDate = now;
+        user.pointsExpiryDate = new Date(now.getTime() + 12 * 30 * 24 * 60 * 60 * 1000); // 12 months
+
+        // Compute running average of last 5 delivered orders reorder days
+        const Order = mongoose.model('Order');
+        const deliveredOrders = await Order.find({
+          user: user._id,
+          fulfillmentStatus: 'delivered'
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('createdAt');
+
+        const orderDates = deliveredOrders.map(o => o.createdAt);
+        if (!orderDates.some(d => d.getTime() === order.createdAt.getTime())) {
+          orderDates.unshift(order.createdAt);
+        }
+        const last5Dates = orderDates.slice(0, 5);
+
+        let averageReorderDays = null;
+        if (last5Dates.length >= 2) {
+          let totalDays = 0;
+          for (let i = 0; i < last5Dates.length - 1; i++) {
+            const diffMs = new Date(last5Dates[i]) - new Date(last5Dates[i + 1]);
+            totalDays += diffMs / (1000 * 60 * 60 * 24);
+          }
+          averageReorderDays = totalDays / (last5Dates.length - 1);
+        }
+        user.averageReorderDays = averageReorderDays;
+
+        await user.save();
+
+        const earnedPoints = Math.floor(order.total * 0.05 * multiplier);
+        if (earnedPoints > 0) {
+          const { mutateLoyaltyPoints } = await import('./authController.js');
+          await mutateLoyaltyPoints(
+            user._id,
+            earnedPoints,
+            'earned_order',
+            { orderId: order._id }
+          );
+        }
+      }
+    }
   }
 
   // 3. Update Overall Order Status (Optional, often derived, but allow manual override)
@@ -986,7 +1122,6 @@ const validateCoupon = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Cancel order (Self-service for user before shipping)
 // @route   POST /api/orders/:id/cancel
 // @access  Private
 const cancelOrder = asyncHandler(async (req, res) => {
@@ -997,7 +1132,7 @@ const cancelOrder = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 
-  // Ensure user owns order
+  // Ensure user owns order or is admin
   if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
     res.status(403);
     throw new Error('Not authorized to cancel this order');
@@ -1008,31 +1143,208 @@ const cancelOrder = asyncHandler(async (req, res) => {
     throw new Error('Order is already cancelled');
   }
 
-  // Strictly enforce cancellation ONLY before shipping or packed statuses
-  if (['packed', 'shipped', 'delivered', 'returned'].includes(order.fulfillmentStatus)) {
+  // Check condition 1: if status is not confirmed (i.e. not unfulfilled)
+  const isConfirmed = order.fulfillmentStatus === 'unfulfilled';
+  if (!isConfirmed) {
     res.status(400);
-    throw new Error(`Cannot cancel order because fulfillment status is already '${order.fulfillmentStatus}'`);
+    throw new Error('Order cannot be cancelled after processing has begun.');
   }
 
-  // Update order status to cancelled
+  // Validate cancellationReason
+  const { cancellationReason, cancellationNote } = req.body;
+  const allowedReasons = ['changed_mind', 'wrong_size_selected', 'found_better_price', 'payment_issue', 'ordered_by_mistake', 'other'];
+  if (!cancellationReason || !allowedReasons.includes(cancellationReason)) {
+    res.status(400);
+    throw new Error('Valid cancellation reason is required');
+  }
+
+  // Check condition 2: if order was placed more than 30 minutes ago
+  let cancellationFee = 0;
+  let cancellationFeeApplied = false;
+  let cancellationWarning = '';
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  if (order.createdAt < thirtyMinutesAgo) {
+    const settings = await Settings.findOne().select('cancellationFeeKES').lean();
+    cancellationFee = settings?.cancellationFeeKES ?? 200;
+    cancellationFeeApplied = true;
+    cancellationWarning = 'Roasting may have already begun — a cancellation fee may apply.';
+  }
+
+  order.cancellationReason = cancellationReason;
+  order.cancellationNote = cancellationNote || '';
+  order.cancellationFee = cancellationFee;
+  order.cancellationFeeApplied = cancellationFeeApplied;
   order.orderStatus = 'cancelled';
+
   order.orderEvents.push({
     status: 'CANCELLED',
-    note: 'Cancelled by customer (Self-Service Dashboard)',
+    note: `Cancelled by customer. Reason: ${cancellationReason}. Warning: ${cancellationWarning}`,
     user: req.user._id
   });
-  await order.save();
 
-  // Replenish stock atomically by decrementing reservedStock (GAP 2)
-  for (const item of order.items) {
-    await Product.findByIdAndUpdate(item.product, {
-      $inc: { 'inventory.reservedStock': -item.quantity }
-    });
+  const session = await mongoose.startSession();
+  try {
+    session.startTransaction();
+
+    // Refund remaining balance to store credit if order was paid
+    if (order.paymentStatus === 'paid') {
+      const refundAmount = Math.max(0, order.total - cancellationFee);
+      if (refundAmount > 0) {
+        const { mutateStoreCredit } = await import('./authController.js');
+        await mutateStoreCredit(
+          order.user,
+          refundAmount,
+          'earned_refund',
+          { note: `Refund for cancelled order #${order.orderNumber} (minus KSh ${cancellationFee} fee)`, orderId: order._id },
+          session
+        );
+      }
+      order.paymentStatus = 'refunded';
+    }
+
+    // Revert loyalty points earned on this order
+    // Find if user earned points on this order and reverse them
+    const LoyaltyTransaction = (await import('../models/LoyaltyTransaction.js')).default;
+    const earnedTxn = await LoyaltyTransaction.findOne({ orderId: order._id, type: 'earned_order' }).session(session);
+    if (earnedTxn) {
+      const { mutateLoyaltyPoints } = await import('./authController.js');
+      await mutateLoyaltyPoints(
+        order.user,
+        -earnedTxn.points,
+        'reversed_cancellation',
+        { orderId: order._id },
+        session
+      );
+    }
+
+    // If points discount was applied at checkout, refund it (loyalty points spent reversal)
+    const spentTxn = await LoyaltyTransaction.findOne({ orderId: order._id, type: 'spent_redemption' }).session(session);
+    if (spentTxn) {
+      const { mutateLoyaltyPoints } = await import('./authController.js');
+      await mutateLoyaltyPoints(
+        order.user,
+        Math.abs(spentTxn.points),
+        'earned_order', // return points
+        { orderId: order._id },
+        session
+      );
+    }
+
+    // Also refund store credit spent on the order if any (concurrency safe reversal)
+    const StoreCreditTransaction = (await import('../models/StoreCreditTransaction.js')).default;
+    const spentCreditTxn = await StoreCreditTransaction.findOne({ orderId: order._id, type: 'spent_checkout' }).session(session);
+    if (spentCreditTxn) {
+      const { mutateStoreCredit } = await import('./authController.js');
+      await mutateStoreCredit(
+        order.user,
+        Math.abs(spentCreditTxn.amount),
+        'earned_refund',
+        { note: `Reversal of store credit spent on cancelled order #${order.orderNumber}`, orderId: order._id },
+        session
+      );
+    }
+
+    await order.save({ session });
+
+    // Replenish stock atomically by decrementing reservedStock
+    for (const item of order.items) {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: { 'inventory.reservedStock': -item.quantity }
+      }).session(session);
+    }
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
 
   res.json({
     success: true,
-    message: 'Order cancelled successfully and inventory reservations restored',
+    message: 'Order cancelled successfully and transactions reversed',
+    cancellationWarning,
+    data: order
+  });
+});
+
+// @desc    Get order cancellation warning and preview
+// @route   GET /api/orders/:id/cancel-warning
+// @access  Private
+const getCancelOrderWarning = asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  // Ensure user owns order or is admin
+  if (order.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Not authorized to access this order info');
+  }
+
+  let fee = 0;
+  let warning = 'You can cancel this order for a full refund.';
+  if (order.roastStage && order.roastStage !== 'none' && order.roastStage !== 'pending') {
+    const settingsObj = await Settings.findOne().select('cancellationFeeKES').lean();
+    fee = settingsObj?.cancellationFeeKES ?? 200;
+    warning = `Roasting has already started for your order. Cancelling now will incur a KSh ${fee} cancellation fee.`;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      fee,
+      warning,
+      refundableAmount: Math.max(0, order.total - fee)
+    }
+  });
+});
+
+// @desc    Get order aggregates and report info
+// @route   GET /api/orders/reports/aggregates
+// @access  Private/Admin
+const getOrderAggregates = asyncHandler(async (req, res) => {
+  const aggregates = await Order.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalSales: { $sum: '$total' },
+        count: { $sum: 1 },
+        avgOrderValue: { $avg: '$total' }
+      }
+    }
+  ]);
+  res.json({
+    success: true,
+    data: aggregates[0] || { totalSales: 0, count: 0, avgOrderValue: 0 }
+  });
+});
+
+// @desc    Update roast stage of an order
+// @route   PUT /api/orders/:id/roast-stage
+// @access  Private/Admin
+const updateRoastStage = asyncHandler(async (req, res) => {
+  const { roastStage } = req.body;
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  order.roastStage = roastStage;
+  order.orderEvents.push({
+    status: `ROAST_STAGE_${roastStage.toUpperCase()}`,
+    note: `Roast stage transitioned to ${roastStage}`,
+    user: req.user._id
+  });
+  await order.save();
+
+  res.json({
+    success: true,
+    message: `Roast stage updated to ${roastStage}`,
     data: order
   });
 });
@@ -1103,5 +1415,8 @@ export {
   generateOrderInvoice,
   validateCoupon,
   cancelOrder,
+  getCancelOrderWarning,
+  getOrderAggregates,
+  updateRoastStage,
   trackOrderPublic
 };

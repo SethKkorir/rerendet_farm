@@ -531,6 +531,49 @@ const createTicket = asyncHandler(async (req, res) => {
     throw new Error('Please provide subject and message');
   }
 
+  let resolvedOrderId = orderId || null;
+  let resolvedOrderNumber = null;
+
+  // Let's parse order number from subject or message if orderId is not provided
+  if (!resolvedOrderId) {
+    const orderNumRegex = /(?:RND-|RF-|#)?([0-9]{4,10})/i;
+    const match = subject.match(orderNumRegex) || message.match(orderNumRegex);
+    if (match) {
+      resolvedOrderNumber = match[1];
+    }
+  }
+
+  // Look up order in database
+  let orderDoc = null;
+  const Order = (await import('../models/Order.js')).default;
+  if (resolvedOrderId) {
+    orderDoc = await Order.findById(resolvedOrderId);
+  } else if (resolvedOrderNumber) {
+    orderDoc = await Order.findOne({
+      $or: [
+        { orderNumber: resolvedOrderNumber },
+        { orderNumber: `RND-${resolvedOrderNumber}` },
+        { orderNumber: `RF-${resolvedOrderNumber}` }
+      ]
+    });
+  }
+
+  let linkedOrderId = null;
+  let linkedOrderSnapshot = null;
+  if (orderDoc) {
+    linkedOrderId = orderDoc._id;
+    linkedOrderSnapshot = {
+      orderNumber: orderDoc.orderNumber,
+      total: orderDoc.total,
+      fulfillmentStatus: orderDoc.fulfillmentStatus,
+      paymentStatus: orderDoc.paymentStatus,
+      orderStatus: orderDoc.orderStatus,
+      createdAt: orderDoc.createdAt
+    };
+  }
+
+  const slaDeadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
   // Create ticket
   const ticket = await Contact.create({
     user: userId,
@@ -538,7 +581,10 @@ const createTicket = asyncHandler(async (req, res) => {
     email: req.user.email,
     subject,
     message,
-    order: orderId || undefined,
+    order: linkedOrderId || undefined,
+    linkedOrderId,
+    linkedOrderSnapshot,
+    slaDeadline,
     status: 'new'
   });
 

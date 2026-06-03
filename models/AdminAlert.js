@@ -1,7 +1,7 @@
 // models/AdminAlert.js - NEW MONGOOSE MODEL FOR INTENTIONAL TIERED NOTIFICATIONS
 import mongoose from 'mongoose';
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import redisClient from '../lib/redis.js';
 import User from './User.js';
 
 const adminAlertSchema = new mongoose.Schema({
@@ -20,7 +20,9 @@ const adminAlertSchema = new mongoose.Schema({
       'low_stock',
       'unresolved_note',
       'new_order',
-      'new_user'
+      'new_user',
+      'suspicious_login',
+      'dom_tampering'
     ],
     required: true
   },
@@ -65,11 +67,8 @@ adminAlertSchema.index({ createdAt: -1 });
 // Initialize BullMQ Queue if REDIS_URL is configured
 let emailQueue = null;
 try {
-  if (process.env.REDIS_URL || process.env.REDIS_HOST) {
-    const connection = new IORedis(process.env.REDIS_URL || 'redis://127.0.0.1:6379', {
-      maxRetriesPerRequest: null
-    });
-    emailQueue = new Queue('emailQueue', { connection });
+  if (redisClient) {
+    emailQueue = new Queue('emailQueue', { connection: redisClient });
   }
 } catch (err) {
   console.error('⚠️ Could not initialize emailQueue inside AdminAlert model:', err.message);

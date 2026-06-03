@@ -22,6 +22,9 @@ const adminSessionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  country: {
+    type: String
+  },
   isRevoked: {
     type: Boolean,
     default: false

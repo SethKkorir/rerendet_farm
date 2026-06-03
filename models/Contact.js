@@ -42,6 +42,26 @@ const contactSchema = new mongoose.Schema({
   },
   respondedAt: {
     type: Date
+  },
+  linkedOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
+  },
+  linkedOrderSnapshot: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  slaDeadline: {
+    type: Date
+  },
+  slaBreached: {
+    type: Boolean,
+    default: false
+  },
+  firstAdminReplyAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

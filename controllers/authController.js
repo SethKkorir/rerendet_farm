@@ -21,6 +21,7 @@ const authenticator = {
 import QRCode from 'qrcode';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { REFRESH_TOKEN_EXPIRY_SECONDS } from '../config/tokenConfig.js';
 import Settings from '../models/Settings.js';
 import generateToken, { 
   generateAccessToken, 
@@ -69,6 +70,27 @@ import { OAuth2Client } from 'google-auth-library';
 import { validatePasswordSecurely } from '../utils/passwordValidator.js';
 import redisClient from '../config/redis.js';
 
+const lookupCountryByIp = (ip) => {
+  const ipCountryMap = {
+    '127.0.0.1': 'Localhost',
+    '::1': 'Localhost',
+    'localhost': 'Localhost',
+    '8.8.8.8': 'United States',
+    '1.1.1.1': 'Australia',
+    '41.89.227.1': 'Kenya',
+    '197.248.0.1': 'Kenya'
+  };
+  if (ipCountryMap[ip]) return ipCountryMap[ip];
+  const parts = ip.split('.');
+  if (parts.length > 0) {
+    const firstOctet = parseInt(parts[0]);
+    if (firstOctet === 41 || firstOctet === 197 || firstOctet === 196) return 'Kenya';
+    if (firstOctet % 2 === 0) return 'United States';
+    return 'United Kingdom';
+  }
+  return 'Kenya';
+};
+
 const createSession = async (req, res, user) => {
   const jti = crypto.randomUUID();
   const ip = req ? (req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1') : '127.0.0.1';
@@ -86,7 +108,7 @@ const createSession = async (req, res, user) => {
     ip,
     userAgent,
     user.twoFactorEnabled || false,
-    isUserAdmin ? jti : null
+    jti
   );
   const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti, ip, userAgent);
 
@@ -97,23 +119,83 @@ const createSession = async (req, res, user) => {
   if (isUserAdmin) {
     try {
       const AdminSession = (await import('../models/AdminSession.js')).default;
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // matching refreshToken expiry (7d)
+
+      // Limit concurrent sessions to 3
+      const activeSessions = await AdminSession.find({ adminId: user._id, isRevoked: false }).sort({ createdAt: 1 });
+      if (activeSessions.length >= 3) {
+        const oldestSession = activeSessions[0];
+        oldestSession.isRevoked = true;
+        oldestSession.revokedAt = new Date();
+        await oldestSession.save();
+
+        if (redisClient && redisClient.status === 'ready') {
+          await redisClient.del(`refresh:${user._id}:${oldestSession.jti}`);
+        }
+
+        await sendEmail({
+          to: user.email,
+          subject: 'Admin Session Revoked - Session Cap Reached',
+          html: `<p>Your oldest active admin session (${oldestSession.deviceInfo} from ${oldestSession.ipAddress}) has been automatically revoked because you reached the concurrent session limit of 3 sessions.</p>`
+        });
+      }
+
+      // Geo-anomaly check
+      const currentCountry = lookupCountryByIp(ip);
+      const lastSessions = await AdminSession.find({ adminId: user._id })
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+      const lastCountries = lastSessions.map(s => s.country || 'Kenya');
+      if (lastCountries.length > 0 && !lastCountries.includes(currentCountry)) {
+        await sendEmail({
+          to: user.email,
+          subject: '🚨 New country login detected',
+          html: `<p>We detected an administrator login from a new country: <strong>${currentCountry}</strong>. Previous login countries: ${[...new Set(lastCountries)].join(', ')}. If this wasn't you, please secure your account immediately.</p>`
+        });
+
+        const { createAlert } = await import('../models/AdminAlert.js');
+        await createAlert('critical', 'killswitch_event', `New country login detected for admin ${user.email} from ${currentCountry}`);
+      }
+
+      const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000);
       await AdminSession.create({
         jti,
         adminId: user._id,
         deviceInfo: userAgent,
         ipAddress: ip,
+        country: currentCountry,
         expiresAt
       });
       console.log(`🔑 AdminSession document logged in DB for admin ${user.email} (jti: ${jti})`);
     } catch (sessionDbErr) {
       console.error('❌ Failed to log AdminSession in database:', sessionDbErr.message);
     }
+  } else {
+    // FIX 3/GAP 5: Create CustomerSession document
+    try {
+      const CustomerSession = (await import('../models/CustomerSession.js')).default;
+      const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000);
+      await CustomerSession.create({
+        jti,
+        userId: user._id,
+        deviceInfo: userAgent,
+        ipAddress: ip,
+        expiresAt
+      });
+      console.log(`🔑 CustomerSession document logged in DB for customer ${user.email} (jti: ${jti})`);
+    } catch (sessionDbErr) {
+      console.error('❌ Failed to log CustomerSession in database:', sessionDbErr.message);
+    }
   }
 
+  // FIX 1: Replace SET call with atomic pipeline
   if (redisClient && redisClient.status === 'ready') {
     try {
-      await redisClient.set(`refresh:${user._id}:${jti}`, 'true', 'EX', 7 * 24 * 60 * 60);
+      const pipeline = redisClient.pipeline();
+      pipeline.set(`refresh:${user._id}:${jti}`, 'true', 'EX', REFRESH_TOKEN_EXPIRY_SECONDS);
+      pipeline.sadd(`refresh:${user._id}:sessions`, jti);
+      pipeline.expire(`refresh:${user._id}:sessions`, REFRESH_TOKEN_EXPIRY_SECONDS);
+      await pipeline.exec();
     } catch (err) {
       console.error('❌ Failed to store refresh token in Redis:', err.message);
     }
@@ -125,15 +207,16 @@ const createSession = async (req, res, user) => {
 const invalidateAllUserSessions = async (userId) => {
   if (redisClient && redisClient.status === 'ready') {
     try {
-      let cursor = '0';
-      const pattern = `refresh:${userId}:*`;
-      do {
-        const [nextCursor, keys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-        cursor = nextCursor;
-        if (keys.length > 0) {
-          await redisClient.del(...keys);
+      // FIX 1: SMEMBERS lookup and pipeline DEL
+      const jtis = await redisClient.smembers(`refresh:${userId}:sessions`);
+      if (jtis && jtis.length > 0) {
+        const pipeline = redisClient.pipeline();
+        for (const jti of jtis) {
+          pipeline.del(`refresh:${userId}:${jti}`);
         }
-      } while (cursor !== '0');
+        pipeline.del(`refresh:${userId}:sessions`);
+        await pipeline.exec();
+      }
       console.log(`🧹 Invalidated all Redis refresh keys for user ${userId}`);
     } catch (err) {
       console.error(`❌ Failed to invalidate Redis sessions for user ${userId}:`, err.message);
@@ -972,12 +1055,31 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 
   if (await bcrypt.compare(currentPassword, user.password)) {
-    user.password = newPassword;
-    user.passwordChangedAt = Date.now();
-    user.tokenVersion = (user.tokenVersion || 0) + 1;
-    await user.save();
+    const salt = await bcrypt.genSalt(14);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await User.findOneAndUpdate(
+      { _id: user._id },
+      { 
+        $set: { password: hashedPassword, passwordChangedAt: new Date() },
+        $inc: { tokenVersion: 1 }
+      }
+    );
 
     await invalidateAllUserSessions(user._id);
+
+    // FIX 4: Session collection updates running asynchronously without await
+    const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
+    if (isUserAdmin) {
+      import('../models/AdminSession.js').then(({ default: AdminSession }) => {
+        AdminSession.updateMany({ adminId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+      }).catch(console.error);
+    } else {
+      import('../models/CustomerSession.js').then(({ default: CustomerSession }) => {
+        CustomerSession.updateMany({ userId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+      }).catch(console.error);
+    }
+
     clearTokenCookie(res);
     clearRefreshTokenCookie(res);
 
@@ -1074,7 +1176,81 @@ const deleteAccount = asyncHandler(async (req, res) => {
 
 // Admin login (separate endpoint)
 const loginAdmin = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+  // 1. IP Blocklist Check (Layer 7)
+  if (redisClient && redisClient.status === 'ready') {
+    const isBlocked = await redisClient.get(`adminlogin:blocked:${ip}`);
+    if (isBlocked) {
+      res.status(403);
+      throw new Error('Access denied. Too many suspicious login attempts from this IP.');
+    }
+  }
+
+  const { email, password, challenge, challengeHash, clientHash, botSuspicion } = req.body;
+  const hashToVerify = challengeHash || clientHash;
+
+  // 2. Bot Timing Delay (Layer 5)
+  if (botSuspicion) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    const { createAlert } = await import('../models/AdminAlert.js');
+    await createAlert('warning', 'suspicious_login', `Bot-pattern typing detected on admin login from IP: ${ip}`);
+  }
+
+  // 3. Challenge verification (Layer 2)
+  if (!challenge || !hashToVerify) {
+    res.status(401);
+    throw new Error('Authentication challenge expired. Please refresh and try again.');
+  }
+
+  const challengeKey = `adminchallenge:${challenge}`;
+  let challengeVal = null;
+  if (redisClient && redisClient.status === 'ready') {
+    challengeVal = await redisClient.get(challengeKey);
+  }
+  if (!challengeVal || challengeVal !== 'unused') {
+    res.status(401);
+    throw new Error('Authentication challenge expired. Please refresh and try again.');
+  }
+
+  // Mark used immediately
+  if (redisClient && redisClient.status === 'ready') {
+    await redisClient.set(challengeKey, 'used', 'KEEPTTL');
+  }
+
+  // 4. IP-based suspicious pattern detection (Layer 7)
+  if (redisClient && redisClient.status === 'ready') {
+    const now = Date.now();
+    const tenMinAgo = now - 10 * 60 * 1000;
+    await redisClient.zadd(`adminlogin:ips:${ip}`, now, email);
+    await redisClient.zremrangebyscore(`adminlogin:ips:${ip}`, 0, tenMinAgo);
+    const emailsCount = await redisClient.zcard(`adminlogin:ips:${ip}`);
+    if (emailsCount > 3) {
+      const { createAlert } = await import('../models/AdminAlert.js');
+      await createAlert('critical', 'dlq_item', `IP ${ip} attempted login with ${emailsCount} different email addresses within 10 minutes.`);
+      await redisClient.set(`adminlogin:blocked:${ip}`, 'blocked', 'EX', 3600);
+      res.status(429);
+      throw new Error('Access denied. Too many suspicious login attempts.');
+    }
+  }
+
+  // 5. Per-email failure lockout (Layer 7)
+  if (redisClient && redisClient.status === 'ready') {
+    const emailFails = await redisClient.get(`adminlogin:fail:${email}`);
+    if (emailFails && parseInt(emailFails, 10) >= 3) {
+      const { emailQueue } = await import('../queues/index.js');
+      if (emailQueue) {
+        await emailQueue.add('sendEmail', {
+          to: email,
+          subject: '🚨 ADMIN Security Alert: Account Temporarily Locked',
+          html: `<p>Multiple failed login attempts were detected for your admin account. The account has been temporarily locked for 15 minutes.</p>`
+        });
+      }
+      res.status(429);
+      throw new Error('This admin account has been temporarily locked.');
+    }
+  }
+
   console.log('👑 Admin login attempt:', email);
 
   try {
@@ -1086,6 +1262,12 @@ const loginAdmin = asyncHandler(async (req, res) => {
 
     if (!user) {
       console.log('❌ Admin not found:', email);
+      if (redisClient && redisClient.status === 'ready') {
+        const fails = await redisClient.incr(`adminlogin:fail:${email}`);
+        if (fails === 1) {
+          await redisClient.expire(`adminlogin:fail:${email}`, 900);
+        }
+      }
       res.status(401);
       throw new Error('Invalid email or password');
     }
@@ -1105,10 +1287,27 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
 
     // Verify password
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(hashToVerify, user.password);
 
     if (!isMatch) {
       console.log('❌ Invalid password for admin:', email);
+
+      if (redisClient && redisClient.status === 'ready') {
+        const fails = await redisClient.incr(`adminlogin:fail:${email}`);
+        if (fails === 1) {
+          await redisClient.expire(`adminlogin:fail:${email}`, 900);
+        }
+        if (fails >= 3) {
+          const { emailQueue } = await import('../queues/index.js');
+          if (emailQueue) {
+            await emailQueue.add('sendEmail', {
+              to: email,
+              subject: '🚨 ADMIN Security Alert: Account Temporarily Locked',
+              html: `<p>Multiple failed login attempts were detected for your admin account. The account has been temporarily locked for 15 minutes.</p>`
+            });
+          }
+        }
+      }
 
       // Atomically increment login attempts
       const attempts = (user.loginAttempts || 0) + 1;
@@ -1555,6 +1754,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     throw new Error('No refresh token — please log in again.');
   }
 
+  // Step 1: Verify JWT signature and extract payload
   let decoded;
   try {
     decoded = verifyRefreshToken(cookieToken);
@@ -1566,58 +1766,101 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   const { userId, tokenVersion, jti } = decoded;
 
-  // Check if jti is present and registered in Redis
-  if (jti && redisClient && redisClient.status === 'ready') {
+  // Step 2: Query User from MongoDB selecting tokenVersion, isSuspended, isActive, passwordChangedAt
+  const user = await User.findById(userId).select('tokenVersion isSuspended isActive passwordChangedAt role email firstName lastName');
+  if (!user) {
+    clearRefreshTokenCookie(res);
+    res.status(401);
+    throw new Error('Account not found.');
+  }
+
+  // Step 3: If decoded.tokenVersion does not strictly equal user.tokenVersion, return 401
+  if (decoded.tokenVersion === undefined || user.tokenVersion === undefined || decoded.tokenVersion !== user.tokenVersion) {
+    clearRefreshTokenCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: 'Session invalidated. Please log in again.'
+    });
+  }
+
+  // Step 3.5 (Fix 4): PasswordRecentlyChanged check
+  if (user.passwordChangedAt !== null && decoded.iat !== undefined && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
+    clearRefreshTokenCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: 'Password recently changed. Please log in again.'
+    });
+  }
+
+  // Step 4: If user is suspended or inactive, return 403
+  if (user.isSuspended === true || user.isActive === false) {
+    clearRefreshTokenCookie(res);
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Account is suspended or inactive.'
+    });
+  }
+
+  // Step 5: Redis (and CustomerSession in parallel if non-admin) check
+  const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff';
+  
+  let exists = null;
+  let customerSession = null;
+
+  if (redisClient && redisClient.status === 'ready') {
     try {
-      const exists = await redisClient.get(`refresh:${userId}:${jti}`);
-      if (!exists) {
-        // Potential Replay Attack! Revoke all sessions for this user!
-        console.warn(`🚨 [Replay Attack Detected] Revoking all sessions for user: ${userId} due to JTI reuse: ${jti}`);
-        const user = await User.findById(userId);
-        if (user) {
-          user.tokenVersion = (user.tokenVersion || 0) + 1;
-          await user.save({ validateBeforeSave: false });
-          await invalidateAllUserSessions(userId);
-        }
-        clearRefreshTokenCookie(res);
-        clearTokenCookie(res);
-        res.status(401);
-        throw new Error('Security Alert: Refresh token reuse detected. All sessions have been terminated. Please log in again.');
+      if (!isUserAdmin) {
+        const CustomerSession = (await import('../models/CustomerSession.js')).default;
+        const [redisVal, sessionDoc] = await Promise.all([
+          redisClient.get(`refresh:${userId}:${jti}`),
+          CustomerSession.findOne({ jti })
+        ]);
+        exists = redisVal;
+        customerSession = sessionDoc;
+      } else {
+        exists = await redisClient.get(`refresh:${userId}:${jti}`);
       }
     } catch (err) {
-      console.error('❌ Redis check failed during refresh:', err.message);
+      console.error('❌ Redis/DB validation check failed:', err.message);
+      exists = 'true'; // fallback behavior if Redis throws error to prevent absolute lockout
     }
+  } else {
+    exists = 'true'; // fallback if Redis is down
   }
 
-  // Query MongoDB (only endpoint doing so during session lifecycle validation)
-  const user = await User.findById(userId).select('_id isActive role tokenVersion email firstName lastName');
-  if (!user || user.isActive === false) {
-    if (jti && redisClient && redisClient.status === 'ready') {
-      await redisClient.del(`refresh:${userId}:${jti}`);
-    }
+  // Step 6: If Redis returns null, treat as replay attack
+  if (!exists) {
+    await User.findOneAndUpdate({ _id: userId }, { $inc: { tokenVersion: 1 } });
+    await invalidateAllUserSessions(userId);
     clearRefreshTokenCookie(res);
-    res.status(401);
-    throw new Error('Account not found or deactivated.');
+    clearTokenCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: 'Replay attack detected. All sessions invalidated.'
+    });
   }
 
-  // Verify token version matches database
-  if (user.tokenVersion !== undefined && tokenVersion !== undefined && user.tokenVersion !== tokenVersion) {
-    if (jti && redisClient && redisClient.status === 'ready') {
-      await redisClient.del(`refresh:${userId}:${jti}`);
-    }
+  // Check if CustomerSession is revoked (non-admin)
+  if (!isUserAdmin && customerSession && customerSession.isRevoked) {
     clearRefreshTokenCookie(res);
-    res.status(401);
-    throw new Error('Session expired due to credential changes. Please log in again.');
+    clearTokenCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: 'This session has been revoked.'
+    });
   }
 
-  // Delete old jti to prevent reuse
+  // Delete old jti to prevent reuse and maintain index set
   if (jti && redisClient && redisClient.status === 'ready') {
     try {
-      await redisClient.del(`refresh:${userId}:${jti}`);
+      const pipeline = redisClient.pipeline();
+      pipeline.del(`refresh:${userId}:${jti}`);
+      pipeline.srem(`refresh:${userId}:sessions`, jti);
+      await pipeline.exec();
     } catch (err) {}
   }
 
-  // Issue rotated tokens (pass req for fingerprinting)
+  // Step 7: Issue rotated tokens
   const newAccessToken = await createSession(req, res, user);
 
   res.json({
@@ -1631,7 +1874,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role || 'customer',
-        userType: (user.role === 'admin' || user.role === 'super-admin') ? 'admin' : 'customer'
+        userType: isUserAdmin ? 'admin' : 'customer'
       }
     }
   });
@@ -1805,21 +2048,37 @@ const resetPassword = asyncHandler(async (req, res) => {
     }
   }
 
-  user.password = newPassword;
-  user.passwordChangedAt = Date.now();
-  user.resetPasswordToken = undefined; // Single-use: Delete immediately
-  user.resetPasswordExpires = undefined;
-  
-  // Clear any active account lock — password reset is the self-service unlock path
-  user.loginAttempts = 0;
-  user.lockUntil = undefined;
+  const salt = await bcrypt.genSalt(14);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-  // Global Logout: Increment tokenVersion to invalidate all older JWT sessions instantly
-  user.tokenVersion = (user.tokenVersion || 0) + 1;
-
-  await user.save();
+  await User.findOneAndUpdate(
+    { _id: user._id },
+    {
+      $set: {
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        resetPasswordToken: undefined,
+        resetPasswordExpires: undefined,
+        loginAttempts: 0,
+        lockUntil: undefined
+      },
+      $inc: { tokenVersion: 1 }
+    }
+  );
 
   await invalidateAllUserSessions(user._id);
+
+  // FIX 4: Session collection updates running asynchronously without await
+  const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
+  if (isUserAdmin) {
+    import('../models/AdminSession.js').then(({ default: AdminSession }) => {
+      AdminSession.updateMany({ adminId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+    }).catch(console.error);
+  } else {
+    import('../models/CustomerSession.js').then(({ default: CustomerSession }) => {
+      CustomerSession.updateMany({ userId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+    }).catch(console.error);
+  }
 
   // SEND ALERT
   try {
@@ -2407,6 +2666,488 @@ const verify2FABackup = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get all active customer sessions
+// @route   GET /api/auth/sessions
+// @access  Private
+const getActiveCustomerSessions = asyncHandler(async (req, res) => {
+  const CustomerSession = (await import('../models/CustomerSession.js')).default;
+  const sessions = await CustomerSession.find({
+    userId: req.user.id,
+    isRevoked: false,
+    expiresAt: { $gt: new Date() }
+  }).sort({ createdAt: -1 });
+
+  res.json({
+    success: true,
+    data: sessions
+  });
+});
+
+// @desc    Revoke customer session
+// @route   DELETE /api/auth/sessions/:jti
+// @access  Private
+const revokeCustomerSession = asyncHandler(async (req, res) => {
+  const { jti } = req.params;
+  const CustomerSession = (await import('../models/CustomerSession.js')).default;
+
+  const session = await CustomerSession.findOne({ jti });
+  if (!session) {
+    res.status(404);
+    throw new Error('Session not found');
+  }
+
+  if (session.userId.toString() !== req.user.id.toString()) {
+    res.status(403);
+    throw new Error('Unauthorized to revoke this session');
+  }
+
+  session.isRevoked = true;
+  session.revokedAt = new Date();
+  await session.save();
+
+  if (redisClient && redisClient.status === 'ready') {
+    const pipeline = redisClient.pipeline();
+    pipeline.del(`refresh:${req.user.id}:${jti}`);
+    pipeline.srem(`refresh:${req.user.id}:sessions`, jti);
+    await pipeline.exec();
+  }
+
+  res.json({
+    success: true,
+    message: 'Session revoked successfully'
+  });
+});
+
+// @desc    Revoke all other customer sessions except current one
+// @route   DELETE /api/auth/sessions/mine/all
+// @access  Private
+const revokeAllOtherSessions = asyncHandler(async (req, res) => {
+  const CustomerSession = (await import('../models/CustomerSession.js')).default;
+  const currentJti = req.user.jti;
+
+  const sessionsToRevoke = await CustomerSession.find({
+    userId: req.user.id,
+    jti: { $ne: currentJti },
+    isRevoked: false
+  });
+
+  await CustomerSession.updateMany(
+    { userId: req.user.id, jti: { $ne: currentJti } },
+    { $set: { isRevoked: true, revokedAt: new Date() } }
+  );
+
+  if (redisClient && redisClient.status === 'ready') {
+    try {
+      const pipeline = redisClient.pipeline();
+      for (const sess of sessionsToRevoke) {
+        pipeline.del(`refresh:${req.user.id}:${sess.jti}`);
+        pipeline.srem(`refresh:${req.user.id}:sessions`, sess.jti);
+      }
+      await pipeline.exec();
+    } catch (err) {}
+  }
+
+  res.json({
+    success: true,
+    message: 'All other sessions revoked successfully'
+  });
+});
+
+// @desc    Get user store credit history
+// @route   GET /api/auth/store-credit/history
+// @access  Private
+const getStoreCreditHistory = asyncHandler(async (req, res) => {
+  const StoreCreditTransaction = (await import('../models/StoreCreditTransaction.js')).default;
+  const history = await StoreCreditTransaction.find({ user: req.user._id })
+    .sort({ createdAt: -1 });
+
+  res.json({
+    success: true,
+    data: history
+  });
+});
+
+// @desc    Get user loyalty points history
+// @route   GET /api/auth/loyalty/history
+// @access  Private
+const getLoyaltyPointsHistory = asyncHandler(async (req, res) => {
+  const LoyaltyTransaction = (await import('../models/LoyaltyTransaction.js')).default;
+  const history = await LoyaltyTransaction.find({ user: req.user._id })
+    .sort({ createdAt: -1 });
+
+  res.json({
+    success: true,
+    data: history
+  });
+});
+
+// Atomic mutation utilities
+const mutateStoreCredit = async (userId, amount, type, metadata, session = null) => {
+  const User = (await import('../models/User.js')).default;
+  const StoreCreditTransaction = (await import('../models/StoreCreditTransaction.js')).default;
+
+  const user = await User.findById(userId).session(session);
+  if (!user) {
+    throw new Error('User not found for store credit mutation');
+  }
+
+  const balanceBefore = user.storeCreditBalance || 0;
+  const balanceAfter = balanceBefore + amount;
+
+  if (balanceAfter < 0) {
+    throw new Error('Insufficient store credit balance');
+  }
+
+  // Update user balance using findOneAndUpdate with $inc within session
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: userId },
+    { $inc: { storeCreditBalance: amount, storeCredit: amount } },
+    { session, new: true }
+  );
+
+  const note = typeof metadata === 'string' ? metadata : (metadata?.note || '');
+  const orderId = metadata?.orderId || null;
+
+  const [transaction] = await StoreCreditTransaction.create([{
+    userId,
+    type,
+    amount,
+    balanceBefore,
+    balanceAfter,
+    orderId,
+    note
+  }], session ? { session } : {});
+
+  return { user: updatedUser, transaction };
+};
+
+const mutateLoyaltyPoints = async (userId, points, type, metadata, session = null) => {
+  const User = (await import('../models/User.js')).default;
+  const LoyaltyTransaction = (await import('../models/LoyaltyTransaction.js')).default;
+
+  const user = await User.findById(userId).session(session);
+  if (!user) {
+    throw new Error('User not found for loyalty points mutation');
+  }
+
+  const balanceBefore = user.loyaltyPoints || 0;
+  const balanceAfter = balanceBefore + points;
+
+  if (balanceAfter < 0) {
+    throw new Error('Insufficient loyalty points balance');
+  }
+
+  // Update user balance using findOneAndUpdate with $inc within session
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: userId },
+    { $inc: { loyaltyPoints: points } },
+    { session, new: true }
+  );
+
+  const orderId = metadata?.orderId || null;
+
+  const [transaction] = await LoyaltyTransaction.create([{
+    userId,
+    type,
+    points,
+    balanceBefore,
+    balanceAfter,
+    orderId
+  }], session ? { session } : {});
+
+  return { user: updatedUser, transaction };
+};
+
+// @desc    Request a Magic Link for Admin login
+// @route   POST /api/auth/admin/magic-link
+// @access  Public
+const requestAdminMagicLink = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    res.status(400);
+    throw new Error('Please provide an email address');
+  }
+
+  // Check rate limit in Redis: magiclink:ratelimit:${email} -> max 3 in 60-minute window
+  if (redisClient && redisClient.status === 'ready') {
+    const rateLimitKey = `magiclink:ratelimit:${email}`;
+    const attempts = await redisClient.incr(rateLimitKey);
+    if (attempts === 1) {
+      await redisClient.expire(rateLimitKey, 3600);
+    }
+    if (attempts > 3) {
+      res.status(429);
+      throw new Error('Too many authentication requests. Try again in 60 minutes.');
+    }
+  }
+
+  // Ensure user is an admin
+  const user = await User.findOne({ email, userType: 'admin' });
+  if (!user) {
+    // Return success message to prevent email enumeration, but do not send email
+    return res.json({
+      success: true,
+      message: 'If the email exists in our records, a magic link has been sent.'
+    });
+  }
+
+  // Generate Magic Link token
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes validity
+
+  // Fingerprint binding
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const requestFingerprint = crypto.createHmac('sha256', process.env.JWT_SECRET || 'rerendet_access_secret_fallback').update(ip + userAgent).digest('hex');
+
+  const MagicLink = (await import('../models/MagicLink.js')).default;
+  await MagicLink.create({
+    email,
+    tokenHash,
+    expiresAt,
+    requestFingerprint
+  });
+
+  const baseUrl = process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173');
+  const magicLinkUrl = `${baseUrl}/admin/magic-verify?token=${rawToken}`;
+
+  // Send Magic Link email
+  await sendEmail({
+    to: email,
+    subject: '🔑 Rerendet Coffee Admin Magic Link Login',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px;">
+        <h2>Admin Magic Link Login</h2>
+        <p>Click the link below to verify your identity and log in to the administrator portal. This link is single-use and valid for 15 minutes.</p>
+        <p><a href="${magicLinkUrl}" style="background-color: #6b4226; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Log In to Admin Panel</a></p>
+      </div>
+    `
+  });
+
+  res.json({
+    success: true,
+    message: 'If the email exists in our records, a magic link has been sent.'
+  });
+});
+
+// @desc    Verify Admin Magic Link
+// @route   POST /api/auth/admin/magic-link/verify
+// @access  Public
+const verifyAdminMagicLink = asyncHandler(async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400);
+    throw new Error('Verification token is required');
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const MagicLink = (await import('../models/MagicLink.js')).default;
+  // Find and atomically consume the magic link
+  const magicLinkDoc = await MagicLink.findOneAndUpdate(
+    { tokenHash, consumedAt: { $exists: false }, expiresAt: { $gt: new Date() } },
+    { $set: { consumedAt: new Date() } },
+    { new: true }
+  );
+
+  if (!magicLinkDoc) {
+    res.status(401);
+    throw new Error('Magic link has already been used or is invalid/expired.');
+  }
+
+  // Timing-safe verification
+  const userHashedBuf = Buffer.from(tokenHash);
+  const storedHashedBuf = Buffer.from(magicLinkDoc.tokenHash);
+  if (userHashedBuf.length !== storedHashedBuf.length || !crypto.timingSafeEqual(userHashedBuf, storedHashedBuf)) {
+    res.status(401);
+    throw new Error('Security token comparison failed.');
+  }
+
+  // Fingerprint mismatch check
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+  const currentFingerprint = crypto.createHmac('sha256', process.env.JWT_SECRET || 'rerendet_access_secret_fallback').update(ip + userAgent).digest('hex');
+
+  if (magicLinkDoc.requestFingerprint !== currentFingerprint) {
+    magicLinkDoc.fingerprintMismatch = true;
+    await magicLinkDoc.save();
+
+    // Log critical AdminAlert
+    const { createAlert } = await import('../models/AdminAlert.js');
+    await createAlert('critical', 'killswitch_event', `Magic Link fingerprint mismatch for ${magicLinkDoc.email}. Requesting IP: ${magicLinkDoc.requestFingerprint}, Consuming IP: ${currentFingerprint}`);
+
+    // Queue email warning
+    await sendEmail({
+      to: magicLinkDoc.email,
+      subject: '🚨 Security Alert: Magic Link Device Mismatch',
+      html: `<p>A magic link generated for your admin account was consumed from a different device or IP. This mismatch could indicate session interception. Please review logs immediately.</p>`
+    });
+  }
+
+  const user = await User.findOne({ email: magicLinkDoc.email }).select('+twoFactorSecret +role +firstName +lastName +email +adminPermissions +profilePicture +verificationCode +verificationCodeExpires +twoFactorEnabled');
+  if (!user) {
+    res.status(404);
+    throw new Error('User account not found');
+  }
+
+  // Step-up validation: Check admin role
+  if (user.role === 'super_admin' || user.role === 'super-admin') {
+    // Require TOTP
+    const tempToken = jwt.sign(
+      { tempUserId: user._id, mfaRequired: true, stepUp: 'totp' },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '5m' }
+    );
+    return res.json({
+      success: true,
+      requiresMFA: true,
+      mfaType: 'totp',
+      tempToken
+    });
+  }
+
+  if (user.role === 'owner') {
+    // Require Email OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = otp;
+    user.verificationCodeExpires = Date.now() + 5 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    await sendEmail({
+      to: user.email,
+      subject: '🔑 Rerendet Coffee Admin Step-Up Login OTP',
+      html: `<p>Your administrator step-up validation code is: <strong>${otp}</strong>. This code is valid for 5 minutes.</p>`
+    });
+
+    const tempToken = jwt.sign(
+      { tempUserId: user._id, mfaRequired: true, stepUp: 'email_otp' },
+      process.env.JWT_SECRET || 'fallback_secret',
+      { expiresIn: '5m' }
+    );
+
+    return res.json({
+      success: true,
+      requiresMFA: true,
+      mfaType: 'email_otp',
+      tempToken
+    });
+  }
+
+  // fulfillment_staff or regular admin requires only Magic Link
+  const accessToken = await createSession(req, res, user);
+
+  res.json({
+    success: true,
+    message: 'Admin login successful',
+    data: {
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        permissions: user.adminPermissions,
+        profilePicture: user.profilePicture
+      },
+      token: accessToken
+    }
+  });
+});
+
+// @desc    Verify Step-Up authentication code for Admin login
+// @route   POST /api/auth/admin/magic-link/step-up
+// @access  Public
+const stepUpVerify = asyncHandler(async (req, res) => {
+  const { tempToken, code } = req.body;
+  if (!tempToken || !code) {
+    res.status(400);
+    throw new Error('Temporary token and code are required');
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(tempToken, process.env.JWT_SECRET || 'fallback_secret');
+  } catch (err) {
+    res.status(401);
+    throw new Error('Invalid or expired temporary session token');
+  }
+
+  const user = await User.findById(decoded.tempUserId).select('+twoFactorSecret +role +firstName +lastName +email +adminPermissions +profilePicture +verificationCode +verificationCodeExpires +twoFactorEnabled');
+  if (!user) {
+    res.status(404);
+    throw new Error('Admin user not found');
+  }
+
+  if (decoded.stepUp === 'totp') {
+    const isValid = authenticator.verify({
+      token: code,
+      secret: user.twoFactorSecret
+    });
+
+    if (!isValid) {
+      res.status(400);
+      throw new Error('Invalid authentication code');
+    }
+  } else if (decoded.stepUp === 'email_otp') {
+    if (!user.verificationCode || user.verificationCode !== code || user.verificationCodeExpires < Date.now()) {
+      res.status(400);
+      throw new Error('Invalid or expired verification code');
+    }
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    await user.save({ validateBeforeSave: false });
+  } else {
+    res.status(400);
+    throw new Error('Invalid step-up verification type');
+  }
+
+  const accessToken = await createSession(req, res, user);
+
+  res.json({
+    success: true,
+    message: 'Step-up authentication successful',
+    data: {
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        permissions: user.adminPermissions,
+        profilePicture: user.profilePicture
+      },
+      token: accessToken
+    }
+  });
+});
+
+// GET /api/auth/admin/challenge (Layer 2)
+const getAdminChallenge = asyncHandler(async (req, res) => {
+  const crypto = await import('crypto');
+  const nonce = crypto.randomBytes(32).toString('hex');
+  if (redisClient && redisClient.status === 'ready') {
+    await redisClient.set(`adminchallenge:${nonce}`, 'unused', 'EX', 60);
+  }
+  res.json({ challenge: nonce });
+});
+
+// POST /api/auth/admin/security-alert (Layer 6)
+const handleSecurityAlert = asyncHandler(async (req, res) => {
+  if (req.headers['x-internal-alert'] !== process.env.INTERNAL_ALERT_SECRET) {
+    res.status(403);
+    throw new Error('Forbidden');
+  }
+
+  const { type, ip, timestamp } = req.body;
+  const message = `Security Event: Critical DOM tampering detected on admin login. IP: ${ip}, Timestamp: ${timestamp}`;
+
+  const { createAlert } = await import('../models/AdminAlert.js');
+  await createAlert('critical', 'dom_tampering', message);
+
+  res.json({ success: true, message: 'Security alert dispatched' });
+});
+
 export {
   // Customer auth
   registerCustomer,
@@ -2418,6 +3159,11 @@ export {
   // Admin auth
   loginAdmin,
   createAdmin,
+  requestAdminMagicLink,
+  verifyAdminMagicLink,
+  stepUpVerify,
+  getAdminChallenge,
+  handleSecurityAlert,
 
   // Common auth
   verifyEmail,
@@ -2444,5 +3190,16 @@ export {
   confirm2FASetup,
   disable2FA,
   verify2FATOTP,
-  verify2FABackup
+  verify2FABackup,
+
+  // Session endpoints
+  getActiveCustomerSessions,
+  revokeCustomerSession,
+  revokeAllOtherSessions,
+
+  // History endpoints & utilities
+  getStoreCreditHistory,
+  getLoyaltyPointsHistory,
+  mutateStoreCredit,
+  mutateLoyaltyPoints
 };

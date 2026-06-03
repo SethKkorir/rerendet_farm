@@ -7,7 +7,8 @@ import {
     deleteAd,
     getAdByPlacement,
     trackImpression,
-    trackClick
+    trackClick,
+    getAdMetrics
 } from '../controllers/adController.js';
 
 const router = express.Router();
@@ -20,6 +21,8 @@ router.post('/:id/track/impression', trackImpression);
 router.post('/:id/track/click', trackClick);
 
 // Admin only routes
+router.get('/metrics', protect, admin, getAdMetrics);
+
 router.route('/')
     .get(protect, admin, getAds)
     .post(protect, admin, createAd);
