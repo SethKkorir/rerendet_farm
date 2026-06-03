@@ -14,6 +14,19 @@ export const ROLE_PERMISSIONS = {
     'settings.manage',
     'settings.security'
   ],
+  'super-admin': [
+    'orders.read',
+    'orders.write',
+    'payments.read',
+    'payments.override',
+    'inventory.read',
+    'inventory.write',
+    'users.read',
+    'users.manage',
+    'reports.read',
+    'settings.manage',
+    'settings.security'
+  ],
   owner: [
     'orders.read',
     'orders.write',
@@ -42,7 +55,7 @@ export const requirePermission = (scope) => {
     }
 
     const role = req.user.role;
-    const allowedScopes = ROLE_PERMISSIONS[role] || [];
+    const allowedScopes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS[role?.replace('-', '_')] || [];
 
     if (!allowedScopes.includes(scope)) {
       return res.status(403).json({

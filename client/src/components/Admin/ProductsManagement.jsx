@@ -119,6 +119,11 @@ const ProductsManagement = () => {
   });
   const [showCatManager, setShowCatManager] = useState(false);
 
+  const getToken = useCallback(() => {
+    if (token) return token;
+    try { return JSON.parse(localStorage.getItem('auth'))?.token; } catch { return null; }
+  }, [token]);
+
   const fetchCategories = useCallback(async () => {
     try {
       const authToken = getToken();
@@ -149,11 +154,6 @@ const ProductsManagement = () => {
     isCustom: true
   }));
   const visibleCategories = allCategories.filter(c => !hiddenCategories.includes(c.value));
-
-  const getToken = useCallback(() => {
-    if (token) return token;
-    try { return JSON.parse(localStorage.getItem('auth'))?.token; } catch { return null; }
-  }, [token]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -206,7 +206,7 @@ const ProductsManagement = () => {
     try {
       setLoading(true);
       await Promise.all(selectedProducts.map(id =>
-        fetch(`/api/admin/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } })
+          fetch(`/api/admin/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } })
       ));
       showAlert(`${selectedProducts.length} products deleted`, 'success');
       setSelectedProducts([]);
@@ -215,20 +215,36 @@ const ProductsManagement = () => {
     finally { setLoading(false); }
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     const name = window.prompt('Enter new category name (e.g., "Gift Sets", "Tea", "Mugs"):');
     if (!name?.trim()) return;
     const label = name.trim();
     const value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (allCategories.find(c => c.value === value)) {
+    if (allCategories.find(c => c.value === value || c.label.toLowerCase() === label.toLowerCase())) {
       showAlert('This category already exists', 'error');
       return;
     }
-    const newCat = { value, label, icon: '📦', color: '#6b7280', isCustom: true };
-    const updated = [...customCategories, newCat];
-    setCustomCategories(updated);
-    localStorage.setItem('pm_custom_categories', JSON.stringify(updated));
-    showAlert(`Category "${label}" added`, 'success');
+    try {
+      const authToken = getToken();
+      const res = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: label, icon: '📦', description: label })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert(`Category "${label}" added`, 'success');
+        fetchCategories();
+      } else {
+        showAlert(data.message || 'Failed to add category', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert('Failed to add category', 'error');
+    }
   };
 
   const handleToggleHide = (value) => {
@@ -241,18 +257,27 @@ const ProductsManagement = () => {
     if (next.includes(filters.category)) setFilters(p => ({ ...p, category: 'all' }));
   };
 
-  const handleDeleteCategory = (cat) => {
-    if (!cat.isCustom) { showAlert('Built-in categories cannot be deleted. Use Hide instead.', 'error'); return; }
+  const handleDeleteCategory = async (cat) => {
     if (!window.confirm(`Delete category "${cat.label}"? Products in this category won't be deleted.`)) return;
-    const updated = customCategories.filter(c => c.value !== cat.value);
-    setCustomCategories(updated);
-    localStorage.setItem('pm_custom_categories', JSON.stringify(updated));
-    // Also remove from hidden if present
-    const nextHidden = hiddenCategories.filter(v => v !== cat.value);
-    setHiddenCategories(nextHidden);
-    localStorage.setItem('pm_hidden_categories', JSON.stringify(nextHidden));
-    if (filters.category === cat.value) setFilters(p => ({ ...p, category: 'all' }));
-    showAlert(`Category "${cat.label}" deleted`, 'success');
+    try {
+      const authToken = getToken();
+      const res = await fetch(`/api/admin/categories/${cat.value}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAlert(`Category "${cat.label}" deleted`, 'success');
+        fetchCategories();
+      } else {
+        showAlert(data.message || 'Failed to delete category', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert('Failed to delete category', 'error');
+    }
   };
 
   const getCatLabel = (val) => {

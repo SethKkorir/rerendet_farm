@@ -29,7 +29,7 @@ export const assertActiveAdmin = asyncHandler(async (req, res, next) => {
   }
 
   // Verify that the role is one of the valid admin roles
-  const validRoles = ['super_admin', 'owner', 'fulfillment_staff'];
+  const validRoles = ['super_admin', 'super-admin', 'owner', 'fulfillment_staff'];
   if (!validRoles.includes(freshUser.role)) {
     return res.status(403).json({
       success: false,
