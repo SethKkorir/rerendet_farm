@@ -239,10 +239,18 @@ const AdminLogin = () => {
             }
           }
 
+          // XOR encrypt the password with the challenge token so raw password is never sent in cleartext
+          let xorEncrypted = '';
+          for (let i = 0; i < passwordVal.length; i++) {
+            xorEncrypted += String.fromCharCode(passwordVal.charCodeAt(i) ^ challenge.charCodeAt(i % challenge.length));
+          }
+          const encryptedPassword = btoa(xorEncrypted);
+
           const response = await loginAdmin({
             email: emailVal,
             challengeHash,
             challenge,
+            encryptedPassword,
             botSuspicion
           });
 

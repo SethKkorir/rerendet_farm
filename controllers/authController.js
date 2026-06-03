@@ -1187,8 +1187,23 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
   }
 
-  const { email, password, challenge, challengeHash, clientHash, botSuspicion } = req.body;
+  const { email, password, challenge, challengeHash, clientHash, encryptedPassword, botSuspicion } = req.body;
   const hashToVerify = challengeHash || clientHash;
+
+  // Decrypt password using XOR key (challenge)
+  let decryptedPassword = password;
+  if (encryptedPassword && challenge) {
+    try {
+      const encryptedBin = Buffer.from(encryptedPassword, 'base64').toString('binary');
+      let result = '';
+      for (let i = 0; i < encryptedBin.length; i++) {
+        result += String.fromCharCode(encryptedBin.charCodeAt(i) ^ challenge.charCodeAt(i % challenge.length));
+      }
+      decryptedPassword = result;
+    } catch (e) {
+      console.error('Failed to decrypt password:', e);
+    }
+  }
 
   // 2. Bot Timing Delay (Layer 5)
   if (botSuspicion) {
@@ -1309,7 +1324,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
 
     // Verify password
-    const isMatch = await bcrypt.compare(hashToVerify, user.password);
+    const isMatch = await bcrypt.compare(decryptedPassword || hashToVerify, user.password);
 
     if (!isMatch) {
       console.log('❌ Invalid password for admin:', email);
