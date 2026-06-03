@@ -1203,19 +1203,41 @@ const loginAdmin = asyncHandler(async (req, res) => {
     throw new Error('Authentication challenge expired. Please refresh and try again.');
   }
 
-  const challengeKey = `adminchallenge:${challenge}`;
-  let challengeVal = null;
-  if (redisClient && redisClient.status === 'ready') {
-    challengeVal = await redisClient.get(challengeKey);
+  // Parse and verify signed challenge token
+  const challengeParts = challenge.split('.');
+  if (challengeParts.length !== 3) {
+    res.status(401);
+    throw new Error('Invalid authentication challenge format.');
   }
-  if (!challengeVal || challengeVal !== 'unused') {
+
+  const [challengeNonce, expiresAtStr, signature] = challengeParts;
+  const expiresAt = parseInt(expiresAtStr, 10);
+
+  if (isNaN(expiresAt) || expiresAt < Date.now()) {
     res.status(401);
     throw new Error('Authentication challenge expired. Please refresh and try again.');
   }
 
-  // Mark used immediately
+  const crypto = await import('crypto');
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.JWT_SECRET || 'fallback_secret')
+    .update(`${challengeNonce}.${expiresAtStr}`)
+    .digest('hex');
+
+  if (signature !== expectedSignature) {
+    res.status(401);
+    throw new Error('Invalid authentication challenge signature.');
+  }
+
+  // Optional: check Redis for double-submit/replay mitigation if Redis is active
   if (redisClient && redisClient.status === 'ready') {
-    await redisClient.set(challengeKey, 'used', 'KEEPTTL');
+    const challengeKey = `adminchallenge:${challengeNonce}`;
+    const challengeVal = await redisClient.get(challengeKey);
+    if (challengeVal === 'used') {
+      res.status(401);
+      throw new Error('Authentication challenge expired. Please refresh and try again.');
+    }
+    await redisClient.set(challengeKey, 'used', 'EX', 60);
   }
 
   // 4. IP-based suspicious pattern detection (Layer 7)
@@ -3125,11 +3147,19 @@ const stepUpVerify = asyncHandler(async (req, res) => {
 // GET /api/auth/admin/challenge (Layer 2)
 const getAdminChallenge = asyncHandler(async (req, res) => {
   const crypto = await import('crypto');
-  const nonce = crypto.randomBytes(32).toString('hex');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const expiresAt = Date.now() + 60000; // 60 seconds
+  const signatureInput = `${nonce}.${expiresAt}`;
+  const signature = crypto
+    .createHmac('sha256', process.env.JWT_SECRET || 'fallback_secret')
+    .update(signatureInput)
+    .digest('hex');
+  const challengeToken = `${nonce}.${expiresAt}.${signature}`;
+
   if (redisClient && redisClient.status === 'ready') {
     await redisClient.set(`adminchallenge:${nonce}`, 'unused', 'EX', 60);
   }
-  res.json({ challenge: nonce });
+  res.json({ challenge: challengeToken });
 });
 
 // POST /api/auth/admin/security-alert (Layer 6)
