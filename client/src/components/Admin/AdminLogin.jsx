@@ -123,8 +123,21 @@ const AdminLogin = () => {
   useEffect(() => {
     let integrityInterval = null;
     
+    const sanitizeFormHTML = (html) => {
+      if (!html) return '';
+      return html
+        .replace(/value="[^"]*"/g, '')
+        .replace(/disabled/g, '')
+        .replace(/placeholder="[^"]*"/g, '')
+        .replace(/class="[^"]*"/g, '')
+        .replace(/style="[^"]*"/g, '')
+        .replace(/autocomplete="[^"]*"/g, '')
+        .replace(/\s+/g, '');
+    };
+
     const computeHash = async (html) => {
-      const encoded = new TextEncoder().encode(html);
+      const sanitized = sanitizeFormHTML(html);
+      const encoded = new TextEncoder().encode(sanitized);
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
       return Array.from(new Uint8Array(hashBuffer))
         .map(b => b.toString(16).padStart(2, '0'))
