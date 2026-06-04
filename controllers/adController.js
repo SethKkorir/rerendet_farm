@@ -108,6 +108,7 @@ export const deleteAd = async (req, res) => {
 // @access  Public
 export const getAdByPlacement = async (req, res) => {
     try {
+        const zone = req.params.zone;
         const now = new Date();
         // Find active ads for the zone within current schedule
         let ads = await Ad.find({

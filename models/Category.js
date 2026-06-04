@@ -91,6 +91,7 @@ categorySchema.statics.seedCategories = async function () {
   const initialCategories = [
     {
       name: 'Coffee',
+      slug: 'coffee',
       description: 'Premium coffee beans, ground coffee, and specialty blends.',
       icon: 'coffee',
       sortOrder: 1,
@@ -103,6 +104,7 @@ categorySchema.statics.seedCategories = async function () {
     },
     {
       name: 'Vegetables',
+      slug: 'vegetables',
       description: 'Fresh farm-sourced organic vegetables.',
       icon: 'leaf',
       sortOrder: 2,
@@ -114,6 +116,7 @@ categorySchema.statics.seedCategories = async function () {
     },
     {
       name: 'Textiles/Curtains',
+      slug: 'textiles-curtains',
       description: 'Beautiful woven curtains, fabrics, and farm textiles.',
       icon: 'scissors',
       sortOrder: 3,
@@ -126,6 +129,7 @@ categorySchema.statics.seedCategories = async function () {
     },
     {
       name: 'Utensils',
+      slug: 'utensils',
       description: 'Durable kitchenware, cups, plates, and utensils.',
       icon: 'cutlery',
       sortOrder: 4,

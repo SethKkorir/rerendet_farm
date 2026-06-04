@@ -194,7 +194,13 @@ const getTopReviews = asyncHandler(async (req, res) => {
             }
         ];
 
-        await Review.insertMany(seededData);
+        for (const seeded of seededData) {
+            await Review.updateOne(
+                { product: null, user: seeded.user },
+                { $setOnInsert: seeded },
+                { upsert: true }
+            );
+        }
 
         // Re-query newly seeded reviews
         reviews = await Review.find({ product: null, rating: { $gte: 4 } })

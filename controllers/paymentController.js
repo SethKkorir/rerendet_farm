@@ -60,7 +60,11 @@ export const processMpesaPayment = asyncHandler(async (req, res) => {
     res.json({
       success: true,
       message: 'STK Push sent successfully to your phone. Please enter your PIN.',
-      checkoutRequestId
+      checkoutRequestId,
+      data: {
+        paymentId: checkoutRequestId,
+        checkoutRequestId
+      }
     });
 
   } catch (error) {
