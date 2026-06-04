@@ -11,17 +11,20 @@ export const sendLowStockAlert = async (product) => {
         return;
     }
 
-    const emailOptions = {
-        email: adminEmail,
-        subject: `⚠️ Low Stock Alert: ${product.name}`,
-        template: 'lowStockAlert',
-        context: {
-            productName: product.name,
-            currentStock: product.inventory.stock,
-            threshold: product.inventory.lowStockAlert,
-            productUrl: `${process.env.FRONTEND_URL}/admin/products/${product._id}`
-        }
-    };
+        const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+            ? 'https://rerendet-farm.vercel.app'
+            : (process.env.FRONTEND_URL || 'http://localhost:3000');
+        const emailOptions = {
+            email: adminEmail,
+            subject: `⚠️ Low Stock Alert: ${product.name}`,
+            template: 'lowStockAlert',
+            context: {
+                productName: product.name,
+                currentStock: product.inventory.stock,
+                threshold: product.inventory.lowStockAlert,
+                productUrl: `${frontendUrl}/admin/products/${product._id}`
+            }
+        };
 
     try {
         await sendEmail(emailOptions);
@@ -56,6 +59,10 @@ export const sendNewOrderAdminAlert = async (order) => {
                 <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">KES ${item.itemTotal?.toLocaleString()}</td>
             </tr>
         `).join('');
+
+        const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+            ? 'https://rerendet-farm.vercel.app'
+            : (process.env.FRONTEND_URL || 'http://localhost:3000');
 
         const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
@@ -97,7 +104,7 @@ export const sendNewOrderAdminAlert = async (order) => {
                 </table>
 
                 <div style="text-align: center; margin: 30px 0 10px;">
-                    <a href="${process.env.FRONTEND_URL || 'https://rerendet-farm.vercel.app'}/admin/orders/${order._id}" style="background-color: #6b4226; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">View in Admin Panel</a>
+                    <a href="${frontendUrl}/admin/orders/${order._id}" style="background-color: #6b4226; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">View in Admin Panel</a>
                 </div>
             </div>
         `;

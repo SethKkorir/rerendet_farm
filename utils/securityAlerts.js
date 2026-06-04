@@ -40,7 +40,7 @@ export const dispatchSecurityAlert = async ({
     // Fetch settings to extract active pre-generated magic link
     const settings = await Settings.getSettings();
     const token = settings.maintenance.magicLinkRaw || 'no-active-token';
-    let baseUrl = process.env.BACKEND_URL;
+    let baseUrl = process.env.BACKEND_URL || process.env.CLIENT_URL || process.env.FRONTEND_URL;
     if (!baseUrl || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
       if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
         baseUrl = 'https://rerendet-farm.vercel.app';

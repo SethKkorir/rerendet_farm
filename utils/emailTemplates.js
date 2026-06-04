@@ -10,6 +10,11 @@ const ADMIN_PANEL_URL = FRONTEND_URL;
 const getBaseTemplate = (title, content, options = {}) => {
   const logoUrl = options.logoUrl || `${FRONTEND_URL}/rerendet-logo.png`;
   const year = new Date().getFullYear();
+  const social = options.social || {
+    instagram: 'https://www.instagram.com/rerendetcoffee',
+    twitter: 'https://x.com/rerendetcoffee',
+    facebook: 'https://www.facebook.com/rerendetcoffee'
+  };
 
   return `
     <!DOCTYPE html>
@@ -174,6 +179,15 @@ const getBaseTemplate = (title, content, options = {}) => {
           display: block; 
           line-height: 1.5; 
         }
+        @media only screen and (max-width: 600px) {
+          .container { margin: 10px auto !important; width: 95% !important; border-radius: 16px !important; }
+          .header { padding: 30px 20px !important; }
+          .content { padding: 30px 20px !important; }
+          .footer { padding: 30px 20px !important; }
+          .verification-code-box { padding: 15px !important; }
+          .code-text { font-size: 28px !important; letter-spacing: 6px !important; }
+          .premium-btn { max-width: 100% !important; width: 100% !important; box-sizing: border-box !important; }
+        }
       </style>
     </head>
     <body>
@@ -191,9 +205,9 @@ const getBaseTemplate = (title, content, options = {}) => {
         </div>
         <div class="footer">
           <div class="social-tray">
-             <a href="https://www.instagram.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Instagram</a> • 
-             <a href="https://x.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Twitter</a> • 
-             <a href="https://www.facebook.com/rerendetcoffee" target="_blank" rel="noopener noreferrer">Facebook</a>
+             <a href="${social.instagram || 'https://www.instagram.com/rerendetcoffee'}" target="_blank" rel="noopener noreferrer">Instagram</a> • 
+             <a href="${social.twitter || 'https://x.com/rerendetcoffee'}" target="_blank" rel="noopener noreferrer">Twitter</a> • 
+             <a href="${social.facebook || 'https://www.facebook.com/rerendetcoffee'}" target="_blank" rel="noopener noreferrer">Facebook</a>
           </div>
           <p>&copy; ${year} Rerendet Coffees. All rights reserved.</p>
           <div style="margin-top: 15px;">

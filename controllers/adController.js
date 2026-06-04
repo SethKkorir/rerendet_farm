@@ -108,13 +108,22 @@ export const deleteAd = async (req, res) => {
 // @access  Public
 export const getAdByPlacement = async (req, res) => {
     try {
-        const zone = req.params.zone;
-
-        // Find all active ads for the zone
-        const ads = await Ad.find({
+        const now = new Date();
+        // Find active ads for the zone within current schedule
+        let ads = await Ad.find({
             placements: zone,
-            status: 'Active'
+            status: 'Active',
+            startDate: { $lte: now },
+            endDate: { $gte: now }
         }).sort({ priority: -1 });
+
+        // Fallback to any active ad for that zone if scheduling check yields nothing
+        if (!ads || ads.length === 0) {
+            ads = await Ad.find({
+                placements: zone,
+                status: 'Active'
+            }).sort({ priority: -1 });
+        }
 
         if (!ads || ads.length === 0) {
             return res.status(200).json({ success: true, data: null });

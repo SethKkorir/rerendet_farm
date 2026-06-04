@@ -162,6 +162,9 @@ const updateSettings = asyncHandler(async (req, res) => {
 
           if (customers.length > 0) {
             const emailPromises = customers.map(user => {
+              const clientUrl = (!process.env.CLIENT_URL || process.env.CLIENT_URL.includes('localhost') || process.env.CLIENT_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+                ? 'https://rerendet-farm.vercel.app'
+                : (process.env.CLIENT_URL || 'http://localhost:3000');
               return sendEmail({
                 email: user.email,
                 subject: 'Important Update: Rerendet Coffee Policies',
@@ -172,7 +175,7 @@ const updateSettings = asyncHandler(async (req, res) => {
                     <p>We wanted to let you know that we have updated our store policies to better serve you.</p>
                     <p>Please review our latest terms and policies on our website.</p>
                     <div style="margin: 30px 0;">
-                      <a href="${process.env.CLIENT_URL || 'http://localhost:3000'}/privacy-policy" style="background-color: #6b4226; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">View Privacy Policy</a>
+                      <a href="${clientUrl}/privacy-policy" style="background-color: #6b4226; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">View Privacy Policy</a>
                     </div>
                     <p>Thank you for being a valued customer.</p>
                     <p>Best regards,<br>Rerendet Coffee Team</p>
@@ -311,7 +314,7 @@ const rotateAndEmailMagicLink = async (settings, customHost = null) => {
   // Invalidate settings cache
   await settingsService.invalidateSettings();
 
-  let baseUrl = process.env.BACKEND_URL;
+  let baseUrl = process.env.BACKEND_URL || process.env.CLIENT_URL || process.env.FRONTEND_URL;
   if (!baseUrl || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
     if (process.env.NODE_ENV === 'production' || process.env.VERCEL) {
       baseUrl = 'https://rerendet-farm.vercel.app';

@@ -71,12 +71,22 @@ export const getMpesaAccessToken = async () => {
 export const formatMpesaPhoneNumber = (phone) => {
   let cleaned = phone.replace(/\D/g, '');
 
+  // Strip leading 2540 if user typed +254 07...
+  if (cleaned.startsWith('2540')) {
+    cleaned = '254' + cleaned.substring(4);
+  }
+
   if (cleaned.startsWith('0')) {
     cleaned = '254' + cleaned.substring(1);
   } else if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
     cleaned = '254' + cleaned;
   } else if (cleaned.startsWith('254') === false) {
     cleaned = '254' + cleaned;
+  }
+
+  // Double check in case prefix formatting exposed a zero
+  if (cleaned.startsWith('2540')) {
+    cleaned = '254' + cleaned.substring(4);
   }
 
   // Ensure it's 12 digits (254 + 9 digits)

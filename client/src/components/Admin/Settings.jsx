@@ -154,6 +154,9 @@ const Settings = () => {
   // Documentation States & Logic
   const [docsList, setDocsList] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'policies') {
@@ -198,11 +201,66 @@ const Settings = () => {
           document.body.removeChild(a);
           window.URL.revokeObjectURL(url);
           showNotification(`Downloaded ${docLabel}`, 'success');
+          return true;
         }
       }
     } catch (err) {
       showNotification('Failed to download document', 'error');
     }
+    return false;
+  };
+
+  const handleDownloadAllDocs = async () => {
+    if (docsList.length === 0) return;
+    showNotification('Starting download of all documents...', 'info');
+    for (let i = 0; i < docsList.length; i++) {
+      const doc = docsList[i];
+      await handleDownloadDoc(doc.name, doc.label);
+      await new Promise(r => setTimeout(r, 450));
+    }
+    showNotification('All documents downloaded successfully!', 'success');
+  };
+
+  const handlePreviewDoc = async (doc) => {
+    setPreviewDoc(doc);
+    setLoadingPreview(true);
+    setPreviewContent('');
+    try {
+      const res = await fetch(`/api/admin/documentation/${doc.name}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setPreviewContent(data.content);
+        }
+      }
+    } catch (err) {
+      showNotification('Failed to load document content', 'error');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const renderMarkdown = (md) => {
+    if (!md) return { __html: '' };
+    let html = md
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    html = html.replace(/```([\s\S]*?)```/g, '<pre class="code-block">$1</pre>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/^# (.*$)/gim, '<h1 class="md-h1">$1</h1>');
+    html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
+    html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^#### (.*$)/gim, '<h4 class="md-h4">$1</h4>');
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    html = html.replace(/^\s*-\s+(.*$)/gim, '<li class="md-li">$1</li>');
+    html = html.replace(/\n/g, '<br />');
+
+    return { __html: html };
   };
 
   // 🛡️ Super Gate Logic
@@ -915,6 +973,18 @@ const Settings = () => {
                   </Section>
 
                   <Section title="System Documentation & Reference Manuals" subtitle="View and download all developer guidelines, legal agreements, and training checklists stored in the database" icon={<FaFileAlt />} accent="#10b981">
+                    {docsList.length > 0 && (
+                      <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-start' }}>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={handleDownloadAllDocs}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px' }}
+                        >
+                          <FaDownload /> Download All Documents
+                        </button>
+                      </div>
+                    )}
                     <div className="st-docs-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
                       {loadingDocs ? (
                         <div style={{ padding: '2rem', textAlign: 'center', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
@@ -930,14 +1000,24 @@ const Settings = () => {
                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{doc.name}</span>
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadDoc(doc.name, doc.label)}
-                              style={{ background: 'none', border: 'none', color: '#D4AF37', cursor: 'pointer', fontSize: '1.1rem', padding: '0.5rem' }}
-                              title="Download Markdown Document"
-                            >
-                              <FaDownload />
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handlePreviewDoc(doc)}
+                                style={{ background: 'none', border: 'none', color: '#D4AF37', cursor: 'pointer', fontSize: '1.1rem', padding: '0.5rem' }}
+                                title="Preview Document Inline"
+                              >
+                                <FaEye />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadDoc(doc.name, doc.label)}
+                                style={{ background: 'none', border: 'none', color: '#D4AF37', cursor: 'pointer', fontSize: '1.1rem', padding: '0.5rem' }}
+                                title="Download Markdown Document"
+                              >
+                                <FaDownload />
+                              </button>
+                            </div>
                           </div>
                         ))
                       ) : (
@@ -1252,6 +1332,124 @@ const Settings = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Document Preview Modal */}
+      <AnimatePresence>
+        {previewDoc && (
+          <motion.div className="modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ zIndex: 1100 }}>
+            <motion.div className="modal-content doc-preview-modal" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} style={{ maxWidth: '850px', width: '95%' }}>
+              <div className="modal-header" style={{ borderBottom: '1px solid var(--border-glass, rgba(255,255,255,0.08))', paddingBottom: '15px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><FaFileAlt /> {previewDoc.label}</h3>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button
+                    className="btn-outline"
+                    onClick={() => handleDownloadDoc(previewDoc.name, previewDoc.label)}
+                    style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}
+                  >
+                    <FaDownload /> Download
+                  </button>
+                  <button className="close-btn" onClick={() => setPreviewDoc(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#fff' }}><FaTimes /></button>
+                </div>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '75vh', overflowY: 'auto', padding: '30px 20px', background: '#090d16' }}>
+                {loadingPreview ? (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
+                    <div className="loading-spinner" />
+                  </div>
+                ) : (
+                  <div className="document-premium-page">
+                    <div className="document-header-logo">
+                      <img src={s.store?.logo || "/rerendet-logo.png"} alt="Rerendet Logo" className="doc-logo-large" />
+                      <h2 className="doc-logo-title">{s.store?.name || "Rerendet Coffee"}</h2>
+                      <div className="doc-logo-subtitle">Official Reference Documentation</div>
+                      <div className="doc-divider"></div>
+                    </div>
+                    <div
+                      className="markdown-content"
+                      style={{
+                        lineHeight: '1.8',
+                        fontSize: '15px',
+                        color: 'var(--text-1, #E2E8F0)'
+                      }}
+                      dangerouslySetInnerHTML={renderMarkdown(previewContent)}
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        .document-premium-page {
+          background: #ffffff !important;
+          color: #1e293b !important;
+          padding: 40px;
+          border-radius: 8px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          font-family: 'Inter', system-ui, sans-serif;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        .document-header-logo {
+          text-align: center;
+          margin-bottom: 35px;
+        }
+        .doc-logo-large {
+          max-width: 120px;
+          height: auto;
+          margin: 0 auto 15px;
+          display: block;
+        }
+        .doc-logo-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 24px;
+          font-weight: 800;
+          color: #5c3e35 !important;
+          margin: 0 0 5px 0;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .doc-logo-subtitle {
+          font-size: 13px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          font-weight: 600;
+        }
+        .doc-divider {
+          height: 3px;
+          background: #D4AF37;
+          width: 80px;
+          margin: 15px auto 0;
+          border-radius: 2px;
+        }
+        .document-premium-page .markdown-content {
+          color: #334155 !important;
+        }
+        .document-premium-page .markdown-content .code-block {
+          background: #f8fafc;
+          padding: 15px;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          font-family: monospace;
+          white-space: pre-wrap;
+          margin: 15px 0;
+          color: #0f172a;
+        }
+        .document-premium-page .markdown-content code {
+          background: #f1f5f9;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: monospace;
+          color: #dc2626;
+        }
+        .document-premium-page .markdown-content .md-h1 { border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 30px; margin-bottom: 20px; font-size: 24px; color: #0f172a !important; }
+        .document-premium-page .markdown-content .md-h2 { margin-top: 25px; margin-bottom: 15px; font-size: 20px; color: #1e293b !important; }
+        .document-premium-page .markdown-content .md-h3 { margin-top: 20px; margin-bottom: 10px; font-size: 18px; color: #1e293b !important; }
+        .document-premium-page .markdown-content .md-li { margin-left: 20px; list-style-type: square; color: #334155; }
+      `}</style>
     </div>
   );
 };

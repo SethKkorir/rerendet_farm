@@ -179,12 +179,6 @@ function Checkout() {
     }
   };
 
-  const [slideComplete, setSlideComplete] = useState(false);
-  const trackRef = useRef(null);
-  const x = useMotionValue(0);
-  const slideProgress = useTransform(x, [0, 260], [0, 1]);
-  const labelOpacity = useTransform(x, [0, 150], [1, 0]);
-
   const handleInputChange = (field, value) => {
     setShippingInfo(prev => {
       const newData = { ...prev, [field]: value };
@@ -370,39 +364,7 @@ function Checkout() {
     return true;
   };
 
-  const handleDragEnd = async (_, info) => {
-    const currentX = x.get();
-    if (currentX >= 180 && !loading) {
-      const validationErrors = validateForm();
-      if (Object.keys(validationErrors).length > 0) {
-        setErrors(validationErrors);
-        showNotification('Please fill in your delivery details correctly', 'error');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        x.set(0);
-        return;
-      }
 
-      if (paymentMethod === 'cod' && total > 20000) {
-        showNotification('COD limited to KSh 20,000. Please use M-Pesa.', 'error');
-        x.set(0);
-        return;
-      }
-
-      setSlideComplete(true);
-      x.set(260);
-
-      const success = await handlePlaceOrder();
-
-      if (!success) {
-        setTimeout(() => {
-          setSlideComplete(false);
-          x.set(0);
-        }, 800);
-      }
-    } else {
-      x.set(0);
-    }
-  };
 
   const processOrder = async (paymentData = null) => {
     setLoading(true);
@@ -492,14 +454,10 @@ function Checkout() {
               setShowPaymentModal(false);
               showNotification(msg, 'error');
               logFailure(msg);
-              setSlideComplete(false);
-              x.set(0);
             }}
             onCancel={() => {
               setShowPaymentModal(false);
               logFailure('User cancelled checkout');
-              setSlideComplete(false);
-              x.set(0);
             }}
           />
 
@@ -929,69 +887,37 @@ function Checkout() {
               </div>
             </div>
 
-            <div className={`slide-to-order-container ${loading ? 'loading' : ''}`}>
-              <div
-                className={`slide-track ${slideComplete ? 'slide-success-track' : ''}`}
-                ref={trackRef}
+            <div className="checkout-submit-container" style={{ marginTop: '1.5rem' }}>
+              <button
+                type="button"
+                className={`checkout-submit-btn-premium ${loading ? 'loading' : ''}`}
+                onClick={handlePlaceOrder}
+                disabled={loading}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, #D4AF37 0%, #B8932A 100%)',
+                  color: '#000',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  fontWeight: '700',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 15px rgba(212, 175, 55, 0.2)',
+                  fontFamily: 'inherit'
+                }}
               >
-                <motion.div
-                  className="slide-progress"
-                  style={{ width: x }}
-                />
-
-                <motion.div
-                  className="slide-label-container"
-                >
-                  <AnimatePresence mode="wait">
-                    {loading ? (
-                      <motion.span
-                        key="loading"
-                        className="slide-label loading-text"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                      >
-                        <FaSync className="spin-slow" /> Processing Order...
-                      </motion.span>
-                    ) : slideComplete ? (
-                      <motion.span
-                        key="success"
-                        className="slide-label success-text"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
-                        <FaCheckCircle /> Confirmed
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="idle"
-                        className="slide-label"
-                        style={{ opacity: labelOpacity }}
-                      >
-                        Slide to Finalize Order
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-
-                <motion.div
-                  className="slide-handle"
-                  drag={!loading && !slideComplete ? "x" : false}
-                  dragConstraints={{ left: 0, right: 260 }}
-                  dragElastic={0.1}
-                  onDragEnd={handleDragEnd}
-                  style={{ x }}
-                  whileTap={!loading && !slideComplete ? { scale: 0.95 } : {}}
-                >
-                  {loading ? (
-                    <FaSync className="spin-slow" />
-                  ) : slideComplete ? (
-                    <FaCheckCircle />
-                  ) : (
-                    <FaArrowRight />
-                  )}
-                </motion.div>
-              </div>
+                {loading ? (
+                  <><FaSync className="spin" /> Processing Order...</>
+                ) : (
+                  <><FaLock /> Confirm & Place Order (KES {total.toLocaleString()})</>
+                )}
+              </button>
             </div>
 
             <div className="manifest-security-footer">

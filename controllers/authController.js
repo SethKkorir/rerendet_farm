@@ -34,6 +34,22 @@ import generateToken, {
 import realSendEmail from '../utils/sendEmail.js';
 import { getVerificationEmail, getWelcomeEmail, getResetPasswordEmail, getRegretEmail, getSecurityAlertEmail } from '../utils/emailTemplates.js';
 
+const resolveClientUrl = () => {
+  const url = process.env.CLIENT_URL;
+  if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return url;
+  }
+  return (process.env.NODE_ENV === 'production' || process.env.VERCEL) ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173';
+};
+
+const resolveFrontendUrl = () => {
+  const url = process.env.FRONTEND_URL;
+  if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return url;
+  }
+  return (process.env.NODE_ENV === 'production' || process.env.VERCEL) ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000';
+};
+
 // Dynamic cybersecurity wrapper to strictly prevent administrative/security alerts from being sent to customer accounts.
 const sendEmail = async (options) => {
   const isSecurityAlert = options.subject && (
@@ -1663,7 +1679,7 @@ const createAdmin = asyncHandler(async (req, res) => {
             <p><strong>Role:</strong> ${role}</p>
           </div>
           <p>You can now access the admin dashboard.</p>
-          <p><strong>Admin Dashboard:</strong> <a href="${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173')}/admin/login">Access Admin Panel</a></p>
+          <p><strong>Admin Dashboard:</strong> <a href="${resolveClientUrl()}/admin/${process.env.ADMIN_PATH_SEGMENT || 'admin'}/login">Access Admin Panel</a></p>
         </div>
       </div>
     `;
@@ -1676,7 +1692,7 @@ const createAdmin = asyncHandler(async (req, res) => {
         firstName: firstName,
         permissions: defaultPermissions,
         role: role,
-        adminUrl: `${process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173')}/admin/login`
+        adminUrl: `${resolveClientUrl()}/admin/${process.env.ADMIN_PATH_SEGMENT || 'admin'}/login`
       }
     });
 
@@ -2022,7 +2038,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   );
 
   // Construct reset URL
-  const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000');
+  const frontendUrl = resolveFrontendUrl();
   const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
 
   try {
@@ -2993,7 +3009,7 @@ const requestAdminMagicLink = asyncHandler(async (req, res) => {
     requestFingerprint
   });
 
-  const baseUrl = process.env.CLIENT_URL || (process.env.NODE_ENV === 'production' ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173');
+  const baseUrl = resolveClientUrl();
   const magicLinkUrl = `${baseUrl}/admin/magic-verify?token=${rawToken}`;
 
   // Send Magic Link email

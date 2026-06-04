@@ -6,7 +6,7 @@ import API from '../../api/api';
 import './Admin.css';
 
 const Documentation = () => {
-  const { token, showNotification } = useContext(AppContext);
+  const { token, showNotification, publicSettings } = useContext(AppContext);
   const [docsList, setDocsList] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [content, setContent] = useState('');
@@ -110,10 +110,10 @@ const Documentation = () => {
       </div>
 
       {/* Content Viewer */}
-      <div className="docs-viewer-body" style={{ flex: 1, background: 'var(--noir-card, #131926)', borderRadius: '8px', padding: '30px', border: '1px solid var(--noir-border, #1E293B)', position: 'relative' }}>
+      <div className="docs-viewer-body" style={{ flex: 1, background: 'var(--noir-card, #131926)', borderRadius: '8px', padding: '30px', border: '1px solid var(--noir-border, #1E293B)', position: 'relative', overflowY: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
         {selectedDoc && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '15px' }}>
-            <h2 style={{ margin: 0 }}>{selectedDoc.label}</h2>
+          <div className="doc-viewer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #1E293B', paddingBottom: '15px' }}>
+            <h2 style={{ margin: 0, color: '#fff' }}>{selectedDoc.label}</h2>
             <button
               onClick={handlePrint}
               style={{
@@ -140,67 +140,122 @@ const Documentation = () => {
             <div className="adl-spinner" />
           </div>
         ) : (
-          <div
-            className="markdown-content"
-            style={{
-              lineHeight: '1.7',
-              fontSize: '15px',
-              color: 'var(--text-1, #E2E8F0)',
-              overflowY: 'auto',
-              maxHeight: 'calc(100vh - 280px)',
-              paddingRight: '10px'
-            }}
-            dangerouslySetInnerHTML={renderMarkdown(content)}
-          />
+          <div className="document-premium-page">
+            <div className="document-header-logo">
+              <img src={publicSettings?.store?.logo || "/rerendet-logo.png"} alt="Rerendet Logo" className="doc-logo-large" />
+              <h2 className="doc-logo-title">{publicSettings?.store?.name || "Rerendet Coffee"}</h2>
+              <div className="doc-logo-subtitle">Official Reference Documentation</div>
+              <div className="doc-divider"></div>
+            </div>
+            <div
+              className="markdown-content"
+              style={{
+                lineHeight: '1.8',
+                fontSize: '15px',
+                color: '#334155'
+              }}
+              dangerouslySetInnerHTML={renderMarkdown(content)}
+            />
+          </div>
         )}
       </div>
 
-      {/* Global CSS style overrides for printing documents */}
+      {/* Global CSS style overrides for printing and styling documents */}
       <style>{`
+        .document-premium-page {
+          background: #ffffff !important;
+          color: #1e293b !important;
+          padding: 40px;
+          border-radius: 8px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+          font-family: 'Inter', system-ui, sans-serif;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        .document-header-logo {
+          text-align: center;
+          margin-bottom: 35px;
+        }
+        .doc-logo-large {
+          max-width: 120px;
+          height: auto;
+          margin: 0 auto 15px;
+          display: block;
+        }
+        .doc-logo-title {
+          font-family: 'Outfit', sans-serif;
+          font-size: 24px;
+          font-weight: 800;
+          color: #5c3e35 !important;
+          margin: 0 0 5px 0;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .doc-logo-subtitle {
+          font-size: 13px;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          font-weight: 600;
+        }
+        .doc-divider {
+          height: 3px;
+          background: #D4AF37;
+          width: 80px;
+          margin: 15px auto 0;
+          border-radius: 2px;
+        }
+        
         .markdown-content .code-block {
-          background: #0B0F19;
+          background: #f8fafc;
           padding: 15px;
           border-radius: 6px;
-          border: 1px solid #1E293B;
+          border: 1px solid #e2e8f0;
           font-family: monospace;
           white-space: pre-wrap;
           margin: 15px 0;
-          color: #10B981;
+          color: #0f172a;
         }
         .markdown-content code {
-          background: rgba(255, 255, 255, 0.08);
+          background: #f1f5f9;
           padding: 2px 6px;
           border-radius: 4px;
           font-family: monospace;
-          color: #D4AF37;
+          color: #dc2626;
         }
-        .markdown-content .md-h1 { border-bottom: 2px solid #D4AF37; padding-bottom: 8px; margin-top: 30px; margin-bottom: 20px; font-size: 24px; color: #fff; }
-        .markdown-content .md-h2 { margin-top: 25px; margin-bottom: 15px; font-size: 20px; color: #fff; }
-        .markdown-content .md-h3 { margin-top: 20px; margin-bottom: 10px; font-size: 18px; color: #fff; }
-        .markdown-content .md-li { margin-left: 20px; list-style-type: square; }
+        .markdown-content .md-h1 { border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-top: 30px; margin-bottom: 20px; font-size: 24px; color: #0f172a !important; }
+        .markdown-content .md-h2 { margin-top: 25px; margin-bottom: 15px; font-size: 20px; color: #1e293b !important; }
+        .markdown-content .md-h3 { margin-top: 20px; margin-bottom: 10px; font-size: 18px; color: #1e293b !important; }
+        .markdown-content .md-li { margin-left: 20px; list-style-type: square; color: #334155; }
         
         @media print {
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
+            background: transparent !important;
           }
-          .docs-viewer-body, .docs-viewer-body * {
-            visibility: visible;
+          #root, #root * {
+            visibility: hidden !important;
           }
-          .docs-viewer-body {
+          .document-premium-page, .document-premium-page * {
+            visibility: visible !important;
+          }
+          .document-premium-page {
             position: absolute;
             left: 0;
             top: 0;
-            width: 100%;
+            width: 100% !important;
+            max-width: 100% !important;
             border: none !important;
+            box-shadow: none !important;
             background: #fff !important;
             color: #000 !important;
             padding: 0 !important;
+            margin: 0 !important;
           }
-          .docs-viewer-body button {
-            display: none !important;
+          .doc-logo-title {
+            color: #000 !important;
           }
           .markdown-content {
-            max-height: none !important;
             color: #000 !important;
           }
           .markdown-content .md-h1,
