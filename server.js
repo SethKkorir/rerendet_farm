@@ -319,6 +319,7 @@ app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 import customerRoutes from './routes/customerRoutes.js';
 app.use('/api/customer', customerRoutes);
 import adminReportingRoutes from './routes/adminReportingRoutes.js';
