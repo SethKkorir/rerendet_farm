@@ -438,7 +438,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
         isVerified: user.isVerified,
         profilePicture: user.profilePicture,
         shippingInfo: user.shippingInfo || {},
-        wallet: user.wallet || {},
+        wallet: user.toObject().wallet || {},
         cart: user.cart || [],
 
         twoFactorEnabled: user.twoFactorEnabled,
@@ -739,7 +739,7 @@ const googleLogin = asyncHandler(async (req, res) => {
           isVerified: user.isVerified,
           profilePicture: user.profilePicture,
           shippingInfo: user.shippingInfo || {},
-          wallet: user.wallet || {},
+          wallet: user.toObject().wallet || {},
           cart: user.cart || [],
           twoFactorEnabled: user.twoFactorEnabled
         },
@@ -1001,7 +1001,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
         isVerified: user.isVerified,
         profilePicture: user.profilePicture,
         shippingInfo: user.shippingInfo || {},
-        wallet: user.wallet || {},
+        wallet: user.toObject().wallet || {},
         cart: user.cart || [],
         twoFactorEnabled: user.twoFactorEnabled
       },
@@ -1073,7 +1073,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         isVerified: updatedUser.isVerified,
         profilePicture: updatedUser.profilePicture,
         shippingInfo: updatedUser.shippingInfo,
-        wallet: updatedUser.wallet,
+        wallet: updatedUser.toObject().wallet || {},
         twoFactorEnabled: updatedUser.twoFactorEnabled,
         preferences: updatedUser.preferences
       }
@@ -1798,6 +1798,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     isVerified: user.isVerified,
     profilePicture: user.profilePicture,
     shippingInfo: user.shippingInfo || {},
+    wallet: user.toObject().wallet || {},
     cart: user.cart || []
   };
 
@@ -2658,7 +2659,7 @@ const verify2FATOTP = asyncHandler(async (req, res) => {
         isVerified: user.isVerified,
         profilePicture: user.profilePicture,
         shippingInfo: user.shippingInfo || {},
-        wallet: user.wallet || {},
+        wallet: user.toObject().wallet || {},
         cart: user.cart || [],
         twoFactorEnabled: user.twoFactorEnabled,
         permissions: user.adminPermissions
@@ -2756,7 +2757,7 @@ const verify2FABackup = asyncHandler(async (req, res) => {
         isVerified: user.isVerified,
         profilePicture: user.profilePicture,
         shippingInfo: user.shippingInfo || {},
-        wallet: user.wallet || {},
+        wallet: user.toObject().wallet || {},
         cart: user.cart || [],
         twoFactorEnabled: user.twoFactorEnabled,
         permissions: user.adminPermissions
