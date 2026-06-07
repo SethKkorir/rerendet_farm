@@ -7,7 +7,8 @@ import Settings from '../models/Settings.js';
  * @param {object} order - The populated Order document
  */
 export const sendOrderConfirmationEmailHelper = async (order) => {
-    const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+    try {
+        const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
       ? 'https://rerendet-farm.vercel.app'
       : (process.env.FRONTEND_URL || 'http://localhost:3000');
     const dashboardUrl = `${frontendUrl}/account/orders/${order._id}`;

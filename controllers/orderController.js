@@ -430,6 +430,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // Send order confirmation email only if paid or Cash on Delivery
     if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
+      try {
         const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
           ? 'https://rerendet-farm.vercel.app'
           : (process.env.FRONTEND_URL || 'http://localhost:3000');

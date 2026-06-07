@@ -12,7 +12,7 @@ try {
 import pinoHttp from 'pino-http';
 import logger from './config/logger.js';
 import express from 'express';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -44,8 +44,6 @@ import cartRoutes from './routes/cartRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import maintenanceMode from './middleware/maintenanceMiddleware.js';
-
-dotenv.config();
 
 // Initialize Sentry before any other middleware or routes
 if (process.env.SENTRY_DSN) {
