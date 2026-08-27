@@ -1,882 +1,907 @@
-/* OrderConfirmation.css — Premium Elite Redesign */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* components/OrderConfirmation/OrderConfirmation.css */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
 
-/* ══ Page shell ══════════════════════════════════════════════════ */
-.oc-page {
-    min-height: 100dvh;
-    background: var(--bg-home, #0f0c0a);
-    padding: 6rem 1rem 4rem;
-    position: relative;
-    overflow-x: hidden;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    color: var(--text-main, #ffffff);
+/* ══ PAGE LAYOUT ══════════════════════════════════════════════════ */
+.oc-modern-page {
+  min-height: 100dvh;
+  background: #0d0a08;
+  color: #f5f0eb;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  padding: 5.5rem 1.25rem 4rem;
+  position: relative;
+  overflow-x: hidden;
 }
 
-/* Ambient layout glow orbs */
-.oc-page::before {
-    content: "";
-    position: absolute;
-    top: 5%;
-    left: -100px;
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(circle, rgba(212, 175, 55, 0.08) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
+/* Ambient glow orbs */
+.oc-ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  z-index: 0;
 }
 
-.oc-page::after {
-    content: "";
-    position: absolute;
-    bottom: 10%;
-    right: -100px;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(111, 78, 55, 0.06) 0%, transparent 70%);
-    pointer-events: none;
-    z-index: 0;
+.oc-orb-1 {
+  top: 5%;
+  left: -100px;
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(196, 131, 90, 0.12) 0%, transparent 70%);
 }
 
-.oc-container {
-    max-width: 850px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.75rem;
-    position: relative;
-    z-index: 1;
+.oc-orb-2 {
+  top: 40%;
+  right: -120px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
 }
 
-/* ══ Loading ════════════════════════════════════════════════════ */
-.oc-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    gap: 1.5rem;
-    color: var(--text-muted, rgba(255, 255, 255, 0.6));
-    font-family: 'Outfit', sans-serif;
+.oc-wrapper {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  position: relative;
+  z-index: 1;
 }
 
-.oc-spinner {
-    width: 48px;
-    height: 48px;
-    border: 3px solid rgba(212, 175, 55, 0.15);
-    border-top-color: #D4AF37;
-    border-radius: 50%;
-    animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+/* ══ LOADING STATE ════════════════════════════════════════════════ */
+.oc-loading-state {
+  min-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+.oc-luxury-spinner {
+  width: 54px;
+  height: 54px;
+  border: 3px solid rgba(196, 131, 90, 0.15);
+  border-top-color: #C4835A;
+  border-radius: 50%;
+  animation: ocSpin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* ══ Confetti ═══════════════════════════════════════════════════ */
+@keyframes ocSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ══ CONFETTI ═════════════════════════════════════════════════════ */
 .oc-confetti-wrap {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    overflow: hidden;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
 }
 
 .oc-particle {
-    position: absolute;
-    top: -12px;
-    border-radius: 3px;
-    animation: fall linear forwards;
+  position: absolute;
+  top: -12px;
+  border-radius: 3px;
+  animation: ocParticleFall linear forwards;
 }
 
-@keyframes fall {
-    0% {
-        transform: translateY(-10px) rotate(0deg);
-        opacity: 1;
-    }
-    80% {
-        opacity: 1;
-    }
-    100% {
-        transform: translateY(110vh) rotate(720deg);
-        opacity: 0;
-    }
+@keyframes ocParticleFall {
+  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+  85% { opacity: 0.9; }
+  100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
 }
 
-/* ══ HERO HEADER ════════════════════════════════════════════════ */
-.oc-hero {
-    text-align: center;
-    padding: 3.5rem 2rem 3rem;
-    background: radial-gradient(circle at 50% 30%, rgba(44, 24, 16, 0.95) 0%, rgba(15, 10, 8, 0.98) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.28);
-    border-radius: 28px;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(212, 175, 55, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+/* ══ 1. HERO CARD ═════════════════════════════════════════════════ */
+.oc-hero-card {
+  background: radial-gradient(circle at 50% 0%, rgba(38, 26, 20, 0.95) 0%, rgba(18, 14, 11, 0.98) 100%);
+  border: 1px solid rgba(196, 131, 90, 0.25);
+  border-radius: 24px;
+  padding: 3.25rem 2rem 2.5rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.oc-hero-glow {
-    position: absolute;
-    top: -80px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 450px;
-    height: 250px;
-    background: radial-gradient(ellipse, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
-    pointer-events: none;
+.oc-hero-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(196, 131, 90, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
 }
 
-/* Check ring in gold style */
-.oc-check-ring {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 1.5rem;
+.oc-success-icon-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
 }
 
-.oc-check-icon {
-    font-size: 76px;
-    color: #D4AF37;
-    filter: drop-shadow(0 0 25px rgba(212, 175, 55, 0.45));
-    position: relative;
-    z-index: 2;
+.oc-success-svg {
+  font-size: 72px;
+  color: #10B981;
+  filter: drop-shadow(0 0 20px rgba(16, 185, 129, 0.45));
+  position: relative;
+  z-index: 2;
 }
 
-.oc-ring {
-    position: absolute;
-    border-radius: 50%;
-    border: 2px solid rgba(212, 175, 55, 0.25);
-    animation: pulse-ring 2.4s ease-out infinite;
+.oc-pulse-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(16, 185, 129, 0.35);
+  animation: ocPulseRing 2.4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
 }
 
-.oc-ring-1 {
-    width: 106px;
-    height: 106px;
-    animation-delay: 0s;
+.oc-pulse-ring.ring-1 { width: 90px; height: 90px; }
+.oc-pulse-ring.ring-2 { width: 120px; height: 120px; animation-delay: 0.6s; }
+
+@keyframes ocPulseRing {
+  0% { transform: scale(0.7); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
 }
 
-.oc-ring-2 {
-    width: 142px;
-    height: 142px;
-    animation-delay: 0.5s;
+.oc-hero-subtitle {
+  display: block;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: #C4835A;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
 }
 
-@keyframes pulse-ring {
-    0% {
-        transform: scale(0.85);
-        opacity: 0.7;
-    }
-    60% {
-        transform: scale(1.2);
-        opacity: 0;
-    }
-    100% {
-        transform: scale(1.2);
-        opacity: 0;
-    }
+.oc-hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #f5f0eb;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.5px;
 }
 
-.oc-headline {
-    font-family: 'Outfit', sans-serif;
-    font-size: clamp(2rem, 5vw, 3rem);
-    font-weight: 900;
-    color: #ffffff;
-    letter-spacing: -0.04em;
-    margin: 0 0 0.75rem;
-    background: linear-gradient(135deg, #ffffff 40%, #D4AF37 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+.oc-hero-description {
+  font-size: 1.05rem;
+  color: #a89f91;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  line-height: 1.6;
 }
 
-.oc-subline {
-    font-size: 0.98rem;
-    color: rgba(255, 255, 255, 0.7);
-    max-width: 500px;
-    margin: 0 auto 2rem;
-    line-height: 1.65;
+.oc-customer-name {
+  color: #f5f0eb;
+  font-weight: 600;
 }
 
-/* Order signature pill */
-.oc-order-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 1rem;
-    background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(212, 175, 55, 0.35);
-    border-radius: 20px;
-    padding: 0.85rem 1.75rem;
-    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
+/* Meta Ribbon */
+.oc-meta-ribbon {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(10, 8, 6, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 0.75rem 1.5rem;
+  gap: 1.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.oc-pill-icon {
-    font-size: 1.45rem;
-    color: #D4AF37;
-    filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.4));
+.oc-meta-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
 }
 
-.oc-pill-label {
-    display: block;
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: rgba(255, 255, 255, 0.45);
-    font-weight: 800;
-    text-align: left;
+.chip-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8c827a;
+  font-weight: 600;
 }
 
-.oc-pill-number {
-    display: block;
-    font-family: 'Outfit', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #ffffff;
-    letter-spacing: 0.02em;
+.chip-value-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* ══ STEPPER CARD ════════════════════════════════════════════════ */
-.oc-stepper-card {
-    background: linear-gradient(135deg, rgba(28, 17, 12, 0.45) 0%, rgba(15, 10, 8, 0.65) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.16);
-    border-radius: 24px;
-    padding: 2.25rem 2rem;
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+.chip-code {
+  font-family: 'Outfit', monospace;
+  font-size: 1.05rem;
+  color: #f5f0eb;
+  letter-spacing: 0.5px;
 }
 
-.oc-section-title {
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.72rem;
-    font-weight: 900;
-    color: rgba(255, 255, 255, 0.4);
-    margin: 0 0 2.5rem;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    border-left: 2px solid #D4AF37;
-    padding-left: 10px;
+.oc-copy-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #C4835A;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.75rem;
 }
 
-.oc-stepper {
-    display: flex;
-    align-items: flex-start;
-    gap: 0;
+.oc-copy-btn:hover {
+  background: #C4835A;
+  color: #ffffff;
+  transform: scale(1.05);
 }
 
-.oc-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.85rem;
-    flex: 1;
-    min-width: 0;
+.oc-copy-btn .copy-done {
+  color: #10B981;
 }
 
-.oc-step-bubble {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.02);
-    border: 2px solid rgba(212, 175, 55, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.3);
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-    flex-shrink: 0;
+.oc-meta-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.oc-step.done .oc-step-bubble {
-    color: #000000;
-    box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+.oc-status-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.oc-step.current .oc-step-bubble {
-    color: white !important;
-    border-color: #D4AF37 !important;
-    box-shadow: 0 0 0 6px rgba(212, 175, 55, 0.18), 0 0 20px rgba(212, 175, 55, 0.35);
+.oc-status-pill.paid {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
 }
 
-.oc-step-text {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 0.25rem;
+.oc-status-pill.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
 }
 
-.oc-step-label {
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #ffffff;
-    white-space: nowrap;
+.oc-status-pill.failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.chip-highlight {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: #E5A96E;
+}
+
+/* ══ 2. JOURNEY STEPPER CARD ══════════════════════════════════════ */
+.oc-journey-card {
+  background: rgba(20, 16, 13, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 1.75rem 2rem;
+  backdrop-filter: blur(12px);
+}
+
+.oc-journey-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.oc-card-tag {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #C4835A;
+  font-weight: 700;
+  display: block;
+}
+
+.oc-card-heading {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  color: #f5f0eb;
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.oc-roast-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+}
+
+.oc-stepper-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  position: relative;
+}
+
+.oc-step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.oc-step-icon-shell {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #191410;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  color: #6b635b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  margin-bottom: 0.85rem;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.oc-step-node.completed .oc-step-icon-shell {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10B981;
+  color: #10B981;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+}
+
+.oc-step-node.active .oc-step-icon-shell {
+  background: rgba(196, 131, 90, 0.2);
+  border-color: #C4835A;
+  color: #C4835A;
+  box-shadow: 0 0 25px rgba(196, 131, 90, 0.35);
+  animation: ocActiveGlow 2s infinite ease-in-out;
+}
+
+@keyframes ocActiveGlow {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+.oc-check-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #10B981;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #14100d;
+}
+
+.oc-step-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.oc-step-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f5f0eb;
 }
 
 .oc-step-desc {
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.5);
-    line-height: 1.4;
+  font-size: 0.72rem;
+  color: #8c827a;
+  line-height: 1.35;
 }
 
-.oc-step-connector {
-    flex: 1;
-    padding-top: 21px; /* Align with bubble center */
+.oc-step-timing {
+  font-size: 0.68rem;
+  color: #C4835A;
+  font-weight: 600;
+  margin-top: 0.2rem;
 }
 
-.oc-step-line {
-    height: 2px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 99px;
-    position: relative;
-    overflow: hidden;
+.oc-step-track {
+  position: absolute;
+  top: 25px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  z-index: -1;
 }
 
-.oc-step-connector.filled .oc-step-line {
-    background: linear-gradient(90deg, #D4AF37 0%, #a27b1c 100%);
-    box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+.oc-step-node.completed .oc-step-track {
+  background: linear-gradient(90deg, #10B981, rgba(255, 255, 255, 0.08));
 }
 
-/* ══ INFO CARDS ROW ════════════════════════════════════════════ */
-.oc-cards-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1.5rem;
+/* ══ 3. TWO COLUMN LAYOUT ═════════════════════════════════════════ */
+.oc-grid-columns {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 1.5rem;
 }
 
-.oc-card {
-    background: linear-gradient(135deg, rgba(28, 17, 12, 0.4) 0%, rgba(15, 10, 8, 0.6) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.14);
-    border-radius: 20px;
-    padding: 1.5rem;
-    display: flex;
+.oc-details-card {
+  background: rgba(20, 16, 13, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.oc-details-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 1.25rem;
+}
+
+.oc-subheading {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.25rem;
+  color: #f5f0eb;
+  margin: 0;
+  font-weight: 600;
+}
+
+.oc-batch-tag {
+  font-size: 0.7rem;
+  color: #C4835A;
+  font-weight: 600;
+  background: rgba(196, 131, 90, 0.1);
+  padding: 0.25rem 0.55rem;
+  border-radius: 12px;
+}
+
+.oc-items-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+}
+
+.oc-product-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+}
+
+.oc-product-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d0a08;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.oc-product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.oc-product-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.oc-product-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f5f0eb;
+  margin: 0 0 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-product-tags {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.badge-roast {
+  font-size: 0.7rem;
+  background: rgba(196, 131, 90, 0.15);
+  color: #E5A96E;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.badge-qty {
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: #a89f91;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+}
+
+.oc-product-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.price-unit {
+  font-size: 0.72rem;
+  color: #8c827a;
+}
+
+.price-total {
+  font-size: 0.98rem;
+  color: #f5f0eb;
+  font-weight: 700;
+}
+
+/* Ledger */
+.oc-financial-ledger {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  color: #a89f91;
+}
+
+.ledger-row.discount {
+  color: #34d399;
+}
+
+.ledger-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.35rem 0;
+}
+
+.ledger-row.total {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f5f0eb;
+  align-items: center;
+}
+
+.ledger-grand-total {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.4rem;
+  color: #C4835A;
+  font-weight: 800;
+}
+
+/* Right Column Tiles */
+.oc-logistics-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.oc-info-tile {
+  background: rgba(20, 16, 13, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 1.35rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.oc-tile-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.oc-tile-icon-box.blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.oc-tile-icon-box.gold {
+  background: rgba(196, 131, 90, 0.12);
+  color: #E5A96E;
+  border: 1px solid rgba(196, 131, 90, 0.25);
+}
+
+.oc-tile-icon-box.green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.oc-tile-content {
+  flex: 1;
+}
+
+.oc-tile-content h4 {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #f5f0eb;
+  margin: 0 0 0.4rem;
+}
+
+.oc-tile-text {
+  font-size: 0.85rem;
+  color: #a89f91;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.oc-tile-text strong {
+  color: #f5f0eb;
+}
+
+.oc-contact-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  color: #C4835A;
+  margin-top: 0.65rem;
+  font-weight: 600;
+}
+
+.oc-receipt-ref {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  margin-top: 0.5rem;
+  color: #8c827a;
+}
+
+.oc-receipt-ref code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  color: #E5A96E;
+  font-family: 'Outfit', monospace;
+  font-weight: 700;
+}
+
+.oc-security-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: #10B981;
+  margin-top: 0.65rem;
+  font-weight: 600;
+}
+
+.email-highlight {
+  color: #34d399 !important;
+  font-weight: 600;
+}
+
+/* ══ 4. CTA TOOLBAR ═══════════════════════════════════════════════ */
+.oc-cta-toolbar {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.oc-btn-main {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.85rem 1.35rem;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  border: none;
+}
+
+.oc-btn-main.primary {
+  background: linear-gradient(135deg, #C4835A 0%, #A66942 100%);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(196, 131, 90, 0.35);
+}
+
+.oc-btn-main.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(196, 131, 90, 0.45);
+}
+
+.oc-btn-main.outline {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f5f0eb;
+}
+
+.oc-btn-main.outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.oc-btn-main.whatsapp {
+  background: rgba(37, 211, 102, 0.12);
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  color: #25D366;
+}
+
+.oc-btn-main.whatsapp:hover {
+  background: #25D366;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.oc-btn-main.ghost {
+  background: transparent;
+  color: #a89f91;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.oc-btn-main.ghost:hover {
+  color: #f5f0eb;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ══ 5. QUALITY GUARANTEE ROW ═════════════════════════════════════ */
+.oc-guarantee-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.oc-guarantee-box {
+  background: rgba(20, 16, 13, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 1.35rem 1.25rem;
+  text-align: center;
+}
+
+.guarantee-icon {
+  font-size: 1.4rem;
+  color: #C4835A;
+  margin-bottom: 0.65rem;
+}
+
+.oc-guarantee-box h5 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #f5f0eb;
+  margin: 0 0 0.4rem;
+}
+
+.oc-guarantee-box p {
+  font-size: 0.78rem;
+  color: #8c827a;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ══ PRINT MEDIA OPTIMIZATIONS ════════════════════════════════════ */
+@media print {
+  body, .oc-modern-page {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+
+  .oc-ambient-orb, .oc-confetti-wrap, .oc-cta-toolbar, .oc-guarantee-grid {
+    display: none !important;
+  }
+
+  .oc-hero-card, .oc-journey-card, .oc-details-card, .oc-info-tile {
+    background: #ffffff !important;
+    border: 1px solid #cccccc !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+  }
+
+  .oc-hero-title, .oc-card-heading, .oc-subheading, .oc-tile-content h4, .oc-product-name {
+    color: #000000 !important;
+  }
+
+  .oc-hero-description, .oc-step-desc, .oc-tile-text, .ledger-row {
+    color: #444444 !important;
+  }
+
+  .ledger-grand-total {
+    color: #000000 !important;
+  }
+}
+
+/* ══ RESPONSIVENESS ═══════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .oc-grid-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-stepper-grid {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: 2rem;
+  }
+
+  .oc-step-track {
+    display: none;
+  }
+}
+
+@media (max-width: 650px) {
+  .oc-hero-title {
+    font-size: 2rem;
+  }
+
+  .oc-meta-ribbon {
     flex-direction: column;
-    gap: 1rem;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.oc-card:hover {
-    transform: translateY(-5px);
-    border-color: rgba(212, 175, 55, 0.35);
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45), 0 0 20px rgba(212, 175, 55, 0.06);
-}
-
-.oc-card-icon-wrap {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.15rem;
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.oc-card-title {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin: 0 0 0.35rem;
-}
-
-.oc-card-text {
-    font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.6;
-    margin: 0;
-}
-
-.oc-card-addr {
-    font-size: 0.82rem;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.6;
-    margin: 0 0 0.75rem;
-}
-
-/* Payment info rows */
-.oc-info-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-}
-
-.oc-info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.65rem 0;
-    font-size: 0.85rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.oc-info-row:last-child {
-    border-bottom: none;
-}
-
-.oc-info-row.total-row {
-    padding-top: 0.85rem;
-}
-
-.oc-total-amt {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #D4AF37;
-    font-family: 'Outfit', sans-serif;
-    text-shadow: 0 0 10px rgba(212, 175, 55, 0.15);
-}
-
-/* Badge */
-.oc-badge {
-    padding: 3px 10px;
-    border-radius: 99px;
-    font-size: 0.72rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.oc-badge.paid {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.25);
-}
-
-.oc-badge.pending {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.25);
-}
-
-/* ETA pill */
-.oc-eta-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.12);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 99px;
-    padding: 0.35rem 0.9rem;
-}
-
-/* ══ ORDER ITEMS CARD ═══════════════════════════════════════════ */
-.oc-items-card {
-    background: linear-gradient(135deg, rgba(28, 17, 12, 0.45) 0%, rgba(15, 10, 8, 0.65) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.16);
-    border-radius: 24px;
-    overflow: hidden;
-    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-}
-
-.oc-items-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.5rem 1.75rem 1.25rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.oc-items-count {
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.78rem;
-    font-weight: 700;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.7);
-    padding: 0.3rem 0.85rem;
-    border-radius: 99px;
-}
-
-.oc-items-list {
-    display: flex;
-    flex-direction: column;
-}
-
-.oc-item {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 1.25rem 1.75rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    transition: all 0.25s ease;
-}
-
-.oc-item:last-child {
-    border-bottom: none;
-}
-
-.oc-item:hover {
-    background: rgba(212, 175, 55, 0.03);
-}
-
-.oc-item-img-wrap {
-    width: 80px;
-    height: 80px;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-    flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.2);
-}
-
-.oc-item-img-wrap img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.4s ease;
-}
-
-.oc-item:hover .oc-item-img-wrap img {
-    transform: scale(1.08);
-}
-
-.oc-item-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.oc-item-name {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin: 0 0 0.45rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.oc-item-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.45rem;
-}
-
-.oc-item-tag {
-    font-size: 0.7rem;
-    font-weight: 700;
-    background: rgba(255, 255, 255, 0.03);
-    color: rgba(255, 255, 255, 0.5);
-    border-radius: 8px;
-    padding: 0.2rem 0.65rem;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.oc-item-price {
-    text-align: right;
-    flex-shrink: 0;
-}
-
-.oc-item-unit {
-    display: block;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 0.25rem;
-}
-
-.oc-item-total {
-    font-size: 1.05rem;
-    font-weight: 800;
-    font-family: 'Outfit', sans-serif;
-    color: #ffffff;
-}
-
-/* Summary strip */
-.oc-summary-strip {
-    background: rgba(0, 0, 0, 0.2);
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 1.25rem 1.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.oc-sum-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.88rem;
-    color: rgba(255, 255, 255, 0.55);
-}
-
-.oc-sum-row.discount {
-    color: #34d399;
-    font-weight: 600;
-}
-
-.oc-sum-row.grand-total {
-    padding-top: 0.85rem;
-    border-top: 1px dashed rgba(255, 255, 255, 0.08);
-    margin-top: 0.35rem;
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #ffffff;
-}
-
-.oc-sum-row.grand-total strong {
-    font-family: 'Outfit', sans-serif;
-    font-size: 1.45rem;
-    color: #D4AF37;
-    text-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
-}
-
-/* ══ CTA BUTTONS ════════════════════════════════════════════════ */
-.oc-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
-    margin-top: 1rem;
-}
-
-.oc-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.9rem 1.6rem;
-    border-radius: 14px;
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.9rem;
-    font-weight: 700;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.oc-btn.primary {
-    background: linear-gradient(135deg, var(--color-primary, #D4AF37) 0%, #b38f2a 100%);
-    color: #000000;
-    box-shadow: 0 8px 24px rgba(212, 175, 55, 0.25);
-}
-
-.oc-btn.primary:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 30px rgba(212, 175, 55, 0.4);
-    filter: brightness(1.05);
-}
-
-.oc-btn.outline {
-    background: transparent;
-    color: #ffffff;
-    border: 2px solid rgba(255, 255, 255, 0.12);
-}
-
-.oc-btn.outline:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: rgba(212, 175, 55, 0.3);
-    color: #D4AF37;
-    transform: translateY(-3px);
-}
-
-.oc-btn.ghost {
-    background: rgba(255, 255, 255, 0.02);
-    color: rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.oc-btn.ghost:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-3px);
-}
-
-/* ══ TRUST CARDS ════════════════════════════════════════════════ */
-.oc-trust-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.25rem;
-}
-
-.oc-trust-card {
-    background: linear-gradient(135deg, rgba(28, 17, 12, 0.35) 0%, rgba(15, 10, 8, 0.55) 100%);
-    border: 1px solid rgba(212, 175, 55, 0.12);
-    border-radius: 20px;
-    padding: 1.5rem 1.25rem;
-    text-align: center;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-    transition: all 0.3s ease;
-}
-
-.oc-trust-card:hover {
-    transform: translateY(-5px);
-    border-color: rgba(212, 175, 55, 0.3);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), 0 0 15px rgba(212, 175, 55, 0.05);
-}
-
-.oc-trust-icon {
-    font-size: 1.75rem;
-    color: #D4AF37;
-    margin-bottom: 0.85rem;
-    filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.3));
-}
-
-.oc-trust-card h4 {
-    font-family: 'Outfit', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin: 0 0 0.5rem;
-}
-
-.oc-trust-card p {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
-    line-height: 1.55;
-    margin: 0;
-}
-
-/* ══ RESPONSIVE ═════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-    .oc-page {
-        padding: 5rem 0.75rem 3rem;
-    }
-
-    .oc-cards-row {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-
-    .oc-trust-row {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-
-    .oc-stepper {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 1.5rem;
-        position: relative;
-        padding-left: 1rem;
-    }
-
-    /* Vertical connector line on mobile */
-    .oc-stepper::before {
-        content: "";
-        position: absolute;
-        left: 31px;
-        top: 20px;
-        bottom: 20px;
-        width: 2px;
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 99px;
-        z-index: 0;
-    }
-
-    .oc-step {
-        flex-direction: row;
-        align-items: center;
-        text-align: left;
-        gap: 1.25rem;
-        position: relative;
-        z-index: 1;
-        width: 100%;
-    }
-
-    .oc-step-bubble {
-        width: 40px;
-        height: 40px;
-        background: #110d0a;
-    }
-
-    .oc-step-text {
-        align-items: flex-start;
-        text-align: left;
-        gap: 0.1rem;
-    }
-
-    .oc-step-connector {
-        display: none;
-    }
-
-    .oc-actions {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.75rem;
-    }
-
-    .oc-btn {
-        justify-content: center;
-        padding: 1rem;
-    }
-
-    .oc-hero {
-        padding: 3rem 1.25rem 2.25rem;
-        border-radius: 20px;
-    }
-
-    .oc-check-icon {
-        font-size: 64px;
-    }
-
-    .oc-headline {
-        font-size: 2.2rem;
-    }
-
-    .oc-item {
-        flex-wrap: wrap;
-        gap: 1rem;
-        padding: 1.25rem 1.25rem;
-    }
-
-    .oc-item-img-wrap {
-        width: 64px;
-        height: 64px;
-    }
-
-    .oc-item-info {
-        width: calc(100% - 80px);
-    }
-
-    .oc-item-price {
-        width: 100%;
-        text-align: left;
-        border-top: 1px solid rgba(255, 255, 255, 0.04);
-        padding-top: 0.75rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .oc-item-unit {
-        margin-bottom: 0;
-    }
-
-    .oc-summary-strip {
-        padding: 1.25rem 1.25rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .oc-stepper-card,
-    .oc-items-card,
-    .oc-card,
-    .oc-trust-card {
-        border-radius: 20px;
-        padding: 1.5rem 1.25rem;
-    }
-
-    .oc-order-pill {
-        flex-direction: column;
-        text-align: center;
-        gap: 0.5rem;
-        width: 100%;
-    }
-
-    .oc-pill-number {
-        font-size: 1.1rem;
-    }
+    align-items: stretch;
+    gap: 0.85rem;
+    padding: 1rem;
+  }
+
+  .oc-meta-divider {
+    display: none;
+  }
+
+  .oc-stepper-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-guarantee-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .oc-btn-main {
+    min-width: 100%;
+  }
 }
