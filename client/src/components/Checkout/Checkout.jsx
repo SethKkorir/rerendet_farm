@@ -103,12 +103,23 @@ function Checkout() {
   const appliedStoreCredit = applyStoreCredit ? Math.min(storeCreditAvailable, subtotal - discount + shippingCost) : 0;
   const total = Math.max(0, subtotal - discount + shippingCost - appliedStoreCredit);
 
+  // Per-checkout idempotency key to prevent duplicate orders/charges
+  const idempotencyKeyRef = useRef(null);
+  if (!idempotencyKeyRef.current) {
+    idempotencyKeyRef.current = `IDEM_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
   useEffect(() => {
     if (!isAuthenticated) {
-      showNotification('Please log in to checkout', 'info');
-      navigate('/login?redirect=checkout');
+      showNotification('Please log in to proceed with checkout', 'info');
+      sessionStorage.setItem('authRedirect', '/checkout');
+      if (openAuthModal) {
+        openAuthModal('login');
+      } else {
+        navigate('/login?redirect=/checkout');
+      }
     }
-  }, [isAuthenticated, navigate, showNotification]);
+  }, [isAuthenticated, openAuthModal, navigate, showNotification]);
 
   useEffect(() => {
     if (user) {
@@ -298,7 +309,8 @@ function Checkout() {
         appliedStoreCredit,
         couponCode: couponData?.code,
         isSubscription,
-        subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined
+        subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined,
+        idempotencyKey: idempotencyKeyRef.current
       };
 
       const response = await fetch('/api/orders', {
@@ -381,6 +393,7 @@ function Checkout() {
         couponCode: couponData?.code,
         isSubscription,
         subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined,
+        idempotencyKey: idempotencyKeyRef.current,
         paymentData: paymentData || (paymentMethod === 'card' ? { ...cardInfo } : null)
       };
 

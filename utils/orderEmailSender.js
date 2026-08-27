@@ -39,6 +39,14 @@ export const sendOrderConfirmationEmailHelper = async (order) => {
     });
 
     console.log(`📧 Order confirmation email sent to ${order.shippingAddress.email} for order #${order.orderNumber}`);
+
+    // Trigger Admin Alert for new paid order
+    try {
+      const { sendNewOrderAdminAlert } = await import('./adminNotificationService.js');
+      await sendNewOrderAdminAlert(order);
+    } catch (alertErr) {
+      console.warn('⚠️ Admin new order alert non-blocking warning:', alertErr.message);
+    }
   } catch (error) {
     console.error(`❌ Failed to send order confirmation email for order #${order?.orderNumber || 'unknown'}:`, error);
   }

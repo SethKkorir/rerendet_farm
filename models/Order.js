@@ -102,6 +102,7 @@ const orderSchema = new mongoose.Schema({
 
   // Metadata
   paymentMethod: { type: String, required: true },
+  idempotencyKey: { type: String, index: true },
   transactionId: { type: String },
   manualTransactionId: { type: String }, // For Paybill/Manual Verification
   paymentVerificationStatus: {

@@ -14,7 +14,8 @@ import {
   getCancelOrderWarning,
   getOrderAggregates,
   updateRoastStage,
-  trackOrderPublic
+  trackOrderPublic,
+  validateCart
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { checkoutLimiter } from '../middleware/checkoutRateLimit.js';
@@ -22,6 +23,7 @@ import { checkoutLimiter } from '../middleware/checkoutRateLimit.js';
 const router = express.Router();
 
 // Public routes
+router.post('/validate-cart', validateCart);
 router.post('/shipping-cost', calculateShippingCost);
 router.get('/track/:id', trackOrderPublic);
 

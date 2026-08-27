@@ -527,6 +527,31 @@ export function AppProvider({ children }) {
 
   const cartCount = getCartItemCount();
 
+  const validateCartWithServer = useCallback(async (cartItems = cart) => {
+    if (!cartItems || cartItems.length === 0) {
+      return { isValid: true, hasIssues: false, items: [], subtotal: 0 };
+    }
+
+    try {
+      const payload = cartItems.map(item => ({
+        product: item.product || item.productId || item._id,
+        size: item.size || 'Standard',
+        price: item.price,
+        quantity: item.quantity,
+        name: item.name
+      }));
+
+      const res = await axios.post('/api/orders/validate-cart', { items: payload });
+      if (res.data && res.data.success) {
+        return res.data;
+      }
+      return { isValid: true, hasIssues: false, items: cartItems, subtotal: getCartTotal() };
+    } catch (err) {
+      console.warn('⚠️ Server cart validation non-blocking warning:', err.message);
+      return { isValid: true, hasIssues: false, items: cartItems, subtotal: getCartTotal() };
+    }
+  }, [cart, getCartTotal]);
+
   // ==================== UI METHODS ====================
 
   const openCart = useCallback(() => setIsCartOpen(true), []);
@@ -1259,6 +1284,7 @@ export function AppProvider({ children }) {
     clearCart,
     getCartTotal,
     getCartItemCount,
+    validateCartWithServer,
 
     // UI methods
     openCart,
@@ -1288,7 +1314,7 @@ export function AppProvider({ children }) {
     showAlert, hideAlert,
     login, loginWithGoogle, loginAdmin, verifyAdmin2FA, register, logout, clearAuth, unlockSession,
     updateUserProfile, changeUserPassword, deleteAccount, fetchUserOrders,
-    addToCart, removeFromCart, updateCartQuantity, clearCart, getCartTotal, getCartItemCount,
+    addToCart, removeFromCart, updateCartQuantity, clearCart, getCartTotal, getCartItemCount, validateCartWithServer,
     openCart, closeCart, toggleCart, setMobileMenuOpenState,
     fetchDashboardStats, fetchSalesAnalytics, fetchAdminUsers, updateUserRole, deleteUser, fetchAdminOrders, fetchAdminProducts,
     publicSettings, settingsLoading, fetchPublicSettings, globalMaintenance,

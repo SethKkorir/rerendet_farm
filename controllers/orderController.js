@@ -24,6 +24,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
   try {
     const {
+      idempotencyKey,
       shippingAddress,
       paymentMethod,
       items,
@@ -40,8 +41,28 @@ const createOrder = asyncHandler(async (req, res) => {
 
     const userId = req.user._id;
 
-    console.log('🛒 Creating order for user:', userId);
+    console.log('🛒 Creating order for user:', userId, 'IdempotencyKey:', idempotencyKey);
     console.log('📦 Order items:', items?.length);
+
+    // ✅ IDEMPOTENCY: If client sends an idempotencyKey, return existing pending/paid order
+    if (idempotencyKey) {
+      const existingOrder = await Order.findOne({
+        user: userId,
+        idempotencyKey: idempotencyKey,
+        paymentStatus: { $in: ['pending', 'paid'] }
+      }).session(session);
+
+      if (existingOrder) {
+        console.log(`🔁 Idempotent order match found: ${existingOrder.orderNumber}`);
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(200).json({
+          success: true,
+          message: 'Existing order retrieved',
+          data: existingOrder
+        });
+      }
+    }
 
     // ✅ SECURITY: Sanitize shipping address to prevent XSS
     const sanitizedAddress = sanitizeObject(shippingAddress);
@@ -245,6 +266,7 @@ const createOrder = asyncHandler(async (req, res) => {
 
       // Metadata
       paymentMethod: paymentMethod,
+      idempotencyKey: idempotencyKey || undefined,
       notes: notes || '',
 
       // === NEW LIFECYCLE STATE ===
@@ -420,16 +442,14 @@ const createOrder = asyncHandler(async (req, res) => {
       data: populatedOrder
     });
 
-    // Alert administrators about new order placement
-    try {
-      const { sendNewOrderAdminAlert } = await import('../utils/adminNotificationService.js');
-      sendNewOrderAdminAlert(savedOrder).catch(console.error);
-    } catch (alertErr) {
-      console.error('❌ Failed to trigger admin order alert:', alertErr.message);
-    }
-
-    // Send order confirmation email only if paid or Cash on Delivery
+    // Send order confirmation & admin alert only if paid or Cash on Delivery
     if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
+      try {
+        const { sendNewOrderAdminAlert } = await import('../utils/adminNotificationService.js');
+        sendNewOrderAdminAlert(savedOrder).catch(console.error);
+      } catch (alertErr) {
+        console.error('❌ Failed to trigger admin order alert:', alertErr.message);
+      }
       try {
         const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
           ? 'https://rerendet-farm.vercel.app'
@@ -1406,6 +1426,95 @@ const trackOrderPublic = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Validate Cart Items and Stock Server-Side
+// @route   POST /api/orders/validate-cart
+// @access  Public
+const validateCart = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.json({
+      success: true,
+      isValid: true,
+      hasIssues: false,
+      items: [],
+      subtotal: 0
+    });
+  }
+
+  let serverSubtotal = 0;
+  let hasIssues = false;
+  const validatedItems = [];
+
+  for (const item of items) {
+    const product = await Product.findById(item.product || item._id);
+
+    if (!product || product.status === 'archived') {
+      hasIssues = true;
+      validatedItems.push({
+        ...item,
+        isUnavailable: true,
+        availableStock: 0,
+        issueMessage: `"${item.name || 'Item'}" is no longer available.`
+      });
+      continue;
+    }
+
+    const availableStock = product.availableStock !== undefined ? product.availableStock : (product.inventory?.quantity || 0);
+    const sizeConfig = product.sizes?.find(s => s.size === item.size);
+    const currentPrice = sizeConfig?.price || product.price || item.price;
+    const requestedQuantity = parseInt(item.quantity) || 1;
+
+    let isOutOfStock = false;
+    let isLowStock = false;
+    let priceChanged = false;
+    let issueMessage = null;
+
+    if (availableStock <= 0) {
+      isOutOfStock = true;
+      hasIssues = true;
+      issueMessage = `"${product.name}" is currently out of stock.`;
+    } else if (availableStock < requestedQuantity) {
+      isLowStock = true;
+      hasIssues = true;
+      issueMessage = `Only ${availableStock} left in stock for "${product.name}".`;
+    }
+
+    if (item.price && Math.abs(item.price - currentPrice) > 0.01) {
+      priceChanged = true;
+      issueMessage = `Price for "${product.name}" updated to KSh ${currentPrice.toLocaleString()}.`;
+    }
+
+    const itemTotal = currentPrice * (isOutOfStock ? 0 : requestedQuantity);
+    if (!isOutOfStock) {
+      serverSubtotal += itemTotal;
+    }
+
+    validatedItems.push({
+      product: product._id,
+      name: product.name,
+      image: product.images?.[0]?.url || item.image || '/default-product.jpg',
+      size: item.size || 'Standard',
+      price: currentPrice,
+      quantity: requestedQuantity,
+      availableStock,
+      isOutOfStock,
+      isLowStock,
+      priceChanged,
+      issueMessage,
+      itemTotal
+    });
+  }
+
+  res.json({
+    success: true,
+    isValid: !hasIssues,
+    hasIssues,
+    items: validatedItems,
+    subtotal: serverSubtotal
+  });
+});
+
 export {
   createOrder,
   getUserOrders,
@@ -1421,5 +1530,6 @@ export {
   getCancelOrderWarning,
   getOrderAggregates,
   updateRoastStage,
-  trackOrderPublic
+  trackOrderPublic,
+  validateCart
 };

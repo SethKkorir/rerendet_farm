@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleLogin, useGoogleLogin } from '@react-oauth/google';
 import { FaCoffee, FaTimes, FaEye, FaEyeSlash, FaArrowLeft, FaEnvelope, FaLock, FaUser, FaGoogle } from 'react-icons/fa';
@@ -43,6 +44,16 @@ We respect your right to privacy. You can permanently delete your account and wi
 
 const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
     const { login, register, loginWithGoogle, verify2FA, verifyEmail, loading: authLoading, showSuccess, showError, showNotification, publicSettings } = useContext(AppContext);
+    const navigate = useNavigate();
+
+    const handleAuthSuccess = () => {
+        onClose();
+        const targetRedirect = sessionStorage.getItem('authRedirect');
+        if (targetRedirect && targetRedirect.startsWith('/') && !targetRedirect.startsWith('//')) {
+            sessionStorage.removeItem('authRedirect');
+            navigate(targetRedirect);
+        }
+    };
 
     // Views: login, signup, forgot-password, reset-password, verify-email, policies
     const [view, setView] = useState(initialView);
@@ -92,7 +103,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                     setSignupData(prev => ({ ...prev, email: data.email }));
                     setView('2fa-login');
                 } else {
-                    onClose();
+                    handleAuthSuccess();
                 }
             } catch (err) {
                 // Handled in context
@@ -131,7 +142,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                 setView('2fa-login');
                 setVerificationCode(['', '', '', '', '', '']); // Clear code
             } else {
-                onClose();
+                handleAuthSuccess();
             }
         } catch (err) {
             // Explicitly set the error here so it shows in the modal
@@ -195,7 +206,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
 
             // Email Verification
             await verifyEmail(email, code);
-            onClose(); // Auto-login and close modal on success
+            handleAuthSuccess(); // Auto-login and navigate on success
 
         } catch (err) {
             setErrors({ general: err.response?.data?.message || 'Verification failed' });
@@ -344,7 +355,7 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
             // Determine email to use
             const email = loginData.email || signupData.email; // Should be in loginData for login flow
             await verify2FA(email, code);
-            onClose(); // Success handled in context (showSuccess)
+            handleAuthSuccess(); // Success handled in context (showSuccess)
         } catch (err) {
             setErrors({ general: 'Verification failed. Please check the code.' });
         } finally {
