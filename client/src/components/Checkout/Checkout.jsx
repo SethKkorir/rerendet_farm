@@ -24,7 +24,9 @@ function Checkout() {
     isAuthenticated,
     publicSettings,
     setMobileMenuOpen,
-    logAbandonedCheckout
+    logAbandonedCheckout,
+    setShowAuthModal,
+    setAuthView
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -114,13 +116,14 @@ function Checkout() {
     if (!isAuthenticated) {
       showNotification('Please log in to proceed with checkout', 'info');
       sessionStorage.setItem('authRedirect', '/checkout');
-      if (openAuthModal) {
-        openAuthModal('login');
+      if (typeof setShowAuthModal === 'function') {
+        if (typeof setAuthView === 'function') setAuthView('login');
+        setShowAuthModal(true);
       } else {
         navigate('/login?redirect=/checkout');
       }
     }
-  }, [isAuthenticated, openAuthModal, navigate, showNotification]);
+  }, [isAuthenticated, setShowAuthModal, setAuthView, navigate, showNotification]);
 
   useEffect(() => {
     if (user) {
