@@ -207,10 +207,12 @@ settingsSchema.statics.getSettings = async function () {
     await settings.save();
   }
 
+  let updatesNeeded = {};
+
   // Self-heal: If store address is the old default 'Nairobi, Kenya', update it to 'Bomet, Kenya'
   if (settings.store && settings.store.address === 'Nairobi, Kenya') {
     settings.store.address = 'Bomet, Kenya';
-    await settings.save();
+    updatesNeeded['store.address'] = 'Bomet, Kenya';
   }
 
   // Seed default 47 counties if countyShipping is empty or missing
@@ -226,7 +228,7 @@ settingsSchema.statics.getSettings = async function () {
 
   if (!settings.countyShipping || settings.countyShipping.length === 0) {
     settings.countyShipping = COUNTIES.map(c => ({ county: c, price: 500 }));
-    await settings.save();
+    updatesNeeded.countyShipping = settings.countyShipping;
   }
 
   if (!settings.deliveryRates || settings.deliveryRates.length === 0) {
@@ -237,20 +239,34 @@ settingsSchema.statics.getSettings = async function () {
       { region: 'Kisumu', displayName: 'Kisumu Courier', feeKES: 400, estimatedDays: 3 },
       { region: 'Other', displayName: 'Other Regions Courier', feeKES: 500, estimatedDays: 5 }
     ];
-    await settings.save();
+    updatesNeeded.deliveryRates = settings.deliveryRates;
   }
 
   // Pre-generate active magic link token if not present
   if (!settings.maintenance || !settings.maintenance.magicLinkToken || !settings.maintenance.magicLinkRaw) {
     const token = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const magicExpires = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    if (!settings.maintenance) settings.maintenance = {};
     settings.maintenance.magicLinkToken = hashedToken;
     settings.maintenance.magicLinkRaw = token;
-    settings.maintenance.magicLinkExpires = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-    await settings.save();
+    settings.maintenance.magicLinkExpires = magicExpires;
+
+    updatesNeeded['maintenance.magicLinkToken'] = hashedToken;
+    updatesNeeded['maintenance.magicLinkRaw'] = token;
+    updatesNeeded['maintenance.magicLinkExpires'] = magicExpires;
   }
 
-  // Sync documentation files to database
+  // Apply default seeding updates atomically using updateOne to avoid Mongoose VersionError
+  if (Object.keys(updatesNeeded).length > 0) {
+    try {
+      await this.updateOne({ _id: settings._id }, { $set: updatesNeeded });
+    } catch (err) {
+      console.warn('Non-fatal: Settings default seeding update failed:', err.message);
+    }
+  }
+
+  // Sync documentation files to database safely
   try {
     const fs = await import('fs/promises');
     const path = await import('path');
@@ -297,10 +313,10 @@ settingsSchema.statics.getSettings = async function () {
       }
     }
     
-    // Save only if different to avoid infinite hooks/updates
-    if (JSON.stringify(settings.documentations || []) !== JSON.stringify(docListWithContent)) {
+    // Save atomically via updateOne if different to avoid VersionError
+    if (docListWithContent.length > 0 && JSON.stringify(settings.documentations || []) !== JSON.stringify(docListWithContent)) {
+      await this.updateOne({ _id: settings._id }, { $set: { documentations: docListWithContent } });
       settings.documentations = docListWithContent;
-      await settings.save();
     }
   } catch (err) {
     console.error('Error syncing documentation to DB:', err);

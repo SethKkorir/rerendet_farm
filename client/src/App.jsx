@@ -1,6 +1,6 @@
 // App.js
 import React, { useEffect, useContext, lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AppContext } from './context/AppContext';
 import Navbar from './components/Navbar/Navbar';
 import Footer from './components/Footer/Footer';
@@ -38,6 +38,7 @@ const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const Blog = lazy(() => import('./pages/Blog'));
 const BlogPost = lazy(() => import('./pages/BlogPost'));
 const TrackOrder = lazy(() => import('./pages/TrackOrder'));
+const Auth = lazy(() => import('./pages/Auth'));
 
 // Admin Sub-routes
 const Dashboard = lazy(() => import('./components/Admin/Dashboard'));
@@ -75,7 +76,16 @@ const PageLoader = () => (
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { settingsLoading, isAdmin, showAuthModal, setShowAuthModal, authView, globalMaintenance, publicSettings } = useContext(AppContext);
+
+  // Redirect modal requests to full page routes
+  useEffect(() => {
+    if (showAuthModal) {
+      setShowAuthModal(false);
+      navigate(authView === 'signup' ? '/signup' : '/login');
+    }
+  }, [showAuthModal, authView, navigate, setShowAuthModal]);
 
   // Scroll to top or specific target on every route change
   useEffect(() => {
@@ -156,6 +166,8 @@ function App() {
 
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/login" element={<Auth />} />
+          <Route path="/signup" element={<Auth />} />
           <Route path="/order-confirmation/:id" element={<OrderConfirmation />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/profile" element={<AccountDashboard />} />

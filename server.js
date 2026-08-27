@@ -314,6 +314,17 @@ if (process.env.NODE_ENV !== 'production') {
 // ================= ANTI-CSRF SHIELD =================
 app.use(csrfGuard);
 
+// ================= DB CONNECTION GUARANTEE =================
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error('❌ Database connection middleware error:', err.message);
+    res.status(500).json({ success: false, message: 'Database connection error' });
+  }
+});
+
 // ================= ROUTES =================
 app.use(maintenanceMode); // Must be before routes
 app.use('/api/auth', authRoutes);

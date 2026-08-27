@@ -44,14 +44,13 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
             settings = await Settings.getSettings();
             maintenanceMode.cache = { data: settings, timestamp: Date.now() };
         } catch (err) {
-            // FAIL-CLOSED: If we can't fetch settings (DB down?), act as if maintenance is ON for security
-            console.error('⚠️ Critical: Could not fetch settings for maintenance check. Failing closed. Error:', err.message || err);
-            return res.status(503).json({
-                success: false,
-                maintenance: true,
-                downtime: true,
-                message: 'System is currently stabilizing. Please try again in a few moments.'
-            });
+            console.error('⚠️ Could not fetch settings for maintenance check:', err.message || err);
+            if (maintenanceMode.cache?.data) {
+                settings = maintenanceMode.cache.data;
+            } else {
+                // Safe fallback: Allow request to proceed if settings fetch fails without cache
+                return next();
+            }
         }
     }
 

@@ -111,7 +111,6 @@ const Testimonials = () => {
     <section className="testimonials">
       <div className="container">
         <div className="testimonials-header">
-          <p>Reviews</p>
           <h2 className="section-title">The Rerendet Experience</h2>
           <button className="btn-write-review" onClick={() => setShowReviewModal(true)}>
             <FaPen /> Share Your Story
