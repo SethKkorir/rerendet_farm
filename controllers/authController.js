@@ -50,33 +50,7 @@ const resolveFrontendUrl = () => {
   return (process.env.NODE_ENV === 'production' || process.env.VERCEL) ? 'https://rerendet-farm.vercel.app' : 'http://localhost:3000';
 };
 
-// Dynamic cybersecurity wrapper to strictly prevent administrative/security alerts from being sent to customer accounts.
 const sendEmail = async (options) => {
-  const isSecurityAlert = options.subject && (
-    /security alert/i.test(options.subject) || 
-    /account locked/i.test(options.subject) || 
-    /mfa/i.test(options.subject) ||
-    /two-factor/i.test(options.subject) ||
-    /password change/i.test(options.subject) ||
-    /password reset/i.test(options.subject) ||
-    /device login/i.test(options.subject)
-  );
-
-  if (isSecurityAlert) {
-    try {
-      const user = await User.findOne({ email: options.to }).select('role userType');
-      if (user) {
-        const isClientAdmin = user.role === 'admin' || user.role === 'super-admin' || user.userType === 'admin';
-        if (!isClientAdmin) {
-          console.log(`🛡️ [Cybersecurity Boundary] Blocked security alert email dispatch to customer account: ${options.to}`);
-          return { success: false, message: 'Security alert muted for customer accounts' };
-        }
-      }
-    } catch (err) {
-      console.error('❌ Dynamic email role-check failed:', err.message);
-    }
-  }
-
   return realSendEmail(options);
 };
 import { logActivity } from '../utils/activityLogger.js';
@@ -370,28 +344,25 @@ const verify2FALogin = asyncHandler(async (req, res) => {
   // Coerce both to string and trim to prevent type/whitespace mismatch
   const dbCode = String(user.verificationCode || '').trim();
   const inputCode = String(code || '').trim();
-  const isExpired = user.verificationCodeExpires < Date.now();
+
+  // Safely parse verificationCodeExpires as timestamp
+  const expiresTimestamp = user.verificationCodeExpires ? new Date(user.verificationCodeExpires).getTime() : 0;
+  const isExpired = !expiresTimestamp || expiresTimestamp < Date.now();
 
   console.log(`🔍 2FA Match Check: Input:[${inputCode}] | DB:[${dbCode}] | Expired: ${isExpired}`);
 
-  if (dbCode !== inputCode || isExpired) {
+  if (!dbCode || dbCode !== inputCode || isExpired) {
     console.error(`❌ 2FA Failure: Code mismatch or expired for ${email}`);
     res.status(400);
     throw new Error('Invalid or expired verification code');
   }
 
-  // STRICT SEPARATION CHECK
   const isTryAdminPath = req.originalUrl.includes('/admin/');
   const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
 
   if (isTryAdminPath && !isAdmin) {
     res.status(403);
     throw new Error('This account does not have administrator privileges.');
-  }
-
-  if (!isTryAdminPath && isAdmin) {
-    res.status(403);
-    throw new Error('Administrators must log in via the Admin Portal.');
   }
 
   // Clear code
@@ -2205,7 +2176,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 // Change password
 
 
-// Resend verification code
+// Resend verification code (for Email verification / 2FA)
 const resendVerification = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
@@ -2214,62 +2185,47 @@ const resendVerification = asyncHandler(async (req, res) => {
     throw new Error('Email is required');
   }
 
-  const user = await User.findOne({ email, userType: 'customer' });
+  console.log(`📧 Resending verification code for: ${email}`);
+
+  const user = await User.findOne({ email }).select('+verificationCode +verificationCodeExpires +role +userType +firstName');
 
   if (!user) {
     res.status(404);
     throw new Error('User not found with this email');
   }
 
-  if (user.isVerified) {
-    res.status(400);
-    throw new Error('Email is already verified');
-  }
-
+  // Generate a fresh 6-digit verification code with 10-minute validity
   const verificationCode = user.generateVerificationCode();
   await user.save({ validateBeforeSave: false });
 
+  // Fetch store logo for email
+  let logoUrl;
   try {
-    const emailHtml = `
-  < div style = "font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;" >
-        <div style="background: linear-gradient(135deg, #10b981, #3b82f6); color: white; padding: 30px; text-align: center;">
-          <h1>☕ Rerendet Coffee</h1>
-          <p>New Verification Code</p>
-        </div>
-        <div style="padding: 30px; background: #f8f9fa;">
-          <h2>Hello ${user.firstName}!</h2>
-          <p>You requested a new verification code:</p>
-          <div style="background: white; padding: 20px; text-align: center; margin: 20px 0; border: 2px dashed #10b981;">
-            <div style="font-size: 2.5rem; font-weight: bold; color: #10b981; letter-spacing: 5px;">${verificationCode}</div>
-          </div>
-          <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 15px 0;">
-            <strong>⚠️ This code will expire in 10 minutes.</strong>
-          </div>
-        </div>
-      </div >
-  `;
+    const settings = await Settings.getSettings();
+    logoUrl = settings?.store?.logo;
+  } catch (error) {
+    console.error('Error fetching settings for email logo:', error);
+  }
+
+  try {
+    const emailHtml = getVerificationEmail(user.firstName, verificationCode, logoUrl);
 
     await sendEmail({
       to: user.email,
-      subject: 'New Verification Code - Rerendet Coffee',
-      templateName: 'verificationEmail',
-      data: {
-        firstName: user.firstName,
-        verificationCode: verificationCode
-      }
+      subject: 'Verification Code - Rerendet Coffee',
+      html: emailHtml
     });
 
-    console.log('✅ Verification email resent to:', email);
+    console.log(`✅ Verification code resent to: ${email}`);
 
     res.json({
       success: true,
-      message: 'Verification code sent to your email'
+      message: 'Verification code resent successfully! Please check your inbox.'
     });
-
   } catch (error) {
-    console.error('❌ Email sending failed:', error);
+    console.error('❌ Failed to resend verification email:', error);
     res.status(500);
-    throw new Error('Failed to send verification email');
+    throw new Error('Failed to send verification email. Please try again.');
   }
 });
 
