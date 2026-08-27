@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../context/AppContext';
 import { FaMapMarkerAlt, FaPlus, FaEdit, FaCheck, FaPhone, FaGlobe, FaUserAlt, FaInfoCircle, FaTrash } from 'react-icons/fa';
 import { KENYA_LOCATIONS } from '../../utils/kenyaLocations';
+import { COUNTRY_LIST } from '../../utils/countryList';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AddressesTab = () => {
@@ -18,14 +19,14 @@ const AddressesTab = () => {
         if (user?.shippingInfo?.address && list.length === 0) {
             list.push({
                 id: 'primary-default',
-                firstName: user.shippingInfo.firstName || user.firstName || '',
-                lastName: user.shippingInfo.lastName || user.lastName || '',
-                address: user.shippingInfo.address,
-                city: user.shippingInfo.city || '',
-                county: user.shippingInfo.county || '',
-                town: user.shippingInfo.town || '',
-                zip: user.shippingInfo.zip || '',
-                country: user.shippingInfo.country || 'Kenya',
+                firstName: user?.shippingInfo?.firstName || user?.firstName || '',
+                lastName: user?.shippingInfo?.lastName || user?.lastName || '',
+                phone: user?.shippingInfo?.phone || user?.phone || '',
+                address: user?.shippingInfo?.address || '',
+                county: user?.shippingInfo?.county || 'Nairobi',
+                town: user?.shippingInfo?.town || '',
+                country: user?.shippingInfo?.country || 'Kenya',
+                zip: user?.shippingInfo?.zip || '',
                 isDefault: true
             });
         }
@@ -37,9 +38,9 @@ const AddressesTab = () => {
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
+        phone: '',
         address: '',
-        city: '',
-        county: '',
+        county: 'Nairobi',
         town: '',
         country: 'Kenya',
         zip: '',
@@ -47,19 +48,7 @@ const AddressesTab = () => {
     });
 
     const [availableTowns, setAvailableTowns] = useState([]);
-    const [allCountries, setAllCountries] = useState(['Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'United Arab Emirates', 'United Kingdom']);
-
-    useEffect(() => {
-        fetch('https://restcountries.com/v3.1/all?fields=name')
-            .then(res => res.json())
-            .then(data => {
-                const countryList = data.map(c => c.name.common).sort();
-                if (countryList.length > 0) {
-                    setAllCountries(countryList);
-                }
-            })
-            .catch(err => console.error('Failed to fetch countries', err));
-    }, []);
+    const [allCountries] = useState(COUNTRY_LIST);
 
     // Update available towns when county changes
     useEffect(() => {

@@ -64,25 +64,13 @@ function Checkout() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState('');
   const [createdOrderNumber, setCreatedOrderNumber] = useState('');
-  const [allCountries, setAllCountries] = useState(['Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'United Arab Emirates', 'United Kingdom']);
+  const [allCountries] = useState(COUNTRY_LIST);
   const [cardInfo, setCardInfo] = useState({
     number: '',
     expiry: '',
     cvv: '',
     name: ''
   });
-
-  useEffect(() => {
-    fetch('https://restcountries.com/v3.1/all?fields=name')
-      .then(res => res.json())
-      .then(data => {
-        const countryList = data.map(c => c.name.common).sort();
-        if (countryList.length > 0) {
-          setAllCountries(countryList);
-        }
-      })
-      .catch(err => console.error('Failed to fetch countries', err));
-  }, []);
 
   const [couponCode, setCouponCode] = useState('');
   const [couponData, setCouponData] = useState(null);
