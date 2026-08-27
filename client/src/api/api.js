@@ -190,6 +190,28 @@ export const processCardPayment = (payload) => API.post('/payments/card', payloa
 export const processCashOnDelivery = (payload) => API.post('/payments/cash-on-delivery', payload);
 export const validateCart = (items) => API.post('/orders/validate-cart', { items });
 
+// ---- Subscriptions ----
+export const getMySubscriptions = () => API.get('/subscriptions/mine');
+export const createSubscription = (payload) => API.post('/subscriptions', payload);
+export const pauseSubscription = (id) => API.put(`/subscriptions/${id}/pause`);
+export const resumeSubscription = (id) => API.put(`/subscriptions/${id}/resume`);
+export const skipNextSubscriptionDelivery = (id) => API.put(`/subscriptions/${id}/skip`);
+export const updateSubscriptionFrequency = (id, frequency) => API.put(`/subscriptions/${id}/frequency`, { frequency });
+export const cancelSubscription = (id, reason) => API.put(`/subscriptions/${id}/cancel`, { reason });
+
+// ---- Addresses ----
+export const getMyAddresses = () => API.get('/addresses');
+export const createAddress = (payload) => API.post('/addresses', payload);
+export const updateAddress = (id, payload) => API.put(`/addresses/${id}`, payload);
+export const setDefaultAddress = (id) => API.put(`/addresses/${id}/default`);
+export const deleteAddress = (id, force = false) => API.delete(`/addresses/${id}${force ? '?force=true' : ''}`);
+
+// ---- Payment Methods ----
+export const getMyPaymentMethods = () => API.get('/payment-methods');
+export const addPaymentMethod = (payload) => API.post('/payment-methods', payload);
+export const setDefaultPaymentMethod = (id) => API.put(`/payment-methods/${id}/default`);
+export const deletePaymentMethod = (id) => API.delete(`/payment-methods/${id}`);
+
 // ---- Settings ----
 export const getPublicSettings = () => API.get('/settings/public');
 export const getSettings = () => API.get('/admin/settings');

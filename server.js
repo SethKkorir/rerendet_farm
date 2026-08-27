@@ -42,6 +42,9 @@ import subscriberRoutes from './routes/subscriberRoutes.js';
 import marketingRoutes from './routes/marketingRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import addressRoutes from './routes/addressRoutes.js';
+import paymentMethodRoutes from './routes/paymentMethodRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import maintenanceMode from './middleware/maintenanceMiddleware.js';
 
@@ -354,6 +357,9 @@ app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/payment-methods', paymentMethodRoutes);
 
 // ================= PUBLIC DELIVERY RATES =================
 app.get('/api/delivery-rates', async (req, res) => {

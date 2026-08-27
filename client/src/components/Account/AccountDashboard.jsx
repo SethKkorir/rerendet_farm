@@ -1,10 +1,12 @@
+// components/Account/AccountDashboard.jsx
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { AppContext } from '../../context/AppContext';
 import {
   FaUser, FaShoppingBag, FaMapMarkerAlt, FaCreditCard,
   FaSignOutAlt, FaLock, FaTimes, FaHome, FaShieldAlt,
   FaLifeRing, FaChevronRight, FaBox, FaEllipsisH,
-  FaCartPlus, FaTruck, FaCheckCircle, FaClock
+  FaCartPlus, FaTruck, FaCheckCircle, FaClock, FaSyncAlt,
+  FaLeaf, FaCalendarAlt, FaCoffee
 } from 'react-icons/fa';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -17,6 +19,9 @@ import WalletTab from './WalletTab';
 import ProfileTab from './ProfileTab';
 import SecurityTab from './SecurityTab';
 import TicketsTab from './TicketsTab';
+import SubscriptionsTab from './SubscriptionsTab';
+import PaymentMethodsTab from './PaymentMethodsTab';
+import { getMySubscriptions } from '../../api/api';
 
 /* ───────────── helpers ───────────── */
 const getGreeting = () => {
@@ -44,8 +49,22 @@ const maskPhone = (phone) => {
   return phone.replace(/^(\d{4})(\d{3})(\d{3})$/, '$1 ••• $3');
 };
 
-/* ───────────── OverviewTab ───────────── */
+/* ───────────── OverviewTab (Story 1) ───────────── */
 const OverviewTab = ({ user, orders, onNavigate }) => {
+  const { addToCart, showNotification, validateCartWithServer, openCart } = useContext(AppContext);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [activeSub, setActiveSub] = useState(null);
+
+  useEffect(() => {
+    getMySubscriptions().then(res => {
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setSubscriptions(res.data.data);
+        const active = res.data.data.find(s => s.status === 'active');
+        setActiveSub(active || null);
+      }
+    }).catch(() => {});
+  }, []);
+
   const unpaidOrders = orders.filter(o => o.paymentStatus !== 'paid').length;
   const activeOrder = orders.find(o =>
     ['confirmed', 'processing', 'shipped', 'pending'].includes((o.status || '').toLowerCase())
@@ -57,19 +76,50 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
     const seen = new Map();
     for (const order of orders) {
       for (const item of (order.items || order.orderItems || [])) {
-        const name = item.name || item.productName || 'Coffee';
-        if (!seen.has(name)) {
+        const name = item.name || item.productName || 'Specialty Coffee';
+        const prodId = item.product?._id || item.product || item._id;
+        if (!seen.has(name) && prodId) {
           seen.set(name, {
+            _id: prodId,
             name,
             price: item.price || 0,
-            image: item.image || item.productImage || null,
+            image: item.image || item.productImage || item.product?.image || null,
             quantity: item.quantity || 1,
+            size: item.size || 'Standard 250g'
           });
         }
       }
     }
     return Array.from(seen.values()).slice(0, 6);
   }, [orders]);
+
+  // Handle Quick Reorder with Live Validation (Story 1 & 2)
+  const handleQuickReorder = async (item) => {
+    try {
+      showNotification('Validating availability…', 'info');
+      const validation = typeof validateCartWithServer === 'function'
+        ? await validateCartWithServer([{ product: item._id, quantity: 1, size: item.size, price: item.price }])
+        : { isValid: true, items: [{ product: item._id, price: item.price }] };
+
+      const valItem = validation?.items?.[0] || { price: item.price };
+      if (valItem.isOutOfStock) {
+        showNotification('This roast is currently out of stock.', 'error');
+        return;
+      }
+
+      addToCart({
+        _id: item._id,
+        name: item.name,
+        price: valItem.price || item.price,
+        image: item.image
+      }, 1, item.size);
+
+      showNotification(`${item.name} added to cart!`, 'success');
+      if (typeof openCart === 'function') openCart();
+    } catch (e) {
+      showNotification('Could not add item to cart', 'error');
+    }
+  };
 
   // Loyalty tier progress
   const loyaltyPoints = user?.loyaltyPoints || 0;
@@ -87,87 +137,41 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
         <p className="noir-date">{formatDate()}</p>
       </div>
 
-      {/* 2FA Alert */}
+      {/* 2FA Security Alert */}
       {!user.twoFactorEnabled && (
         <div className="noir-alert-banner" onClick={() => onNavigate('security')}>
           <div className="alert-icon-box"><FaShieldAlt /></div>
           <div className="alert-content">
             <span className="alert-title">Enable Two-Factor Authentication</span>
-            <span className="alert-desc">Your account is protected by password only.</span>
+            <span className="alert-desc">Enhance your account security with SMS or Authenticator app OTP.</span>
           </div>
           <FaChevronRight className="alert-chevron" />
         </div>
       )}
 
-      {/* Running Low Streak Banner */}
-      {(() => {
-        if (!user.lastReorderDate) return null;
-        const avg = user.reorderAverageDays || 30;
-        const lastDate = new Date(user.lastReorderDate);
-        const nextDeadline = new Date(lastDate.getTime() + avg * 24 * 60 * 60 * 1000);
-        const diffMs = nextDeadline - new Date();
-        const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        
-        if (daysLeft <= 2 && user.reorderStreak > 0) {
-          return (
-            <div className="noir-alert-banner running-low-banner" style={{ background: '#3b2520', borderColor: '#5c3e35', color: '#fff', marginBottom: '20px' }} onClick={() => window.location.href = '/products'}>
-              <div className="alert-icon-box" style={{ background: '#5c3e35', color: '#f5efe6' }}>☕</div>
-              <div className="alert-content">
-                <span className="alert-title" style={{ color: '#f5efe6', fontWeight: 'bold' }}>Running low on coffee?</span>
-                <span className="alert-desc" style={{ color: '#dcd3c9' }}>
-                  Place your next order in the next {daysLeft} {daysLeft === 1 ? 'day' : 'days'} to preserve your <strong>{user.reorderStreak}-order reorder streak</strong>!
-                </span>
-              </div>
-              <FaChevronRight className="alert-chevron" style={{ color: '#f5efe6' }} />
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* Streak Milestone Progress Card */}
-      {user.reorderStreak > 0 && user.lastReorderDate && (
-        <div className="noir-section-card streak-card" style={{ marginBottom: '20px', padding: '15px' }}>
-          <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🔥 Streak: {user.reorderStreak} {user.reorderStreak === 1 ? 'Order' : 'Orders'}
-            </h3>
-            <span style={{ fontSize: '0.85rem', color: '#a08a75' }}>
-              Avg interval: {user.reorderAverageDays || 30} days
-            </span>
+      {/* Active Subscription Countdown Banner (Story 1 & 3) */}
+      {activeSub && (
+        <div className="sub-overview-banner" onClick={() => onNavigate('subscriptions')}>
+          <div className="sub-banner-icon"><FaCalendarAlt /></div>
+          <div className="sub-banner-content">
+            <span className="sub-banner-badge"><FaLeaf size={10} /> Active Coffee Subscription</span>
+            <h4>Next Fresh Roast Delivery: {new Date(activeSub.nextBillingDate).toLocaleDateString('en-KE', { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
+            <p>Schedule: Every {activeSub.frequency.replace('-', ' ')} · 5% subscriber discount active</p>
           </div>
-          {(() => {
-            const avg = user.reorderAverageDays || 30;
-            const lastDate = new Date(user.lastReorderDate);
-            const nextDeadline = new Date(lastDate.getTime() + avg * 24 * 60 * 60 * 1000);
-            const diffMs = nextDeadline - new Date();
-            const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-            const progressPercent = Math.max(0, Math.min(100, (daysLeft / avg) * 100));
-            return (
-              <div style={{ marginTop: '10px' }}>
-                <div style={{ background: '#25211e', borderRadius: '4px', height: '8px', overflow: 'hidden', margin: '5px 0' }}>
-                  <div style={{ background: '#d4af37', height: '100%', width: `${progressPercent}%`, transition: 'width 0.4s ease' }} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#a08a75' }}>
-                  <span>Last ordered: {new Date(user.lastReorderDate).toLocaleDateString()}</span>
-                  <span>{daysLeft} days left to save streak</span>
-                </div>
-              </div>
-            );
-          })()}
+          <button type="button" className="sub-banner-btn">Manage <FaChevronRight size={12} /></button>
         </div>
       )}
 
       {/* Active Order Snapshot */}
-      {activeOrder && (
+      {activeOrder ? (
         <div className="noir-active-order" onClick={() => onNavigate('orders')}>
           <div className="active-order-top">
             <div>
-              <span className="active-order-label">Active Order</span>
-              <h3 className="active-order-id">#{(activeOrder.orderNumber || activeOrder._id || '').toString().slice(-8).toUpperCase()}</h3>
+              <span className="active-order-label">Most Recent Order</span>
+              <h3 className="active-order-id">#{activeOrder.orderNumber || (activeOrder._id || '').slice(-8).toUpperCase()}</h3>
             </div>
             <div className="active-order-amount">
-              KES {(activeOrder.totalPrice || activeOrder.totalAmount || 0).toLocaleString()}
+              KES {(activeOrder.total || activeOrder.totalPrice || 0).toLocaleString()}
             </div>
           </div>
           <div className="order-progress-track">
@@ -191,12 +195,28 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
           <div className="active-order-items-row">
             {(activeOrder.items || activeOrder.orderItems || []).slice(0, 3).map((item, i) => (
               <span key={i} className="ao-item-chip">
-                {item.name || item.productName} × {item.quantity || 1}
+                {item.name || item.product?.name || 'Coffee Roast'} × {item.quantity || 1}
               </span>
             ))}
             {(activeOrder.items || activeOrder.orderItems || []).length > 3 && (
               <span className="ao-item-chip ao-more">+{(activeOrder.items || activeOrder.orderItems).length - 3} more</span>
             )}
+          </div>
+        </div>
+      ) : (
+        <div className="overview-welcome-card">
+          <div className="welcome-coffee-icon"><FaCoffee /></div>
+          <div>
+            <h3>Welcome to Rerendet Farm!</h3>
+            <p>You haven't placed any orders yet. Discover our fresh high-elevation single-origin specialty coffees.</p>
+            <button
+              type="button"
+              className="btn-order-primary"
+              onClick={() => window.location.href = '/'}
+              style={{ marginTop: '0.85rem' }}
+            >
+              Explore Specialty Roasts
+            </button>
           </div>
         </div>
       )}
@@ -207,26 +227,28 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
           <span className="stat-number">{orders.length}</span>
           <span className="stat-name">Total Orders</span>
         </div>
-        <div className="noir-stat">
-          <span className="stat-number">{unpaidOrders}</span>
-          <span className="stat-name">Pending</span>
+        <div className="noir-stat" onClick={() => onNavigate('subscriptions')}>
+          <span className="stat-number accent-warm">{subscriptions.filter(s => s.status === 'active').length}</span>
+          <span className="stat-name">Active Subscriptions</span>
         </div>
-        <div className="noir-stat">
+        <div className="noir-stat" onClick={() => onNavigate('wallet')}>
           <span className="stat-number accent-green">KES {(user?.storeCredit || 0).toLocaleString()}</span>
           <span className="stat-name">Store Credit</span>
         </div>
         <div className="noir-stat" onClick={() => onNavigate('wallet')}>
-          <span className="stat-number accent-warm">{(user?.loyaltyPoints || 0).toLocaleString()}</span>
+          <span className="stat-number accent-gold">{(user?.loyaltyPoints || 0).toLocaleString()}</span>
           <span className="stat-name">Reward Points</span>
         </div>
       </div>
 
-      {/* Buy Again */}
+      {/* Reorder Your Favorites (Story 1 & 2) */}
       {buyAgainItems.length > 0 && (
         <div className="noir-section">
           <div className="section-header">
-            <h3>Buy Again</h3>
-            <button className="link-btn" onClick={() => onNavigate('orders')}>View all orders <FaChevronRight /></button>
+            <h3>Reorder Your Favorites</h3>
+            <button type="button" className="link-btn" onClick={() => onNavigate('orders')}>
+              All past orders <FaChevronRight />
+            </button>
           </div>
           <div className="buy-again-scroll">
             {buyAgainItems.map((item, i) => (
@@ -234,13 +256,18 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
                 <div className="ba-image">
                   {item.image
                     ? <img src={item.image} alt={item.name} />
-                    : <FaBox />}
+                    : <FaCoffee size={24} />}
                 </div>
                 <div className="ba-info">
                   <span className="ba-name">{item.name}</span>
                   <span className="ba-price">KES {item.price.toLocaleString()}</span>
                 </div>
-                <button className="ba-add-btn" title="Add to cart">
+                <button
+                  type="button"
+                  className="ba-add-btn"
+                  onClick={() => handleQuickReorder(item)}
+                  title="Reorder item"
+                >
                   <FaCartPlus />
                 </button>
               </div>
@@ -254,7 +281,7 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
         {/* Loyalty Tier */}
         <div className="noir-section-card">
           <div className="section-header">
-            <h3>Loyalty Tier</h3>
+            <h3>Loyalty Status</h3>
             <span className="tier-badge">{loyaltyPoints < 500 ? 'Bronze' : loyaltyPoints < 2000 ? 'Silver' : loyaltyPoints < 5000 ? 'Gold' : 'Platinum'}</span>
           </div>
           <div className="loyalty-progress-wrap">
@@ -266,31 +293,30 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
               <span>{nextTier.target.toLocaleString()} pts — {nextTier.name}</span>
             </div>
           </div>
-          <p className="loyalty-hint">Earn points with every purchase. Redeem for discounts.</p>
+          <p className="loyalty-hint">Earn 1 reward point for every KES 100 spent. Points convert directly into checkout discounts.</p>
         </div>
 
-        {/* Wallet Snapshot */}
+        {/* Payment & Security Snapshot */}
         <div className="noir-section-card">
           <div className="section-header">
-            <h3>Payment Method</h3>
-            <button className="link-btn" onClick={() => onNavigate('wallet')}>Manage <FaChevronRight /></button>
+            <h3>Saved Payments</h3>
+            <button type="button" className="link-btn" onClick={() => onNavigate('payments')}>Manage <FaChevronRight /></button>
           </div>
           <div className="wallet-snap">
             <div className="wallet-snap-icon">
-              <img src="/M-PESA_LOGO-01.svg.png" alt="M-Pesa" />
+              <FaCreditCard />
             </div>
             <div className="wallet-snap-info">
               <span className="wallet-snap-number">{maskPhone(displayPhone)}</span>
-              <span className="wallet-snap-label">Primary • M-Pesa</span>
+              <span className="wallet-snap-label">M-Pesa / Tokenized Cards</span>
             </div>
           </div>
 
-          {/* Security snapshot */}
           <div className="security-snap">
             <FaLock />
-            <span>2FA: <strong>{user.twoFactorEnabled ? 'Enabled' : 'Disabled'}</strong></span>
+            <span>2FA Protection: <strong>{user.twoFactorEnabled ? 'Active' : 'Disabled'}</strong></span>
             {!user.twoFactorEnabled && (
-              <button className="snap-action-btn" onClick={() => onNavigate('security')}>Enable</button>
+              <button type="button" className="snap-action-btn" onClick={() => onNavigate('security')}>Enable</button>
             )}
           </div>
         </div>
@@ -299,7 +325,7 @@ const OverviewTab = ({ user, orders, onNavigate }) => {
   );
 };
 
-/* ───────────── AccountDashboard ───────────── */
+/* ───────────── AccountDashboard Container ───────────── */
 function AccountDashboard() {
   const {
     user,
@@ -311,7 +337,7 @@ function AccountDashboard() {
 
   const navigate = useNavigate();
 
-  // Block admin users
+  // Block admin users from customer view
   const isAdminUser = userType === 'admin' || user?.role === 'admin' || user?.role === 'super-admin';
   useEffect(() => {
     if (user && isAdminUser) {
@@ -326,7 +352,7 @@ function AccountDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
-  // Real Data State
+  // Real Data State (Live Server Fetches - Acceptance Criteria)
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
 
@@ -336,7 +362,7 @@ function AccountDashboard() {
     }
   }, [user, activeTab, orderRefreshTrigger]);
 
-  // LIVE POLLING
+  // Live polling every 20s
   useEffect(() => {
     let pollInterval;
     if (user && (activeTab === 'orders' || activeTab === 'overview')) {
@@ -348,7 +374,7 @@ function AccountDashboard() {
   const loadOrders = async (showLoading = true) => {
     if (showLoading) setOrdersLoading(true);
     try {
-      const payload = await fetchUserOrders(1, 15);
+      const payload = await fetchUserOrders(1, 20);
       if (payload?.data?.orders) setOrders(payload.data.orders);
       else if (payload?.orders) setOrders(payload.orders);
     } catch (err) {
@@ -363,18 +389,19 @@ function AccountDashboard() {
     navigate('/');
   };
 
-  // Tabs
+  // Complete Tabs matching all 7 user stories
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <FaHome /> },
     { id: 'orders', label: 'My Orders', icon: <FaShoppingBag /> },
+    { id: 'subscriptions', label: 'Subscriptions', icon: <FaSyncAlt /> },
     { id: 'addresses', label: 'Addresses', icon: <FaMapMarkerAlt /> },
-    { id: 'wallet', label: 'Wallet', icon: <FaCreditCard /> },
-    { id: 'tickets', label: 'Support', icon: <FaLifeRing /> },
+    { id: 'payments', label: 'Payment Methods', icon: <FaCreditCard /> },
+    { id: 'wallet', label: 'Wallet & Rewards', icon: <FaLeaf /> },
     { id: 'profile', label: 'Profile', icon: <FaUser /> },
-    { id: 'security', label: 'Security', icon: <FaLock /> },
+    { id: 'security', label: 'Security & 2FA', icon: <FaLock /> },
+    { id: 'tickets', label: 'Help & Support', icon: <FaLifeRing /> },
   ];
 
-  // Bottom nav: first 4 + "More" trigger
   const bottomTabs = tabs.slice(0, 4);
   const moreTabs = tabs.slice(4);
 
@@ -391,7 +418,7 @@ function AccountDashboard() {
               {user.firstName?.charAt(0) || <FaUser />}
             </div>
             <div className="noir-profile-info">
-              <span className="noir-member-tag">Rerendet Member</span>
+              <span className="noir-member-tag">Rerendet Coffee Member</span>
               <h3 className="noir-profile-name">{user.firstName} {user.lastName}</h3>
               <p className="noir-profile-email">{user.email}</p>
             </div>
@@ -403,6 +430,7 @@ function AccountDashboard() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
+                type="button"
                 className={`noir-nav-btn ${activeTab === tab.id ? 'active' : ''}`}
                 onClick={() => { setActiveTab(tab.id); setIsSidebarOpen(false); }}
               >
@@ -415,9 +443,9 @@ function AccountDashboard() {
 
           <div className="noir-sidebar-divider" />
 
-          <button className="noir-nav-btn noir-logout-btn" onClick={handleLogout}>
+          <button type="button" className="noir-nav-btn noir-logout-btn" onClick={handleLogout}>
             <span className="nav-icon"><FaSignOutAlt /></span>
-            <span className="nav-text">Log out</span>
+            <span className="nav-text">Sign out</span>
           </button>
         </aside>
 
@@ -434,7 +462,7 @@ function AccountDashboard() {
           )}
         </AnimatePresence>
 
-        {/* ── Main Content ── */}
+        {/* ── Main Content Area ── */}
         <main className="noir-main">
           {/* Mobile top bar */}
           <div className="noir-mobile-topbar">
@@ -447,24 +475,26 @@ function AccountDashboard() {
                 <h3 className="mobile-name">{user.firstName}</h3>
               </div>
             </div>
-            <button className="noir-menu-trigger" onClick={() => setIsSidebarOpen(true)}>
+            <button type="button" className="noir-menu-trigger" onClick={() => setIsSidebarOpen(true)}>
               <FaUser />
             </button>
           </div>
 
           {/* Tab header */}
           <div className="noir-tab-header">
-            <p className="tab-breadcrumb">Dashboard</p>
+            <p className="tab-breadcrumb">Customer Portal</p>
             <h2 className="tab-title">
               {tabs.find(t => t.id === activeTab)?.label || 'Overview'}
             </h2>
           </div>
 
-          {/* Tab Content */}
+          {/* Tab View Router */}
           <div className="noir-content-area">
             {activeTab === 'overview' && <OverviewTab user={user} orders={orders} onNavigate={setActiveTab} />}
             {activeTab === 'orders' && <OrdersTab orders={orders} loading={ordersLoading} onRefresh={() => loadOrders(true)} />}
+            {activeTab === 'subscriptions' && <SubscriptionsTab />}
             {activeTab === 'addresses' && <AddressesTab />}
+            {activeTab === 'payments' && <PaymentMethodsTab />}
             {activeTab === 'wallet' && <WalletTab />}
             {activeTab === 'tickets' && <TicketsTab />}
             {activeTab === 'profile' && <ProfileTab />}
@@ -473,11 +503,12 @@ function AccountDashboard() {
         </main>
       </div>
 
-      {/* ── Mobile Bottom Nav ── */}
+      {/* ── Mobile Bottom Navigation ── */}
       <nav className="noir-bottom-nav">
         {bottomTabs.map(tab => (
           <button
             key={tab.id}
+            type="button"
             className={`bottom-nav-item ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => { setActiveTab(tab.id); setMoreMenuOpen(false); }}
           >
@@ -486,6 +517,7 @@ function AccountDashboard() {
           </button>
         ))}
         <button
+          type="button"
           className={`bottom-nav-item ${moreTabs.some(t => t.id === activeTab) ? 'active' : ''}`}
           onClick={() => setMoreMenuOpen(!moreMenuOpen)}
         >
@@ -505,6 +537,7 @@ function AccountDashboard() {
               {moreTabs.map(tab => (
                 <button
                   key={tab.id}
+                  type="button"
                   className={`more-menu-item ${activeTab === tab.id ? 'active' : ''}`}
                   onClick={() => { setActiveTab(tab.id); setMoreMenuOpen(false); }}
                 >
@@ -512,9 +545,9 @@ function AccountDashboard() {
                   <span>{tab.label}</span>
                 </button>
               ))}
-              <button className="more-menu-item logout-item" onClick={handleLogout}>
+              <button type="button" className="more-menu-item logout-item" onClick={handleLogout}>
                 <FaSignOutAlt />
-                <span>Log out</span>
+                <span>Sign out</span>
               </button>
             </motion.div>
           )}
