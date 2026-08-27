@@ -10,6 +10,7 @@ import {
 import PaymentProcessingModal from '../PaymentProcessingModal/PaymentProcessingModal';
 import './Checkout.css';
 import { KENYA_LOCATIONS } from '../../utils/kenyaLocations';
+import { COUNTRY_LIST } from '../../utils/countryList';
 
 const KENYAN_COUNTIES = Object.keys(KENYA_LOCATIONS).sort();
 

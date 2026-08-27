@@ -23,7 +23,8 @@ import API, {
   logAbandonedCheckout as apiLogAbandoned,
   getAbandonedCheckouts as apiGetAbandoned,
   unlockUserAccount as apiUnlockUser,
-  resetUserSecurity as apiResetUserSecurity
+  resetUserSecurity as apiResetUserSecurity,
+  validateCart as apiValidateCart
 } from '../api/api';
 
 export const AppContext = createContext(null);
@@ -541,7 +542,7 @@ export function AppProvider({ children }) {
         name: item.name
       }));
 
-      const res = await axios.post('/api/orders/validate-cart', { items: payload });
+      const res = await apiValidateCart(payload);
       if (res.data && res.data.success) {
         return res.data;
       }

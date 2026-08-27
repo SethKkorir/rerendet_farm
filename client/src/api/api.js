@@ -188,6 +188,7 @@ export const getAbandonedCheckouts = () => API.get('/orders/abandoned');
 export const processMpesaPayment = (payload) => API.post('/payments/mpesa', payload);
 export const processCardPayment = (payload) => API.post('/payments/card', payload);
 export const processCashOnDelivery = (payload) => API.post('/payments/cash-on-delivery', payload);
+export const validateCart = (items) => API.post('/orders/validate-cart', { items });
 
 // ---- Settings ----
 export const getPublicSettings = () => API.get('/settings/public');
