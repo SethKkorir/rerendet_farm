@@ -118,7 +118,7 @@ function Checkout() {
   useEffect(() => {
     if (!isAuthenticated) {
       showNotification('Please log in to checkout', 'info');
-      navigate('/login');
+      navigate('/login?redirect=checkout');
     }
   }, [isAuthenticated, navigate, showNotification]);
 

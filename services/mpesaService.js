@@ -1,16 +1,19 @@
 import axios from 'axios';
 
-const MPESA_CONFIG = {
-  consumerKey: process.env.MPESA_CONSUMER_KEY || 'NAGbV3G9jR7m1b7S7ZAtN8A4ZlG9n60B', // Sandbox keys
-  consumerSecret: process.env.MPESA_CONSUMER_SECRET || 'ZAgzR7m1b7S7ZAta', // Sandbox keys
-  shortCode: process.env.MPESA_SHORTCODE || '174379', // Lipa Na M-Pesa Online sandbox shortcode
-  passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Sandbox passkey
-  environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
-  callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://rerendet-farm.vercel.app/api/webhooks/mpesa'
+const getMpesaConfig = () => {
+  return {
+    consumerKey: process.env.MPESA_CONSUMER_KEY || 'NAGbV3G9jR7m1b7S7ZAtN8A4ZlG9n60B', // Sandbox keys
+    consumerSecret: process.env.MPESA_CONSUMER_SECRET || 'ZAgzR7m1b7S7ZAta', // Sandbox keys
+    shortCode: process.env.MPESA_SHORTCODE || '174379', // Lipa Na M-Pesa Online sandbox shortcode
+    passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Sandbox passkey
+    environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
+    callbackUrl: process.env.MPESA_CALLBACK_URL || 'https://rerendet-farm.vercel.app/api/webhooks/mpesa'
+  };
 };
 
 const getMpesaBaseUrl = () => {
-  return MPESA_CONFIG.environment === 'production'
+  const config = getMpesaConfig();
+  return config.environment === 'production'
     ? 'https://api.safaricom.co.ke'
     : 'https://sandbox.safaricom.co.ke';
 };
@@ -31,8 +34,10 @@ export const getMpesaAccessToken = async () => {
   }
 
   console.log('🔑 Generating fresh M-Pesa Access Token from Daraja Gateway...');
+  const config = getMpesaConfig();
+  console.log('Config Key length:', config.consumerKey ? config.consumerKey.length : 0);
   const baseUrl = getMpesaBaseUrl();
-  const auth = Buffer.from(`${MPESA_CONFIG.consumerKey}:${MPESA_CONFIG.consumerSecret}`).toString('base64');
+  const auth = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString('base64');
 
   try {
     const response = await axios.get(
@@ -40,11 +45,7 @@ export const getMpesaAccessToken = async () => {
       {
         headers: {
           'Authorization': `Basic ${auth}`,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'Accept': 'application/json'
         },
         timeout: 10000
       }
@@ -60,7 +61,9 @@ export const getMpesaAccessToken = async () => {
     console.log(`✅ Fresh M-Pesa Access Token generated successfully. Cache set for ${expiresInSeconds}s`);
     return token;
   } catch (error) {
-    console.error('❌ M-Pesa Access Token Error:', error.response?.data || error.message);
+    console.error('❌ M-Pesa Access Token Error Response Status:', error.response?.status);
+    console.error('❌ M-Pesa Access Token Error Response Data:', error.response?.data);
+    console.error('❌ M-Pesa Access Token Error Message:', error.message);
     throw new Error('Failed to generate M-Pesa access token from Daraja Gateway');
   }
 };
@@ -103,24 +106,25 @@ export const formatMpesaPhoneNumber = (phone) => {
 export const initiateMpesaStkPushService = async (phone, amount, orderNumber, customCallbackUrl) => {
   const baseUrl = getMpesaBaseUrl();
   const token = await getMpesaAccessToken();
+  const config = getMpesaConfig();
   
   // Format current timestamp (YYYYMMDDHHmmss)
   const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
   
   // Password = Base64(ShortCode + PassKey + Timestamp)
-  const password = Buffer.from(`${MPESA_CONFIG.shortCode}${MPESA_CONFIG.passkey}${timestamp}`).toString('base64');
+  const password = Buffer.from(`${config.shortCode}${config.passkey}${timestamp}`).toString('base64');
   
   const formattedPhone = formatMpesaPhoneNumber(phone);
-  const callbackUrl = customCallbackUrl || MPESA_CONFIG.callbackUrl;
+  const callbackUrl = customCallbackUrl || config.callbackUrl;
 
   const requestBody = {
-    BusinessShortCode: MPESA_CONFIG.shortCode,
+    BusinessShortCode: config.shortCode,
     Password: password,
     Timestamp: timestamp,
     TransactionType: 'CustomerPayBillOnline',
     Amount: Math.max(1, Math.round(amount)),
     PartyA: formattedPhone,
-    PartyB: MPESA_CONFIG.shortCode,
+    PartyB: config.shortCode,
     PhoneNumber: formattedPhone,
     CallBackURL: callbackUrl,
     AccountReference: orderNumber,
@@ -160,12 +164,13 @@ export const initiateMpesaStkPushService = async (phone, amount, orderNumber, cu
 export const queryMpesaStkStatusService = async (checkoutRequestId) => {
   const baseUrl = getMpesaBaseUrl();
   const token = await getMpesaAccessToken();
+  const config = getMpesaConfig();
 
   const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
-  const password = Buffer.from(`${MPESA_CONFIG.shortCode}${MPESA_CONFIG.passkey}${timestamp}`).toString('base64');
+  const password = Buffer.from(`${config.shortCode}${config.passkey}${timestamp}`).toString('base64');
 
   const requestBody = {
-    BusinessShortCode: MPESA_CONFIG.shortCode,
+    BusinessShortCode: config.shortCode,
     Password: password,
     Timestamp: timestamp,
     CheckoutRequestID: checkoutRequestId

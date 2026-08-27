@@ -535,21 +535,8 @@ const CoffeeShop = () => {
         {/* Ad Zone */}
         <AdPlacement zone="homepage" />
         
-        {/* ☕ Premium Header ☕ */}
-        <motion.div 
-          className="cs-premium-header"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <div className="cs-header-accent" />
-          <h2 className="cs-premium-title">
-            The <span className="gold">Coffee</span> Shop
-          </h2>
-          <p className="cs-premium-subtitle">Artisan roasts, delivered from our farm to your cup.</p>
-        </motion.div>
         
+
         {/* ☕ Category Tabs ☕ */}
         {categoriesInUse.length > 2 && (
           <motion.div

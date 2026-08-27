@@ -277,7 +277,6 @@ productSchema.index({ categoryId: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'sizes.price': 1 });
 productSchema.index({ isFeatured: 1, isActive: 1, createdAt: -1 });
 productSchema.index({ 'inventory.physicalStock': 1 });
-productSchema.index({ 'seo.slug': 1 });
 productSchema.index({ isActive: 1, inStock: 1 });
 
 // Static method to get products by category
