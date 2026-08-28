@@ -774,6 +774,32 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 
+  // Server-Side Transition Validation Matrix
+  if (paymentStatus && order.paymentStatus !== paymentStatus) {
+    if (paymentStatus === 'refunded') {
+      res.status(400);
+      throw new Error('Refunding must be processed through the Initiate Refund action endpoint.');
+    }
+    if (!Order.validateTransition('paymentStatus', order.paymentStatus, paymentStatus)) {
+      res.status(400);
+      throw new Error(`Invalid payment status transition from '${order.paymentStatus}' to '${paymentStatus}'.`);
+    }
+  }
+
+  if (fulfillmentStatus && order.fulfillmentStatus !== fulfillmentStatus) {
+    if (!Order.validateTransition('fulfillmentStatus', order.fulfillmentStatus, fulfillmentStatus)) {
+      res.status(400);
+      throw new Error(`Invalid fulfillment status transition from '${order.fulfillmentStatus}' to '${fulfillmentStatus}'.`);
+    }
+  }
+
+  if (orderStatus && order.orderStatus !== orderStatus) {
+    if (!Order.validateTransition('orderStatus', order.orderStatus, orderStatus)) {
+      res.status(400);
+      throw new Error(`Invalid overall order status transition from '${order.orderStatus}' to '${orderStatus}'.`);
+    }
+  }
+
   // Track changes for history logging
   const changes = [];
 

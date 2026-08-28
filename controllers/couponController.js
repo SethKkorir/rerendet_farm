@@ -21,7 +21,19 @@ const createCoupon = asyncHandler(async (req, res) => {
 
     if (!code || !discountType || !discountAmount || !expiryDate) {
         res.status(400);
-        throw new Error('Please provide all required fields');
+        throw new Error('Please provide all required fields including expiry date.');
+    }
+
+    const expDate = new Date(expiryDate);
+    if (isNaN(expDate.getTime()) || expDate <= new Date()) {
+        res.status(400);
+        throw new Error('Expiry date must be a valid future date.');
+    }
+
+    const cap = parseInt(usageLimit || 100);
+    if (isNaN(cap) || cap <= 0) {
+        res.status(400);
+        throw new Error('Redemption cap (usage limit) must be greater than 0.');
     }
 
     const couponExists = await Coupon.findOne({ code: code.toUpperCase() });
@@ -30,12 +42,24 @@ const createCoupon = asyncHandler(async (req, res) => {
         throw new Error('Coupon code already exists');
     }
 
+    // High-value discount approval check (>30% or >KES 2000)
+    const isHighValue = (discountType === 'percentage' && Number(discountAmount) > 30) ||
+                        (discountType === 'fixed' && Number(discountAmount) > 2000);
+
+    const userRole = String(req.user?.role || req.user?.userType || '').toLowerCase();
+    const isSuperAdmin = ['super-admin', 'superadmin'].includes(userRole);
+
+    if (isHighValue && !isSuperAdmin) {
+        res.status(403);
+        throw new Error('Coupons with >30% discount or >KES 2,000 value require Super Admin approval to create.');
+    }
+
     const coupon = await Coupon.create({
         code: code.toUpperCase(),
         discountType,
         discountAmount,
-        expiryDate,
-        usageLimit: usageLimit || 100,
+        expiryDate: expDate,
+        usageLimit: cap,
         minOrderAmount: minOrderAmount || 0,
         isActive: true
     });

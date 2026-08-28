@@ -67,6 +67,17 @@ const contactSchema = new mongoose.Schema({
   timestamps: true
 });
 
+import { sanitizeString } from '../utils/inputSanitizer.js';
+
+// Pre-save hook: Sanitize user input to prevent stored XSS in admin dashboard
+contactSchema.pre('save', function (next) {
+  if (this.name) this.name = sanitizeString(this.name);
+  if (this.subject) this.subject = sanitizeString(this.subject);
+  if (this.message) this.message = sanitizeString(this.message);
+  if (this.adminResponse) this.adminResponse = sanitizeString(this.adminResponse);
+  next();
+});
+
 // Index for better query performance
 contactSchema.index({ status: 1, createdAt: -1 });
 contactSchema.index({ email: 1 });

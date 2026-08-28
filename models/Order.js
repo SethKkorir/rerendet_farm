@@ -189,6 +189,43 @@ orderSchema.pre('save', function (next) {
   next();
 });
 
+// Statics: Validate Status Transitions
+orderSchema.statics.validateTransition = function (type, currentVal, newVal) {
+  if (!currentVal || !newVal || currentVal === newVal) return true;
+
+  if (type === 'paymentStatus') {
+    const allowed = {
+      pending: ['paid', 'failed'],
+      failed: ['paid'],
+      paid: ['refunded'],
+      refunded: []
+    };
+    return (allowed[currentVal] || []).includes(newVal);
+  }
+
+  if (type === 'fulfillmentStatus') {
+    const allowed = {
+      unfulfilled: ['packed', 'shipped', 'cancelled', 'returned'],
+      packed: ['shipped', 'cancelled', 'returned'],
+      shipped: ['delivered', 'returned'],
+      delivered: ['returned'],
+      returned: []
+    };
+    return (allowed[currentVal] || []).includes(newVal);
+  }
+
+  if (type === 'orderStatus') {
+    const allowed = {
+      open: ['completed', 'cancelled'],
+      completed: ['cancelled'],
+      cancelled: []
+    };
+    return (allowed[currentVal] || []).includes(newVal);
+  }
+
+  return true;
+};
+
 // Add indexes for performance
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });

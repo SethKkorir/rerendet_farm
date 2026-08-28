@@ -51,7 +51,8 @@ import {
   refundOrder,
   getReconciliationReport,
   getSystemHealth,
-  invalidateCache
+  invalidateCache,
+  bulkActionProducts
 } from '../controllers/adminController.js';
 
 import {
@@ -90,6 +91,7 @@ router.post('/orders/:id/refund', adminAuth(['orders:manage']), refundOrder);
 // ==================== PRODUCT MANAGEMENT ====================
 router.get('/products', adminAuth(['products:manage']), getProducts);
 router.post('/products', adminAuth(['products:manage']), upload.array('images', 5), createProduct);
+router.post('/products/bulk', adminAuth(['products:manage']), bulkActionProducts);
 router.put('/products/:id', adminAuth(['products:manage']), upload.array('images', 5), updateProduct);
 router.patch('/products/:id/stock', adminAuth(['products:manage']), updateProductStock);
 router.delete('/products/:id', adminAuth(['products:manage']), deleteProduct);
@@ -147,7 +149,7 @@ router.delete('/coupons/:id', adminAuth(['marketing:manage']), deleteCoupon);
 
 // ==================== CSV EXPORTS ====================
 router.get('/export/orders', adminAuth(['analytics:view']), exportOrdersCSV);
-router.get('/export/customers', adminAuth(['analytics:view']), exportCustomersCSV);
+router.get('/export/customers', adminAuth(['super-admin']), exportCustomersCSV);
 
 // ==================== DOCUMENTATION VIEWER ====================
 router.get('/documentation', adminAuth(['settings:manage']), asyncHandler(async (req, res) => {

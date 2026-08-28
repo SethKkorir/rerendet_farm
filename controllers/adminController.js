@@ -66,6 +66,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
   const [
     totalOrders,
+    totalRawCarts,
     totalProducts,
     totalUsers,
     totalRevenueResult,
@@ -77,18 +78,19 @@ const getDashboardStats = asyncHandler(async (req, res) => {
     newUsersThisMonth,
     shippedOrders
   ] = await Promise.all([
+    Order.countDocuments({ paymentStatus: 'paid' }).lean(),
     Order.countDocuments().lean(),
     Product.countDocuments({ isActive: true }).lean(),
     User.countDocuments({ userType: 'customer' }).lean(),
     Order.aggregate([
-      { $match: { paymentStatus: { $in: ['paid', 'pending'] } } },
+      { $match: { paymentStatus: 'paid' } },
       { $group: { _id: null, total: { $sum: '$total' } } }
     ]),
-    Order.countDocuments({ createdAt: { $gte: startOfToday } }).lean(),
+    Order.countDocuments({ paymentStatus: 'paid', createdAt: { $gte: startOfToday } }).lean(),
     Order.aggregate([
       {
         $match: {
-          paymentStatus: { $in: ['paid', 'pending'] },
+          paymentStatus: 'paid',
           createdAt: { $gte: startOfToday }
         }
       },
@@ -117,6 +119,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
   const resultData = {
     overview: {
       totalOrders,
+      totalRawCarts,
       totalProducts,
       totalUsers,
       totalRevenue,
@@ -283,6 +286,32 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     delivered: 'Delivered',
     returned: 'Returned'
   };
+
+  // Server-Side Transition Validation Matrix
+  if (paymentStatus && order.paymentStatus !== paymentStatus) {
+    if (paymentStatus === 'refunded') {
+      res.status(400);
+      throw new Error('Refunding must be processed through the Initiate Refund action endpoint.');
+    }
+    if (!Order.validateTransition('paymentStatus', order.paymentStatus, paymentStatus)) {
+      res.status(400);
+      throw new Error(`Invalid payment status transition from '${order.paymentStatus}' to '${paymentStatus}'.`);
+    }
+  }
+
+  if (fulfillmentStatus && order.fulfillmentStatus !== fulfillmentStatus) {
+    if (!Order.validateTransition('fulfillmentStatus', order.fulfillmentStatus, fulfillmentStatus)) {
+      res.status(400);
+      throw new Error(`Invalid fulfillment status transition from '${order.fulfillmentStatus}' to '${fulfillmentStatus}'.`);
+    }
+  }
+
+  if (orderStatus && order.orderStatus !== orderStatus) {
+    if (!Order.validateTransition('orderStatus', order.orderStatus, orderStatus)) {
+      res.status(400);
+      throw new Error(`Invalid overall order status transition from '${order.orderStatus}' to '${orderStatus}'.`);
+    }
+  }
 
   const changes = [];
 
@@ -2125,11 +2154,20 @@ const exportOrdersCSV = asyncHandler(async (req, res) => {
 
 // @desc    Export customers as CSV
 // @route   GET /api/admin/export/customers
-// @access  Private/Admin
+// @access  Private/SuperAdmin
 const exportCustomersCSV = asyncHandler(async (req, res) => {
+  // Security & Audit: Require Super Admin role for PII Export
+  const userRole = req.user?.role || req.user?.userType;
+  if (!['super-admin', 'superadmin'].includes(String(userRole).toLowerCase())) {
+    res.status(403);
+    throw new Error('Customer PII exports are restricted to Super Admin role only.');
+  }
+
   const users = await User.find({ userType: { $ne: 'admin' } })
     .select('firstName lastName email phone createdAt lastLoginAt isVerified')
     .lean();
+
+  await logActivity(req, 'EXPORT_CUSTOMER_PII', `Exported PII CSV containing ${users.length} customer records`);
 
   const orders = await Order.find({ paymentStatus: { $in: ['paid', 'pending'] } })
     .select('user total')
@@ -2314,6 +2352,14 @@ const manualPaymentOverride = asyncHandler(async (req, res) => {
 
   // 3. Log administrative action in ActivityLog
   await logActivity(req, 'MANUAL_PAYMENT_OVERRIDE', `Manually marked order #${order.orderNumber} as paid. Reason: ${reason}`, order._id);
+
+  // Send admin notification for newly confirmed paid order
+  try {
+    const { sendNewOrderAdminAlert } = await import('../utils/adminNotificationService.js');
+    await sendNewOrderAdminAlert(order);
+  } catch (alertErr) {
+    console.error('❌ Failed to send admin alert on manual override:', alertErr.message);
+  }
 
   res.json({
     success: true,
@@ -2671,8 +2717,95 @@ const invalidateCache = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     res.status(500);
-    throw new Error(`Failed to clear cache: ${err.message}`);
+// @desc    Perform itemized bulk action on products
+// @route   POST /api/admin/products/bulk
+// @access  Private/Admin
+const bulkActionProducts = asyncHandler(async (req, res) => {
+  const { productIds, action, value } = req.body;
+
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    res.status(400);
+    throw new Error('Please provide an array of product IDs.');
   }
+
+  if (!['publish', 'draft', 'setCategory', 'adjustStock', 'delete'].includes(action)) {
+    res.status(400);
+    throw new Error('Invalid bulk action specified.');
+  }
+
+  const results = [];
+  let updatedCount = 0;
+  let failedCount = 0;
+
+  for (const id of productIds) {
+    try {
+      const product = await Product.findById(id);
+      if (!product) {
+        results.push({ id, success: false, reason: 'Product not found' });
+        failedCount++;
+        continue;
+      }
+
+      if (action === 'publish') {
+        product.isActive = true;
+        await product.save();
+      } else if (action === 'draft') {
+        product.isActive = false;
+        await product.save();
+      } else if (action === 'setCategory') {
+        if (value && mongoose.Types.ObjectId.isValid(value)) {
+          product.categoryId = value;
+          await product.save();
+        } else {
+          results.push({ id, success: false, reason: 'Invalid Category ID' });
+          failedCount++;
+          continue;
+        }
+      } else if (action === 'adjustStock') {
+        const delta = parseInt(value, 10);
+        if (isNaN(delta)) {
+          results.push({ id, success: false, reason: 'Invalid stock adjustment delta' });
+          failedCount++;
+          continue;
+        }
+        const currentStock = product.inventory?.stock ?? product.stock ?? 0;
+        const newStock = currentStock + delta;
+        if (newStock < 0) {
+          results.push({ id, success: false, reason: `Stock cannot drop below 0 (current: ${currentStock}, adjustment: ${delta})` });
+          failedCount++;
+          continue;
+        }
+        if (product.inventory) {
+          product.inventory.stock = newStock;
+        } else {
+          product.stock = newStock;
+        }
+        product.inStock = newStock > 0;
+        await product.save();
+      } else if (action === 'delete') {
+        await product.deleteOne();
+      }
+
+      results.push({ id, name: product.name, success: true });
+      updatedCount++;
+    } catch (err) {
+      results.push({ id, success: false, reason: err.message });
+      failedCount++;
+    }
+  }
+
+  await logActivity(req, 'BULK_PRODUCT_ACTION', `Executed bulk ${action} on ${productIds.length} products (Success: ${updatedCount}, Failed: ${failedCount})`);
+
+  res.json({
+    success: true,
+    message: `Bulk action '${action}' completed`,
+    data: {
+      total: productIds.length,
+      updatedCount,
+      failedCount,
+      results
+    }
+  });
 });
 
 export {
@@ -2713,5 +2846,6 @@ export {
   refundOrder,
   getReconciliationReport,
   getSystemHealth,
-  invalidateCache
+  invalidateCache,
+  bulkActionProducts
 };

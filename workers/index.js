@@ -610,6 +610,16 @@ const startCronJobs = () => {
         }
     });
 
+    // Scheduled Payment Reconciliation Job (Every 4 Hours)
+    cron.schedule('0 */4 * * *', async () => {
+        try {
+            console.log('[Cron] Running scheduled payment reconciliation scanner...');
+            await runPaymentReconciliation();
+        } catch (err) {
+            console.error('[Cron] Payment reconciliation job error:', err.message);
+        }
+    });
+
     console.log('✅ [Cron] All node-cron jobs scheduled inline in workers/index.js');
 };
 // ──────────────────────────────────────────────────────────────────────────────

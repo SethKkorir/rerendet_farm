@@ -6,6 +6,13 @@ import sendEmail from '../utils/sendEmail.js';
 import { getMaintenanceEmail, getMaintenanceResolvedEmail } from '../utils/emailTemplates.js';
 import settingsService from '../services/settingsService.js';
 
+const maskSecret = (val) => {
+  if (!val || typeof val !== 'string') return val;
+  if (val.startsWith('••••')) return val;
+  if (val.length <= 4) return '••••';
+  return '••••••••' + val.slice(-4);
+};
+
 // @desc    Get settings
 // @route   GET /api/admin/settings
 // @access  Private/Admin
@@ -13,9 +20,18 @@ const getSettings = asyncHandler(async (req, res) => {
   try {
     console.log('🔧 Fetching settings...');
 
-    const settings = await settingsService.getSettings();
+    const rawSettings = await settingsService.getSettings();
+    const settings = rawSettings ? (rawSettings.toObject ? rawSettings.toObject() : JSON.parse(JSON.stringify(rawSettings))) : {};
 
-    console.log('✅ Settings fetched successfully');
+    // Mask API Secrets in API responses for security
+    if (settings.payment) {
+      if (settings.payment.mpesaPaybillPasskey) settings.payment.mpesaPaybillPasskey = maskSecret(settings.payment.mpesaPaybillPasskey);
+      if (settings.payment.mpesaConsumerSecret) settings.payment.mpesaConsumerSecret = maskSecret(settings.payment.mpesaConsumerSecret);
+      if (settings.payment.paypalSecret) settings.payment.paypalSecret = maskSecret(settings.payment.paypalSecret);
+      if (settings.payment.stripeSecretKey) settings.payment.stripeSecretKey = maskSecret(settings.payment.stripeSecretKey);
+    }
+
+    console.log('✅ Settings fetched successfully (Secrets Masked)');
 
     res.json({
       success: true,
@@ -38,12 +54,20 @@ const updateSettings = asyncHandler(async (req, res) => {
   try {
     console.log('🔧 Updating settings...', req.body);
 
-    const settings = await Settings.getSettings();
+    const updatePayload = { ...req.body };
+    if (updatePayload.payment) {
+      const keysToClean = ['mpesaPaybillPasskey', 'mpesaConsumerSecret', 'paypalSecret', 'stripeSecretKey'];
+      keysToClean.forEach(k => {
+        if (updatePayload.payment[k] && typeof updatePayload.payment[k] === 'string' && updatePayload.payment[k].startsWith('••••')) {
+          delete updatePayload.payment[k];
+        }
+      });
+    }
 
     // Update settings with new data
     const updatedSettings = await Settings.findOneAndUpdate(
       {},
-      { $set: req.body },
+      { $set: updatePayload },
       {
         new: true,
         runValidators: true,
