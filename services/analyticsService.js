@@ -1,7 +1,7 @@
 // services/analyticsService.js
-const Order = require('../models/Order');
-const Product = require('../models/Product');
-const User = require('../models/User');
+import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import User from '../models/User.js';
 
 class AnalyticsService {
   
@@ -334,4 +334,4 @@ class AnalyticsService {
   }
 }
 
-module.exports = new AnalyticsService();
+export default new AnalyticsService();
