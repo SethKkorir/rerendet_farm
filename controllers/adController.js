@@ -29,28 +29,50 @@ export const getAd = async (req, res) => {
     }
 };
 
-// @desc    Create new ad with priority conflict detection
+// @desc    Create new ad with priority conflict detection & homepage hero approval gate
 // @route   POST /api/ads
 // @access  Private/Admin
 export const createAd = async (req, res) => {
     try {
-        const { placements, startDate, endDate, priority } = req.body;
+        const { placements, startDate, endDate, noExpiry, priority } = req.body;
+
+        if (!startDate) {
+            return res.status(400).json({ success: false, message: 'Start date is required.' });
+        }
+
+        if (!noExpiry && !endDate) {
+            return res.status(400).json({ success: false, message: 'End date is required unless "noExpiry" (No Expiry) is explicitly checked.' });
+        }
+
+        const isHomepageHero = Array.isArray(placements) && placements.some(p => ['homepage', 'homepage-hero'].includes(p));
+        const userRole = String(req.user?.role || req.user?.userType || '').toLowerCase();
+        const isSuperAdmin = ['super-admin', 'superadmin', 'owner'].includes(userRole);
+
+        let isApproved = true;
+        let status = req.body.status || 'Active';
+
+        if (isHomepageHero && !isSuperAdmin) {
+            isApproved = false;
+            status = 'Pending_Approval';
+        }
 
         // Priority conflict detection: check for overlapping active ads
-        if (placements && startDate && endDate && priority !== undefined) {
+        if (placements && startDate && (endDate || noExpiry) && priority !== undefined) {
+            const dateFilter = noExpiry 
+                ? { startDate: { $gte: new Date(startDate) } }
+                : { startDate: { $lte: new Date(endDate) }, endDate: { $gte: new Date(startDate) } };
+
             const conflicts = await Ad.find({
                 status: { $in: ['Active', 'Draft'] },
                 placements: { $in: placements },
                 priority: priority,
-                $or: [
-                    { startDate: { $lte: new Date(endDate) }, endDate: { $gte: new Date(startDate) } }
-                ]
+                ...dateFilter
             });
 
             if (conflicts.length > 0) {
                 return res.status(400).json({
                     success: false,
-                    message: `Priority conflict: ${conflicts.length} ad(s) with priority ${priority} overlap in the same placement(s) during this date range.`,
+                    message: `Priority conflict: ${conflicts.length} ad(s) with priority ${priority} overlap in the same placement(s).`,
                     conflicts: conflicts.map(c => ({
                         id: c._id,
                         title: c.title,
@@ -63,8 +85,20 @@ export const createAd = async (req, res) => {
             }
         }
 
-        const ad = await Ad.create(req.body);
-        res.status(201).json({ success: true, data: ad });
+        const adData = {
+            ...req.body,
+            isApproved,
+            status
+        };
+
+        const ad = await Ad.create(adData);
+        res.status(201).json({
+            success: true,
+            message: isHomepageHero && !isSuperAdmin 
+                ? 'Ad created successfully and submitted for Super Admin approval for Homepage Hero placement.' 
+                : 'Ad created successfully',
+            data: ad
+        });
     } catch (err) {
         res.status(400).json({ success: false, message: 'Bad Request', error: err.message });
     }

@@ -640,6 +640,133 @@ const getProductBySlug = asyncHandler(async (req, res) => {
   }
 });
 
+// Trigger restock alerts helper
+const checkAndDispatchRestockAlerts = async (productId, oldStock, newStock) => {
+  if (oldStock <= 0 && newStock > 0) {
+    try {
+      const RestockSubscription = (await import('../models/RestockSubscription.js')).default;
+      const sendEmail = (await import('../utils/sendEmail.js')).default;
+      const product = await Product.findById(productId);
+
+      if (!product) return;
+
+      const subscriptions = await RestockSubscription.find({ product: productId, notified: false });
+
+      if (subscriptions.length > 0) {
+        console.log(`📧 Dispatching restock emails to ${subscriptions.length} subscribers for ${product.name}...`);
+        
+        const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
+          ? 'https://rerendet-farm.vercel.app'
+          : (process.env.FRONTEND_URL || 'http://localhost:3000');
+
+        for (const sub of subscriptions) {
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+              <div style="text-align: center; margin-bottom: 25px;">
+                <h1 style="color: #6b4226; margin: 0; font-size: 24px;">☕ Fresh Batch Ready!</h1>
+                <p style="color: #666; font-size: 14px; margin-top: 5px;">${product.name} is Back in Stock</p>
+              </div>
+              <p style="font-size: 15px; color: #333;">Hello,</p>
+              <p style="font-size: 14px; color: #555; line-height: 1.6;">
+                Great news! The coffee you were waiting for, <strong>${product.name}</strong>, has just been freshly roasted and restocked in our inventory.
+              </p>
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${frontendUrl}/product/${product._id}" style="background-color: #6b4226; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Order Fresh Coffee Now</a>
+              </div>
+            </div>
+          `;
+
+          await sendEmail({
+            to: sub.email,
+            subject: `☕ Back in Stock: ${product.name}`,
+            html: emailHtml
+          }).catch(console.error);
+
+          sub.notified = true;
+          sub.notifiedAt = new Date();
+          await sub.save();
+        }
+      }
+    } catch (err) {
+      console.error('❌ Failed to dispatch restock notifications:', err.message);
+    }
+  }
+};
+
+// @desc    Get Best Selling Products (dynamic compute)
+// @route   GET /api/products/bestsellers
+// @access  Public
+const getBestSellers = asyncHandler(async (req, res) => {
+  const Order = (await import('../models/Order.js')).default;
+
+  // Aggregate top sold products from completed/paid orders
+  const topSales = await Order.aggregate([
+    { $match: { paymentStatus: 'paid' } },
+    { $unwind: '$items' },
+    { $group: { _id: '$items.product', totalSold: { $sum: '$items.quantity' } } },
+    { $sort: { totalSold: -1 } },
+    { $limit: 8 }
+  ]);
+
+  const productIds = topSales.map(s => s._id);
+
+  let bestSellers = [];
+  if (productIds.length > 0) {
+    bestSellers = await Product.find({ _id: { $in: productIds }, isActive: true }).populate('categoryId').lean();
+  }
+
+  // Fallback: If no order history yet, fetch top featured active products
+  if (bestSellers.length < 4) {
+    const fallbacks = await Product.find({ isActive: true }).sort({ rating: -1, createdAt: -1 }).limit(8).populate('categoryId').lean();
+    bestSellers = fallbacks;
+  }
+
+  res.json({
+    success: true,
+    data: bestSellers
+  });
+});
+
+// @desc    Subscribe to restock notification when out-of-stock product is replenished
+// @route   POST /api/products/:id/restock-subscribe
+// @access  Public
+const subscribeRestockNotification = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const productId = req.params.id;
+
+  if (!email || !email.includes('@')) {
+    res.status(400);
+    throw new Error('Please provide a valid email address.');
+  }
+
+  const product = await Product.findById(productId);
+  if (!product) {
+    res.status(404);
+    throw new Error('Product not found.');
+  }
+
+  const RestockSubscription = (await import('../models/RestockSubscription.js')).default;
+
+  const existing = await RestockSubscription.findOne({ product: productId, email: email.toLowerCase() });
+  if (existing) {
+    return res.json({
+      success: true,
+      message: "You're already subscribed to restock alerts for this coffee!"
+    });
+  }
+
+  await RestockSubscription.create({
+    product: productId,
+    email: email.toLowerCase(),
+    user: req.user ? req.user._id : null
+  });
+
+  res.status(201).json({
+    success: true,
+    message: `Subscribed! We will notify ${email} as soon as ${product.name} is restocked.`
+  });
+});
+
 export {
   getProducts,
   getProductById,
@@ -651,5 +778,7 @@ export {
   getProductBySlug,
   updateProductStock,
   uploadProductImages,
-  deleteProductImage
+  deleteProductImage,
+  getBestSellers,
+  subscribeRestockNotification
 };

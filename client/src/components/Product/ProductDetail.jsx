@@ -9,11 +9,14 @@ import './ProductDetail.css';
 
 const ProductDetail = () => {
     const { slug } = useParams();
-    const { addToCart, showAlert } = useContext(AppContext);
+    const { addToCart, showAlert, user } = useContext(AppContext);
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedSize, setSelectedSize] = useState('');
     const [addingToCart, setAddingToCart] = useState(false);
+    const [restockEmail, setRestockEmail] = useState(user?.email || '');
+    const [submittingRestock, setSubmittingRestock] = useState(false);
+    const [subscribedRestock, setSubscribedRestock] = useState(false);
 
     useEffect(() => {
         const fetchProduct = async () => {
@@ -50,6 +53,31 @@ const ProductDetail = () => {
             console.error(err);
         } finally {
             setAddingToCart(false);
+        }
+    };
+
+    const handleRestockSubscribe = async (e) => {
+        e.preventDefault();
+        if (!restockEmail || !product) return;
+        setSubmittingRestock(true);
+        try {
+            const res = await fetch(`/api/products/${product._id}/restock-subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: restockEmail })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSubscribedRestock(true);
+                showAlert(data.message, 'success');
+            } else {
+                showAlert(data.message || 'Subscription failed', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showAlert('Failed to subscribe for restock alerts', 'error');
+        } finally {
+            setSubmittingRestock(false);
         }
     };
 
@@ -121,13 +149,47 @@ const ProductDetail = () => {
                             </div>
                         )}
 
-                        <button
-                            className="add-cart-btn"
-                            onClick={handleAddToCart}
-                            disabled={addingToCart || product.inventory?.stock <= 0}
-                        >
-                            <FaShoppingBag /> {addingToCart ? 'Adding...' : 'Add to Cart'}
-                        </button>
+                        {product.inventory?.stock <= 0 || product.inStock === false ? (
+                            <div className="out-of-stock-section" style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                                    <span>⚠️ Currently Out of Stock</span>
+                                </div>
+                                <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+                                    We are roasting a new batch of this coffee! Enter your email below to get notified as soon as it is back in stock.
+                                </p>
+                                {!subscribedRestock ? (
+                                    <form onSubmit={handleRestockSubscribe} style={{ display: 'flex', gap: '8px' }}>
+                                        <input
+                                            type="email"
+                                            placeholder="Enter your email address"
+                                            value={restockEmail}
+                                            onChange={e => setRestockEmail(e.target.value)}
+                                            required
+                                            style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid #ccc', fontSize: '0.9rem' }}
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={submittingRestock}
+                                            style={{ background: '#6b4226', color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 18px', fontWeight: 'bold', cursor: 'pointer' }}
+                                        >
+                                            {submittingRestock ? 'Subscribing...' : '🔔 Notify Me'}
+                                        </button>
+                                    </form>
+                                ) : (
+                                    <div style={{ color: '#10b981', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                                        ✓ Subscribed! We will email you the moment fresh stock arrives.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <button
+                                className="add-cart-btn"
+                                onClick={handleAddToCart}
+                                disabled={addingToCart}
+                            >
+                                <FaShoppingBag /> {addingToCart ? 'Adding...' : 'Add to Cart'}
+                            </button>
+                        )}
 
                         <div className="product-features-mini">
                             {product.category === 'coffee-beans' ? (

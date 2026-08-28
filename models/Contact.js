@@ -10,6 +10,10 @@ const contactSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
   },
+  orderNumber: {
+    type: String,
+    trim: true
+  },
   name: {
     type: String,
     required: [true, 'Name is required'],

@@ -10,8 +10,10 @@ import {
   getProductsByCategory,
   getProductBySlug,
   updateProductStock,
-  uploadProductImages, // We'll create this
-  deleteProductImage // We'll create this too
+  uploadProductImages,
+  deleteProductImage,
+  getBestSellers,
+  subscribeRestockNotification
 } from '../controllers/productController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
@@ -27,23 +29,26 @@ const apiLimiter = rateLimit({
   }
 });
 
-router.route('/')
-  .get(apiLimiter, getProducts)
-  .post(protect, admin, upload.array('images', 5), createProduct); // ADD IMAGE UPLOAD
-
-router.route('/:id')
-  .get(apiLimiter, getProductById)
-  .put(protect, admin, upload.array('images', 5), updateProduct) // ADD IMAGE UPLOAD
-  .delete(protect, admin, deleteProduct);
-
-// ADD NEW ROUTE FOR IMAGE UPLOAD
-router.route('/:id/images')
-  .post(protect, admin, upload.array('images', 5), uploadProductImages)
-  .delete(protect, admin, deleteProductImage); // We'll create this too
-
+// Named public routes (MUST be before /:id)
+router.get('/bestsellers', getBestSellers);
 router.get('/featured/products', getFeaturedProducts);
 router.get('/category/:category', getProductsByCategory);
 router.get('/slug/:slug', getProductBySlug);
+router.post('/:id/restock-subscribe', subscribeRestockNotification);
+
+router.route('/')
+  .get(apiLimiter, getProducts)
+  .post(protect, admin, upload.array('images', 5), createProduct);
+
+router.route('/:id')
+  .get(apiLimiter, getProductById)
+  .put(protect, admin, upload.array('images', 5), updateProduct)
+  .delete(protect, admin, deleteProduct);
+
+router.route('/:id/images')
+  .post(protect, admin, upload.array('images', 5), uploadProductImages)
+  .delete(protect, admin, deleteProductImage);
+
 router.patch('/:id/stock', protect, admin, updateProductStock);
 
 export default router;

@@ -353,6 +353,8 @@ app.use('/api/public', publicRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/promotions', adRoutes);
 app.use('/api/blogs', blogRoutes);
+import contactRoutes from './routes/contactRoutes.js';
+app.use('/api/contact', contactRoutes);
 app.use('/api/subscribers', subscriberRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/cart', cartRoutes);

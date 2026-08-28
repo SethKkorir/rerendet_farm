@@ -48,12 +48,15 @@ const Footer = () => {
             <Link to="/" className="footer-logo">
               <img
                 src="/rerendet-logo.png"
-                alt="Rerendet"
+                alt="Rerendet Coffee"
                 className="footer-logo-img"
               />
             </Link>
+            <p className="footer-tagline" style={{ fontWeight: '600', color: '#d4af37', fontSize: '0.9rem', margin: '6px 0 10px 0' }}>
+              Farm-fresh Kenyan coffee, roasted to order.
+            </p>
             <p className="footer-mission">
-              {store.description || 'Crafting excellence from the Kenyan highlands to your cup. We are more than coffee — we are a legacy of quality roasting and sustainable farming.'}
+              {store.description || 'Crafting excellence from the Kenyan highlands to your cup. We are a legacy of quality roasting, direct farm origin, and sustainable agriculture.'}
             </p>
             <div className="social-orchestra">
               {social.facebook && <a href={social.facebook} target="_blank" rel="noopener noreferrer" className="orchestra-link" aria-label="Facebook"><FaFacebookF /></a>}
@@ -65,46 +68,40 @@ const Footer = () => {
 
           {/* Navigation Orchestra */}
           <div className="footer-section">
-            <h4 className="section-title">Explore</h4>
+            <h4 className="section-title">Shop & Learn</h4>
             <ul className="footer-links">
-              <li><a href="/#hero">Home</a></li>
-              <li><a href="/#coffee-shop">Coffee Shop</a></li>
-              <li><a href="/#features">Our Origins</a></li>
-              <li><a href="/#about">Our Story</a></li>
+              <li><Link to="/">Home</Link></li>
+              <li><Link to="/#coffee-shop">Coffee Catalog</Link></li>
+              <li><Link to="/track-order">Track Order</Link></li>
+              <li><Link to="/contact">Contact Us</Link></li>
             </ul>
           </div>
 
           <div className="footer-section">
-            <h4 className="section-title">Support</h4>
+            <h4 className="section-title">Support & Legal</h4>
             <ul className="footer-links">
               <li><Link to="/shipping-policy">Shipping & Delivery</Link></li>
-              <li><Link to="/refund-policy">Refund Policy</Link></li>
+              <li><Link to="/refund-policy">Refund & Return Policy</Link></li>
               <li><Link to="/privacy-policy">Privacy Policy</Link></li>
               <li><Link to="/terms-conditions">Terms & Conditions</Link></li>
             </ul>
           </div>
 
           <div className="footer-section contact-section">
-            <h4 className="section-title">Get In Touch</h4>
+            <h4 className="section-title">Roastery & Contact</h4>
             <div className="contact-details">
-              {store.address && (
-                <div className="contact-bit">
-                  <FaMapMarkerAlt className="bit-icon" />
-                  <span>{store.address}</span>
-                </div>
-              )}
-              {store.email && (
-                <div className="contact-bit">
-                  <FaEnvelope className="bit-icon" />
-                  <span>{store.email}</span>
-                </div>
-              )}
-              {store.phone && (
-                <div className="contact-bit">
-                  <FaPhone className="bit-icon" />
-                  <span>{store.phone}</span>
-                </div>
-              )}
+              <div className="contact-bit">
+                <FaMapMarkerAlt className="bit-icon" />
+                <span>Handcrafted & Shipped Nationwide from Nandi County, Kenya</span>
+              </div>
+              <div className="contact-bit">
+                <FaEnvelope className="bit-icon" />
+                <span>{store.email || 'support@rerendetcoffee.com'}</span>
+              </div>
+              <div className="contact-bit">
+                <FaPhone className="bit-icon" />
+                <span>{store.phone || '+254 711 245 765'} (Mon - Sat 8am - 6pm EAT)</span>
+              </div>
             </div>
           </div>
         </div>

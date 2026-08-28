@@ -119,6 +119,11 @@ const userSchema = new mongoose.Schema({
   twoFactorBackupCodes: { type: [String], select: false },
   twoFactorCode: { type: String, select: false },
   twoFactorCodeExpires: { type: Date, select: false },
+  knownDevices: [{
+    ip: String,
+    userAgent: String,
+    lastUsed: { type: Date, default: Date.now }
+  }],
 
   // Profile
   profilePicture: String,

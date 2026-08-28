@@ -5,14 +5,16 @@ import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaFacebookF, FaInstagram, FaTwitte
 import './Contact.css';
 
 const Contact = () => {
-  const { showNotification, publicSettings } = useContext(AppContext);
+  const { showNotification, publicSettings, settings } = useContext(AppContext);
   const social = publicSettings?.seo?.social || {};
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    subject: '',
-    message: ''
+    subject: 'General Inquiry',
+    orderNumber: '',
+    message: '',
+    hp_website: ''
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,8 +37,6 @@ const Contact = () => {
 
     if (!formData.subject.trim()) {
       newErrors.subject = 'Subject is required';
-    } else if (formData.subject.trim().length < 5) {
-      newErrors.subject = 'Subject must be at least 5 characters';
     }
 
     if (!formData.message.trim()) {
@@ -56,7 +56,6 @@ const Contact = () => {
       [name]: value
     }));
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -76,31 +75,33 @@ const Contact = () => {
     setIsSubmitting(true);
 
     try {
-      // Submit contact form to backend
       const response = await fetch('/api/contact', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(formData),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         setIsSubmitted(true);
         setFormData({
           name: '',
           email: '',
-          subject: '',
-          message: ''
+          subject: 'General Inquiry',
+          orderNumber: '',
+          message: '',
+          hp_website: ''
         });
-        showNotification('Message sent successfully! We\'ll get back to you soon.', 'success');
+        showNotification(result.message || "Message sent! We'll respond within 2-4 business hours.", 'success');
       } else {
-        throw new Error('Failed to send message');
+        throw new Error(result.message || 'Failed to send message');
       }
     } catch (error) {
       console.error('Contact form error:', error);
-      showNotification('Failed to send message. Please try again later.', 'error');
+      showNotification(error.message || 'Failed to send message. Please try again later.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -111,24 +112,19 @@ const Contact = () => {
     setFormData({
       name: '',
       email: '',
-      subject: '',
-      message: ''
+      subject: 'General Inquiry',
+      orderNumber: '',
+      message: '',
+      hp_website: ''
     });
     setErrors({});
   };
 
-  // Mock function for social media links (replace with actual URLs)
-  const handleSocialClick = (platform) => {
-    const urls = {
-      facebook: 'https://facebook.com/rerendetcoffee',
-      instagram: 'https://www.instagram.com/rerendetcoffee?igsh=amdyZDYzd2w1dndq',
-      twitter: 'https://twitter.com/rerendetcoffee',
-      whatsapp: 'https://whatsapp.com/channel/0029Vb9Ai2r9Gv7TB7Qpt73y'
-    };
-
-    // In a real app, you would redirect to the actual URLs
-    showNotification(`Redirecting to our ${platform} page...`, 'info');
-    console.log(`Would redirect to: ${urls[platform]}`);
+  const handleWhatsAppClick = () => {
+    const phone = settings?.contact?.whatsapp || '254790000000';
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent('Hi Rerendet Coffee! I have an inquiry.')}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   if (isSubmitted) {
@@ -139,8 +135,8 @@ const Contact = () => {
             <FaCheckCircle className="success-icon" />
             <h2>Thank You for Your Message!</h2>
             <p>
-              We've received your message and will get back to you within 24 hours.
-              In the meantime, feel free to explore more of our coffee offerings.
+              We've received your message and will get back to you within 2 to 4 business hours.
+              In the meantime, feel free to explore more of our freshly roasted coffee offerings.
             </p>
             <button
               onClick={handleResetForm}
@@ -161,10 +157,19 @@ const Contact = () => {
           <div className="contact-info">
             <h2 className="section-title">Get In Touch</h2>
             <p className="contact-description">
-              We'd love to hear from you! Whether you have questions about our coffee,
-              want to place a bulk order, or are interested in visiting our farm,
-              our team is here to help.
+              We'd love to hear from you! Whether you have questions about our roasts,
+              need help with an order, or are interested in bulk wholesale,
+              our team is ready to help.
             </p>
+
+            {/* Fast WhatsApp CTA Card */}
+            <div className="whatsapp-card" onClick={handleWhatsAppClick} style={{ cursor: 'pointer', background: '#25D366', color: '#ffffff', padding: '16px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px', boxShadow: '0 8px 20px rgba(37,211,102,0.25)' }}>
+              <FaWhatsapp style={{ fontSize: '32px' }} />
+              <div>
+                <strong style={{ display: 'block', fontSize: '1rem' }}>Instant WhatsApp Support</strong>
+                <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>Chat directly with our roasting team (Fastest response)</span>
+              </div>
+            </div>
 
             <div className="contact-details">
               <div className="contact-item">
@@ -172,8 +177,8 @@ const Contact = () => {
                   <FaMapMarkerAlt className="contact-icon" />
                 </div>
                 <div className="contact-text">
-                  <h4>Visit Our Farm</h4>
-                  <p>Rerendet Farm, Bomet County<br />Southern Rift, Kenya</p>
+                  <h4>Roastery & Farm Location</h4>
+                  <p>Rerendet Farm, Nandi County<br />Highland Ridge, Kenya — Delivery Nationwide</p>
                 </div>
               </div>
 
@@ -183,7 +188,7 @@ const Contact = () => {
                 </div>
                 <div className="contact-text">
                   <h4>Call Us</h4>
-                  <p>+254 711 245 765<br />+254 726 388 591</p>
+                  <p>+254 711 245 765<br />Mon - Sat: 8:00 AM - 6:00 PM EAT</p>
                 </div>
               </div>
 
@@ -193,21 +198,7 @@ const Contact = () => {
                 </div>
                 <div className="contact-text">
                   <h4>Email Us</h4>
-                  <p>info@rerendetcoffee.com<br />orders@rerendetcoffee.com</p>
-                </div>
-              </div>
-              <div className="contact-item">
-                <div className="contact-icon-container">
-                  <FaWhatsapp className="contact-icon" />
-                </div>
-                <div className="contact-text">
-                  <h4>Follow Us</h4>
-                  <div className="social-links-inline">
-                    <a href={social.facebook || 'https://facebook.com/rerendetcoffee'} target="_blank" rel="noopener noreferrer" className="orchestra-link" aria-label="Facebook"><FaFacebookF /></a>
-                    <a href={social.instagram || 'https://www.instagram.com/rerendetcoffee?igsh=amdyZDYzd2w1dndq'} target="_blank" rel="noopener noreferrer" className="orchestra-link" aria-label="Instagram"><FaInstagram /></a>
-                    <a href={social.twitter || 'https://twitter.com/rerendetcoffee'} target="_blank" rel="noopener noreferrer" className="orchestra-link" aria-label="Twitter"><FaTwitter /></a>
-                    <a href={social.whatsapp || 'https://whatsapp.com/channel/0029Vb9Ai2r9Gv7TB7Qpt73y'} target="_blank" rel="noopener noreferrer" className="orchestra-link" aria-label="WhatsApp"><FaWhatsapp /></a>
-                  </div>
+                  <p>support@rerendetcoffee.com<br />orders@rerendetcoffee.com</p>
                 </div>
               </div>
             </div>
@@ -215,6 +206,17 @@ const Contact = () => {
 
           <div className="contact-form-container">
             <form className="contact-form" onSubmit={handleSubmit} noValidate>
+              {/* Honeypot Anti-Spam Hidden Field */}
+              <input
+                type="text"
+                name="hp_website"
+                value={formData.hp_website}
+                onChange={handleInputChange}
+                style={{ display: 'none' }}
+                tabIndex="-1"
+                autoComplete="off"
+              />
+
               <div className="form-group">
                 <label htmlFor="name" className="form-label">
                   Full Name *
@@ -261,25 +263,45 @@ const Contact = () => {
 
               <div className="form-group">
                 <label htmlFor="subject" className="form-label">
-                  Subject *
+                  Inquiry Topic / Subject *
                 </label>
-                <input
-                  type="text"
+                <select
                   id="subject"
                   name="subject"
                   value={formData.subject}
                   onChange={handleInputChange}
-                  className={`form-input ${errors.subject ? 'error' : ''}`}
-                  placeholder="What is this regarding?"
+                  className="form-input"
                   disabled={isSubmitting}
-                />
-                {errors.subject && (
-                  <div className="error-message">
-                    <FaExclamationCircle className="error-icon" />
-                    {errors.subject}
-                  </div>
-                )}
+                  style={{ width: '100%', height: '48px', padding: '0 14px', borderRadius: '8px' }}
+                >
+                  <option value="General Inquiry">General Inquiry</option>
+                  <option value="Order Issue">Order Issue</option>
+                  <option value="Bulk & Wholesale">Bulk & Wholesale</option>
+                  <option value="Feedback / Suggestion">Feedback / Suggestion</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
+
+              {formData.subject === 'Order Issue' && (
+                <div className="form-group">
+                  <label htmlFor="orderNumber" className="form-label">
+                    Order Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="orderNumber"
+                    name="orderNumber"
+                    value={formData.orderNumber}
+                    onChange={handleInputChange}
+                    className="form-input"
+                    placeholder="e.g. ORD-2026-8492"
+                    disabled={isSubmitting}
+                  />
+                  <span style={{ fontSize: '0.8rem', color: '#777', marginTop: '4px', display: 'block' }}>
+                    Providing your order number helps us resolve your inquiry much faster.
+                  </span>
+                </div>
+              )}
 
               <div className="form-group">
                 <label htmlFor="message" className="form-label">
@@ -319,7 +341,7 @@ const Contact = () => {
               </button>
 
               <div className="form-note">
-                <p>* Required fields</p>
+                <p>* Required fields. Your inquiry will be routed directly to customer care.</p>
               </div>
             </form>
           </div>

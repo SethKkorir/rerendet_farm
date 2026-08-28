@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { sanitizeString } from '../utils/inputSanitizer.js';
 
 const adSchema = new mongoose.Schema({
     title: {
@@ -8,12 +8,12 @@ const adSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        enum: ['banner', 'featured_product', 'sponsored_listing', 'flash_deal'],
+        enum: ['banner', 'featured_product', 'sponsored_listing', 'flash_deal', 'popup'],
         required: true
     },
     placements: [{
         type: String,
-        enum: ['homepage', 'cart', 'dashboard', 'search_sidebar', 'products_list']
+        enum: ['homepage', 'homepage-hero', 'cart', 'dashboard', 'search_sidebar', 'products_list', 'category-page', 'checkout-banner', 'popup-modal']
     }],
     mediaUrl: {
         type: String
@@ -51,8 +51,15 @@ const adSchema = new mongoose.Schema({
         required: true
     },
     endDate: {
-        type: Date,
-        required: true
+        type: Date
+    },
+    noExpiry: {
+        type: Boolean,
+        default: false
+    },
+    isApproved: {
+        type: Boolean,
+        default: false
     },
     priority: {
         type: Number,
@@ -60,7 +67,7 @@ const adSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Draft', 'Active', 'Paused', 'Completed'],
+        enum: ['Draft', 'Active', 'Paused', 'Completed', 'Pending_Approval'],
         default: 'Draft'
     },
     metrics: {
@@ -69,6 +76,19 @@ const adSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
+});
+
+// Pre-save hook: Sanitize promotional ad fields against XSS
+adSchema.pre('save', function (next) {
+    if (this.title) this.title = sanitizeString(this.title);
+    if (this.content) {
+        if (this.content.headline) this.content.headline = sanitizeString(this.content.headline);
+        if (this.content.subText) this.content.subText = sanitizeString(this.content.subText);
+        if (this.content.ctaText) this.content.ctaText = sanitizeString(this.content.ctaText);
+    }
+    if (this.targetUrl) this.targetUrl = sanitizeString(this.targetUrl);
+    if (this.mediaUrl) this.mediaUrl = sanitizeString(this.mediaUrl);
+    next();
 });
 
 const Ad = mongoose.model('Ad', adSchema);
