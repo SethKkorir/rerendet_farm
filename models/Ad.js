@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { sanitizeString } from '../utils/inputSanitizer.js';
 
 const adSchema = new mongoose.Schema({

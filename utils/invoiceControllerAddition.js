@@ -1,4 +1,6 @@
-// controllers/orderController.js - ADD THIS AT THE END
+// utils/invoiceControllerAddition.js
+import asyncHandler from 'express-async-handler';
+import Order from '../models/Order.js';
 
 // @desc    Generate PDF invoice for order
 // @route   GET /api/orders/:id/invoice
@@ -13,7 +15,7 @@ export const generateOrderInvoice = asyncHandler(async (req, res) => {
     }
 
     // Check if user owns the order or is admin
-    if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    if (order.user?._id?.toString() !== req.user?._id?.toString() && req.user?.role !== 'admin') {
         res.status(403);
         throw new Error('Not authorized to access this invoice');
     }
@@ -25,12 +27,4 @@ export const generateOrderInvoice = asyncHandler(async (req, res) => {
     generateInvoice(order, res);
 });
 
-export {
-    createOrder,
-    getOrderById,
-    getMyOrders,
-    getAllOrders,
-    updateOrderStatus,
-    getShippingCost,
-    generateOrderInvoice
-};
+export default generateOrderInvoice;

@@ -2583,7 +2583,6 @@ const verify2FATOTP = asyncHandler(async (req, res) => {
   await user.populate('cart.product');
 
   // Verify device fingerprint asynchronously
-  const { handleDeviceFingerprint } = await import('./authController.js'); // Self-reference or invoke inline
   try {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
   } catch (_) {}

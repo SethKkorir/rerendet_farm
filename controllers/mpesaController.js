@@ -1,7 +1,7 @@
 // controllers/mpesaController.js
 import axios from 'axios';
 import crypto from 'crypto';
-import Payment from '../models/Payment.js';
+import Payment from '../models/PaymentTransaction.js';
 import Order from '../models/Order.js';
 import asyncHandler from 'express-async-handler';
 

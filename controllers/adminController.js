@@ -2717,6 +2717,10 @@ const invalidateCache = asyncHandler(async (req, res) => {
     });
   } catch (err) {
     res.status(500);
+    throw new Error(err.message || 'Failed to invalidate cache');
+  }
+});
+
 // @desc    Perform itemized bulk action on products
 // @route   POST /api/admin/products/bulk
 // @access  Private/Admin
