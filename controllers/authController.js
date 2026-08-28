@@ -1209,68 +1209,6 @@ const deleteAccount = asyncHandler(async (req, res) => {
 // ==================== ADMIN AUTH ====================
 
 // Admin login (separate endpoint)
-// Helper: Handle Device Fingerprint & Security Alerts for Unrecognized Admin Logins
-const handleDeviceFingerprint = async (req, user) => {
-  try {
-    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'Unknown IP';
-    const userAgent = req.headers['user-agent'] || 'Unknown Browser';
-
-    const devices = user.knownDevices || [];
-    const isKnown = devices.some(d => d.ip === ip && d.userAgent === userAgent);
-
-    if (!isKnown) {
-      console.log(`🚨 New device login detected for Admin ${user.email} from IP: ${ip}`);
-
-      if (!user.knownDevices) user.knownDevices = [];
-      user.knownDevices.push({ ip, userAgent, lastUsed: new Date() });
-      await user.save({ validateBeforeSave: false });
-
-      const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
-        ? 'https://rerendet-farm.vercel.app'
-        : (process.env.FRONTEND_URL || 'http://localhost:3000');
-
-      const resetUrl = `${frontendUrl}/forgot-password`;
-
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
-          <div style="text-align: center; margin-bottom: 25px;">
-            <h1 style="color: #6b4226; margin: 0; font-size: 22px;">🚨 Security Alert: New Device Admin Login</h1>
-            <p style="color: #666; font-size: 14px; margin-top: 5px;">Rerendet Coffee Admin Security</p>
-          </div>
-          <p style="font-size: 15px; color: #333;">Hello <strong>${user.firstName}</strong>,</p>
-          <p style="font-size: 14px; color: #555; line-height: 1.6;">
-            We noticed a successful admin login to your account from a new or unrecognized device:
-          </p>
-          <div style="padding: 15px; background-color: #f8f9fa; border-left: 4px solid #d4af37; border-radius: 4px; margin: 20px 0;">
-            <p style="margin: 0; font-size: 13px; color: #333;"><strong>IP Address:</strong> ${ip}</p>
-            <p style="margin: 5px 0 0 0; font-size: 13px; color: #333;"><strong>User-Agent:</strong> ${userAgent}</p>
-            <p style="margin: 5px 0 0 0; font-size: 13px; color: #777;"><strong>Time:</strong> ${new Date().toLocaleString('en-KE')}</p>
-          </div>
-          <p style="font-size: 14px; color: #d9534f; font-weight: bold;">
-            Wasn't you? If you did not perform this login, your credentials may be compromised. Please reset your password immediately.
-          </p>
-          <div style="text-align: center; margin: 25px 0;">
-            <a href="${resetUrl}" style="background-color: #d9534f; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; display: inline-block;">Reset Password Now</a>
-          </div>
-        </div>
-      `;
-
-      const sendEmail = (await import('../utils/sendEmail.js')).default;
-      await sendEmail({
-        to: user.email,
-        subject: '🚨 SECURITY ALERT: Unrecognized Device Admin Login',
-        html: emailHtml
-      });
-    } else {
-      await User.updateOne(
-        { _id: user._id, 'knownDevices.ip': ip, 'knownDevices.userAgent': userAgent },
-        { $set: { 'knownDevices.$.lastUsed': new Date() } }
-      );
-    }
-  } catch (err) {
-    console.error('❌ Failed to handle device fingerprint alert:', err.message);
-  }
-};
 
 const loginAdmin = asyncHandler(async (req, res) => {
   const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
