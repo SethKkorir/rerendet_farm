@@ -288,17 +288,6 @@ const Settings = () => {
     const f = e.target.files[0]; if (!f) return;
     setAboutImageFile2(f);
     const r = new FileReader(); r.onload = e => setAboutImagePreview2(e.target.result); r.readAsDataURL(f);
-  };.result); r.readAsDataURL(f);
-  };
-  const handleAboutImageChange = e => {
-    const f = e.target.files[0]; if (!f) return;
-    setAboutImageFile(f);
-    const r = new FileReader(); r.onload = e => setAboutImagePreview(e.target.result); r.readAsDataURL(f);
-  };
-  const handleAboutImageChange2 = e => {
-    const f = e.target.files[0]; if (!f) return;
-    setAboutImageFile2(f);
-    const r = new FileReader(); r.onload = e => setAboutImagePreview2(e.target.result); r.readAsDataURL(f);
   };
 
   // ── Email test ──

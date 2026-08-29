@@ -37,8 +37,17 @@ export const csrfGuard = (req, res, next) => {
 
   // Public anonymous state-changing endpoints do not use session credentials and are not vulnerable to CSRF
   const isPublicRoute = 
-    req.originalUrl.startsWith('/api/subscribers/subscribe') ||
-    req.originalUrl.startsWith('/api/subscribers/unsubscribe') ||
+    req.originalUrl.startsWith('/api/newsletter') ||
+    req.originalUrl.startsWith('/api/subscribers') ||
+    req.originalUrl.startsWith('/api/auth/login') ||
+    req.originalUrl.startsWith('/api/auth/register') ||
+    req.originalUrl.startsWith('/api/auth/forgot') ||
+    req.originalUrl.startsWith('/api/auth/reset') ||
+    req.originalUrl.startsWith('/api/auth/customer/challenge') ||
+    req.originalUrl.startsWith('/api/auth/customer/verify-email') ||
+    req.originalUrl.startsWith('/api/auth/resend-verification') ||
+    req.originalUrl.startsWith('/api/public') ||
+    req.originalUrl.includes('/restock-subscribe') ||
     req.originalUrl.includes('/track/impression') ||
     req.originalUrl.includes('/track/click');
 
