@@ -116,16 +116,28 @@ const ProductDetail = () => {
                         </div>
 
                         <div className="description">
+                            <h3 className="desc-heading">About This Coffee:</h3>
                             <p>{product.description}</p>
                         </div>
 
+                        {product.flavorNotes && product.flavorNotes.length > 0 && (
+                            <div className="product-flavor-notes-detail">
+                                <h3 className="desc-heading">Tasting & Flavor Notes:</h3>
+                                <div className="flavor-pills-list">
+                                    {product.flavorNotes.map((note, idx) => (
+                                        <span key={idx} className="flavor-badge-detail">✨ {note}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {product.categoryAttributes && Object.keys(product.categoryAttributes).length > 0 && (
-                            <div className="category-attributes-display" style={{ marginTop: '1rem', borderTop: '1px solid #eaeaea', paddingTop: '1rem' }}>
-                                <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>Product Details:</h3>
-                                <ul style={{ listStyle: 'none', padding: 0, fontSize: '0.9rem', color: '#555' }}>
+                            <div className="category-attributes-display">
+                                <h3 className="desc-heading">Farm & Processing Attributes:</h3>
+                                <ul>
                                     {Object.entries(product.categoryAttributes).map(([key, val]) => (
-                                        <li key={key} style={{ marginBottom: '0.25rem' }}>
-                                            <strong style={{ color: '#222' }}>{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}:</strong> {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val.toString()}
+                                        <li key={key}>
+                                            <strong>{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}:</strong> {typeof val === 'boolean' ? (val ? 'Yes' : 'No') : val.toString()}
                                         </li>
                                     ))}
                                 </ul>
