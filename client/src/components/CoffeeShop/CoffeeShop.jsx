@@ -100,7 +100,8 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
   const onAddClick = (e) => {
     e.stopPropagation();
     if (!productInStock) return;
-    handleAddToCart(product, selectedSizeObj.size, currentPrice, quantity, selectedGrind);
+    const adminGrind = product.grind || product.categoryAttributes?.grind || 'Whole Beans';
+    handleAddToCart(product, selectedSizeObj.size, currentPrice, quantity, adminGrind);
   };
 
   const onWhatsAppEnquire = (e) => {
@@ -151,6 +152,7 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
 
           {/* Quick view button */}
           <button
+            type="button"
             className="cs-quickview-btn"
             onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
             aria-label={`Quick view ${product.name}`}
@@ -208,20 +210,18 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
             </div>
           </div>
 
-          {/* ⭐ Prominent & Fully Legible Product Description ⭐ */}
+          {/* ⭐ Clean Description with Direct Full Notes in Quick View ⭐ */}
           <div className="cs-desc-container">
-            <p className={`cs-desc ${showFullDesc ? 'cs-desc--expanded' : ''}`}>
+            <p className="cs-desc">
               {product.description || 'Specialty Arabica coffee grown in volcanic highland soils, hand-harvested and crafted to perfection with intense aromas and balanced acidity.'}
             </p>
-            {product.description && product.description.length > 110 && (
-              <button
-                type="button"
-                className="cs-desc-toggle"
-                onClick={() => setShowFullDesc(!showFullDesc)}
-              >
-                {showFullDesc ? <>Show Less <FaChevronUp /></> : <>Read Full Notes <FaChevronDown /></>}
-              </button>
-            )}
+            <button
+              type="button"
+              className="cs-desc-toggle"
+              onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
+            >
+              Read Full Story & Notes in Quick View <FaEye style={{ marginLeft: '4px' }} />
+            </button>
           </div>
 
           {/* Flavor Notes Tasting Tags */}
@@ -238,7 +238,17 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
             </div>
           )}
 
-          {/* Dynamic Size / Weight Selector (No Card Duplication!) */}
+          {/* Admin Grind Profile Tag (Informational Only - No Dropdown) */}
+          {(product.category === 'coffee-beans' || !product.category) && (
+            <div className="cs-spec-row">
+              <span className="cs-spec-label">Roast Form:</span>
+              <span className="cs-spec-val">
+                <FaCoffee className="cs-micro-icon" /> {product.grind || product.categoryAttributes?.grind || 'Whole Beans (Aroma-Locked)'}
+              </span>
+            </div>
+          )}
+
+          {/* Dynamic Size / Weight Selector */}
           {availableSizes.length > 1 && (
             <div className="cs-size-selector-block">
               <span className="cs-size-label">Select Package Size:</span>
@@ -258,23 +268,6 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* Grind Option Selector for Coffee Beans */}
-          {(product.category === 'coffee-beans' || !product.category) && (
-            <div className="cs-grind-row">
-              <span className="cs-grind-label">Grind:</span>
-              <select
-                className="cs-grind-select"
-                value={selectedGrind}
-                onChange={(e) => setSelectedGrind(e.target.value)}
-              >
-                <option value="Whole Beans">Whole Beans (Freshness Preserved)</option>
-                <option value="Coarse (French Press / Cold Brew)">Coarse (French Press / Cold Brew)</option>
-                <option value="Medium (Filter / Drip / Chemex)">Medium (Filter / Drip / Chemex)</option>
-                <option value="Fine (Espresso / Moka Pot)">Fine (Espresso / Moka Pot)</option>
-              </select>
             </div>
           )}
 
@@ -358,15 +351,15 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
   const [selectedSize, setSelectedSize] = useState(
     product.sizes?.length > 0 ? product.sizes[0] : { size: product.size || '250g', price: product.price || 0 }
   );
-  const [selectedGrind, setSelectedGrind] = useState('Whole Beans');
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const currentPrice = selectedSize.price || product.price || 0;
   const variationKey = `${product._id}-${selectedSize.size}`;
   const adding = addingToCart === variationKey;
+  const adminGrind = product.grind || product.categoryAttributes?.grind || 'Whole Beans';
 
   const handleAdd = async () => {
-    await onAddToCart(product, selectedSize.size, currentPrice, quantity, selectedGrind);
+    await onAddToCart(product, selectedSize.size, currentPrice, quantity, adminGrind);
     setAdded(true);
     setTimeout(() => setAdded(false), 2200);
   };
@@ -487,20 +480,17 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
               </div>
             )}
 
-            {/* Grind Selector */}
+            {/* Admin Roast & Form Specification (Informational) */}
             {isCoffee && (
-              <div className="qv-selector-section">
-                <label className="qv-field-label">Grind Option:</label>
-                <select
-                  className="qv-select"
-                  value={selectedGrind}
-                  onChange={(e) => setSelectedGrind(e.target.value)}
-                >
-                  <option value="Whole Beans">Whole Beans (Best Freshness)</option>
-                  <option value="Coarse (French Press / Cold Brew)">Coarse (French Press / Cold Brew)</option>
-                  <option value="Medium (Filter / Drip / Chemex)">Medium (Filter / Drip / Chemex)</option>
-                  <option value="Fine (Espresso / Moka Pot)">Fine (Espresso / Moka Pot)</option>
-                </select>
+              <div className="qv-spec-box">
+                <div className="qv-spec-item">
+                  <span className="label">Roast Level:</span>
+                  <span className="val">{product.roastLevel ? `${product.roastLevel} Roast` : 'Medium-Dark'}</span>
+                </div>
+                <div className="qv-spec-item">
+                  <span className="label">Package Form:</span>
+                  <span className="val">{adminGrind}</span>
+                </div>
               </div>
             )}
 

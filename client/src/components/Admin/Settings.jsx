@@ -17,7 +17,8 @@ import {
   FaFileContract, FaChartLine, FaBullhorn,
   FaUser, FaShoppingBag, FaBox, FaUsers, FaChartBar, FaCog, FaSignOutAlt,
   FaArrowLeft, FaTimesCircle, FaCheckCircle,
-  FaBolt, FaKey, FaCopy
+  FaBolt, FaKey, FaCopy, FaTag, FaArrowRight,
+  FaFire, FaSnowflake, FaGift, FaMagic
 } from 'react-icons/fa';
 import './Settings.css';
 
@@ -742,6 +743,93 @@ const Settings = () => {
                           />
                         </div>
                       ))}
+                    </div>
+                  </Section>
+
+                  <Section
+                    title="Celebratory & Seasonal Effects (Fireworks, Christmas Snow & Holiday Specials)"
+                    subtitle="Turn on/off dynamic festive animations, falling snow, celebration fireworks/confetti, and holiday promo discount banners"
+                    icon={<FaMagic />}
+                    accent="#ec4899"
+                  >
+                    <div className="st-grid-2">
+                      <ToggleRow
+                        label="Enable Celebratory & Seasonal Atmosphere"
+                        description="Master switch to display falling snow, celebration fireworks, celebratory confetti, and festive announcement banners on the storefront."
+                        checked={s.features?.seasonalEffects?.enabled ?? false}
+                        onChange={v => setNested('features', 'seasonalEffects', 'enabled', v)}
+                      />
+                      <Field label="Active Festive Theme" hint="Choose automatic date detection or force a specific celebration mode">
+                        <select
+                          className="st-input"
+                          value={s.features?.seasonalEffects?.theme ?? 'auto'}
+                          onChange={e => setNested('features', 'seasonalEffects', 'theme', e.target.value)}
+                        >
+                          <option value="auto">🌟 Automatic (Date-based: Christmas in Dec, New Year in Jan)</option>
+                          <option value="christmas">❄️ Christmas Falling Snow & Holiday Banner (🎄 Active)</option>
+                          <option value="newyear">✨ New Year Champagne Gold Confetti (🥂 Active)</option>
+                          <option value="fireworks">🎆 Vibrant Celebration Fireworks & Confetti (🎉 Active)</option>
+                        </select>
+                      </Field>
+                    </div>
+
+                    <div style={{ marginTop: '1.2rem', paddingTop: '1.2rem', borderTop: '1px solid var(--border-main)' }}>
+                      <div className="st-grid-2">
+                        <ToggleRow
+                          label="Show Holiday Announcement Top Banner"
+                          description="Display dismissible glassmorphism promo banner at top of screen with discount code."
+                          checked={s.features?.seasonalEffects?.promoBanner ?? true}
+                          onChange={v => setNested('features', 'seasonalEffects', 'promoBanner', v)}
+                        />
+                        <Input
+                          label="Holiday Promo Discount Code"
+                          hint="e.g. XMAS25, NEWYEAR26, FESTIVE15"
+                          value={s.features?.seasonalEffects?.promoCode ?? ''}
+                          onChange={v => setNested('features', 'seasonalEffects', 'promoCode', v)}
+                          placeholder="XMAS25"
+                        />
+                      </div>
+                      <Field label="Custom Holiday Headline / Message" hint="Leave empty to use automatic holiday greeting">
+                        <textarea
+                          className="st-textarea"
+                          rows={2}
+                          value={s.features?.seasonalEffects?.bannerText ?? ''}
+                          onChange={e => setNested('features', 'seasonalEffects', 'bannerText', e.target.value)}
+                          placeholder="Wishing you a warm holiday season! Roast your winter worries away with our highland specialty coffee. ☕️ Enjoy 15% OFF on all orders!"
+                        />
+                      </Field>
+                    </div>
+
+                    {/* Live Preview Links */}
+                    <div style={{ marginTop: '1.2rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Quick Live Preview:</span>
+                      <a
+                        href="/?theme=christmas"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-outline"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '6px 14px' }}
+                      >
+                        <FaSnowflake style={{ color: '#60a5fa' }} /> Test Christmas Snow
+                      </a>
+                      <a
+                        href="/?theme=fireworks"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-outline"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '6px 14px' }}
+                      >
+                        <FaFire style={{ color: '#f59e0b' }} /> Test Fireworks
+                      </a>
+                      <a
+                        href="/?theme=newyear"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn-outline"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', padding: '6px 14px' }}
+                      >
+                        <FaGift style={{ color: '#D4AF37' }} /> Test New Year Confetti
+                      </a>
                     </div>
                   </Section>
                 </>

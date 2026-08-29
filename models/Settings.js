@@ -201,7 +201,14 @@ const settingsSchema = new mongoose.Schema({
 
   // Features toggle
   features: {
-    coffeeAcademy: { type: Boolean, default: true }
+    coffeeAcademy: { type: Boolean, default: true },
+    seasonalEffects: {
+      enabled: { type: Boolean, default: false },
+      theme: { type: String, default: 'auto' }, // 'auto' | 'christmas' | 'newyear' | 'fireworks' | 'confetti'
+      promoBanner: { type: Boolean, default: true },
+      bannerText: { type: String, default: '' },
+      promoCode: { type: String, default: '' }
+    }
   },
 
   // County-level shipping prices
