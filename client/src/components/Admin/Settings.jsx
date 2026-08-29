@@ -137,6 +137,8 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('store');
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState('');
+  const [heroImageFile, setHeroImageFile] = useState(null);
+  const [heroImagePreview, setHeroImagePreview] = useState('');
   const [aboutImageFile, setAboutImageFile] = useState(null);
   const [aboutImagePreview, setAboutImagePreview] = useState('');
   const [aboutImageFile2, setAboutImageFile2] = useState(null);
@@ -158,136 +160,8 @@ const Settings = () => {
   const [previewContent, setPreviewContent] = useState('');
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'policies') {
-      fetchDocsList();
-    }
-  }, [activeTab]);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
 
-  const fetchDocsList = async () => {
-    try {
-      setLoadingDocs(true);
-      const res = await fetch('/api/admin/documentation', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setDocsList(data.data);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingDocs(false);
-    }
-  };
-
-  const handleDownloadDoc = async (docName, docLabel) => {
-    try {
-      const res = await fetch(`/api/admin/documentation/${docName}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          const blob = new Blob([data.content], { type: 'text/markdown' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = docName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-          showNotification(`Downloaded ${docLabel}`, 'success');
-          return true;
-        }
-      }
-    } catch (err) {
-      showNotification('Failed to download document', 'error');
-    }
-    return false;
-  };
-
-  const handleDownloadAllDocs = async () => {
-    if (docsList.length === 0) return;
-    showNotification('Starting download of all documents...', 'info');
-    for (let i = 0; i < docsList.length; i++) {
-      const doc = docsList[i];
-      await handleDownloadDoc(doc.name, doc.label);
-      await new Promise(r => setTimeout(r, 450));
-    }
-    showNotification('All documents downloaded successfully!', 'success');
-  };
-
-  const handlePreviewDoc = async (doc) => {
-    setPreviewDoc(doc);
-    setLoadingPreview(true);
-    setPreviewContent('');
-    try {
-      const res = await fetch(`/api/admin/documentation/${doc.name}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setPreviewContent(data.content);
-        }
-      }
-    } catch (err) {
-      showNotification('Failed to load document content', 'error');
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
-
-  const renderMarkdown = (md) => {
-    if (!md) return { __html: '' };
-    let html = md
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    html = html.replace(/```([\s\S]*?)```/g, '<pre class="code-block">$1</pre>');
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="md-h1">$1</h1>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
-    html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
-    html = html.replace(/^#### (.*$)/gim, '<h4 class="md-h4">$1</h4>');
-    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    html = html.replace(/^\s*-\s+(.*$)/gim, '<li class="md-li">$1</li>');
-    html = html.replace(/\n/g, '<br />');
-
-    return { __html: html };
-  };
-
-  // 🛡️ Super Gate Logic
-  const handleGenerateMagicLink = async () => {
-    setGeneratingLink(true);
-    try {
-      const { default: axios } = await import('axios');
-      const res = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/settings/maintenance/magic-link`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.data.success) {
-        setMagicLink(res.data.data.link);
-        showSuccess('Magic Link Generated!');
-      }
-    } catch (err) {
-      showError(err.response?.data?.message || 'Failed to generate link');
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    showSuccess('Copied to clipboard!');
-  };
-
-  // ── Helpers ──
   const set = (section, field, value) => {
     setSettings(p => ({
       ...p,
@@ -305,11 +179,10 @@ const Settings = () => {
     }));
   };
 
-  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
-
   // ── Nav tabs ──
   const TABS = [
     { id: 'store', icon: <FaStore />, label: 'Store Info' },
+    { id: 'hero', icon: <FaBolt />, label: 'Hero / Landing' },
     { id: 'hours', icon: <FaClock />, label: 'Business Hours' },
     { id: 'payment', icon: <FaCreditCard />, label: 'Payment' },
     { id: 'email', icon: <FaEnvelope />, label: 'Email / SMTP' },
@@ -342,14 +215,13 @@ const Settings = () => {
         setSettings(data.data);
         setSavedSettings(data.data);
         if (data.data.store?.logo) setLogoPreview(data.data.store.logo);
+        if (data.data.hero?.imageUrl) setHeroImagePreview(data.data.hero.imageUrl);
         if (data.data.about?.imageUrl) setAboutImagePreview(data.data.about.imageUrl);
         if (data.data.about?.imageUrl2) setAboutImagePreview2(data.data.about.imageUrl2);
       }
     } catch { showNotification('Failed to load settings', 'error'); }
     finally { setLoading(false); }
   };
-
-
 
   // ── Save ──
   const handleSaveSettings = async () => {
@@ -358,18 +230,23 @@ const Settings = () => {
       let updatedSettings = { ...settings };
 
       if (logoFile) {
-        const fd = new FormData(); fd.append('logo', logoFile);
-        const r = await fetch('/api/admin/upload/logo', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        const fd = new FormData(); fd.append('image', logoFile);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
         if (r.ok) { const d = await r.json(); updatedSettings.store.logo = d.data.url; }
       }
+      if (heroImageFile) {
+        const fd = new FormData(); fd.append('image', heroImageFile);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        if (r.ok) { const d = await r.json(); updatedSettings.hero = { ...updatedSettings.hero, imageUrl: d.data.url }; }
+      }
       if (aboutImageFile) {
-        const fd = new FormData(); fd.append('logo', aboutImageFile);
-        const r = await fetch('/api/admin/upload/logo', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        const fd = new FormData(); fd.append('image', aboutImageFile);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
         if (r.ok) { const d = await r.json(); updatedSettings.about = { ...updatedSettings.about, imageUrl: d.data.url }; }
       }
       if (aboutImageFile2) {
-        const fd = new FormData(); fd.append('logo', aboutImageFile2);
-        const r = await fetch('/api/admin/upload/logo', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        const fd = new FormData(); fd.append('image', aboutImageFile2);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
         if (r.ok) { const d = await r.json(); updatedSettings.about = { ...updatedSettings.about, imageUrl2: d.data.url }; }
       }
       if (notifyCustomers) updatedSettings.notifyCustomers = true;
@@ -385,7 +262,7 @@ const Settings = () => {
         showNotification('Settings saved successfully!', 'success');
         setSettings(data.data); setSavedSettings(data.data);
         await fetchPublicSettings();
-        setLogoFile(null); setAboutImageFile(null); setAboutImageFile2(null); setNotifyCustomers(false);
+        setLogoFile(null); setHeroImageFile(null); setAboutImageFile(null); setAboutImageFile2(null); setNotifyCustomers(false);
       }
     } catch { showNotification('Failed to save settings', 'error'); }
     finally { setSaving(false); }
@@ -396,6 +273,22 @@ const Settings = () => {
     const f = e.target.files[0]; if (!f) return;
     setLogoFile(f);
     const r = new FileReader(); r.onload = e => setLogoPreview(e.target.result); r.readAsDataURL(f);
+  };
+  const handleHeroImageChange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setHeroImageFile(f);
+    const r = new FileReader(); r.onload = e => setHeroImagePreview(e.target.result); r.readAsDataURL(f);
+  };
+  const handleAboutImageChange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setAboutImageFile(f);
+    const r = new FileReader(); r.onload = e => setAboutImagePreview(e.target.result); r.readAsDataURL(f);
+  };
+  const handleAboutImageChange2 = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setAboutImageFile2(f);
+    const r = new FileReader(); r.onload = e => setAboutImagePreview2(e.target.result); r.readAsDataURL(f);
+  };.result); r.readAsDataURL(f);
   };
   const handleAboutImageChange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -573,6 +466,293 @@ const Settings = () => {
                         <label className="st-label"><FaWhatsapp style={{ color: '#25d366' }} /> WhatsApp</label>
                         <input className="st-input" value={s.seo?.social?.whatsapp || ''} onChange={e => setNested('seo', 'social', 'whatsapp', e.target.value)} placeholder="https://wa.me/254700000000" />
                       </div>
+                    </div>
+                  </Section>
+                </>
+              )}
+
+              {/* ════════════════════════════════
+                  HERO / HOMEPAGE CONTENT
+               ════════════════════════════════ */}
+              {activeTab === 'hero' && (
+                <>
+                  <Section
+                    title="Hero Product Image"
+                    subtitle="Real coffee bag product packaging photo displayed in the storefront hero section"
+                    icon={<FaImage />}
+                    accent="#D4AF37"
+                  >
+                    <div className="st-about-img-row">
+                      <div className="st-hero-preview-box" style={{ position: 'relative', width: '220px', height: '220px', background: 'radial-gradient(circle at center, rgba(212, 175, 55, 0.1) 0%, rgba(15, 10, 8, 0.95) 100%), #120c09', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
+                        {heroImagePreview ? (
+                          <img src={heroImagePreview} alt="Hero Product" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.7))' }} />
+                        ) : (
+                          <div className="st-logo-empty"><FaImage /><span>No image chosen</span></div>
+                        )}
+                        {/* Live circular promo badge preview on packaging */}
+                        {s.hero?.promoBadge?.enabled && (
+                          <div style={{ position: 'absolute', top: '10px', right: '10px', width: '56px', height: '56px', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff1b8 0%, #D4AF37 55%, #a6811f 100%)', boxShadow: '0 6px 18px rgba(212, 175, 55, 0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#120b02', lineHeight: 1, border: '1px dashed rgba(20, 12, 0, 0.4)' }}>
+                            <strong style={{ fontSize: '0.88rem', fontWeight: 800 }}>{s.hero?.promoBadge?.percentage || 30}%</strong>
+                            <span style={{ fontSize: '0.45rem', fontWeight: 900, letterSpacing: '0.05em' }}>OFF</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="st-logo-actions" style={{ flex: 1 }}>
+                        <p className="st-hint">Recommended: High-res transparent PNG of coffee bag package or lifestyle pouch (800×800+)</p>
+                        <input
+                          type="file"
+                          id="hero-img-file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handleHeroImageChange}
+                        />
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <label htmlFor="hero-img-file" className="btn-outline">
+                            <FaUpload /> Upload Real Coffee Bag Photo
+                          </label>
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            onClick={() => {
+                              setHeroImagePreview('/hero-product.png');
+                              setHeroImageFile(null);
+                              set('hero', 'imageUrl', '/hero-product.png');
+                            }}
+                          >
+                            Use Standard Rerendet Pouch
+                          </button>
+                        </div>
+                        {heroImagePreview && (
+                          <button
+                            type="button"
+                            className="btn-outline danger"
+                            style={{ marginTop: '0.5rem' }}
+                            onClick={() => {
+                              setHeroImagePreview('');
+                              setHeroImageFile(null);
+                              set('hero', 'imageUrl', '');
+                            }}
+                          >
+                            <FaTimes /> Reset Image
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </Section>
+
+                  <Section
+                    title="Promo / Discount Tag Overlay"
+                    subtitle="Conditional circular discount badge overlaid on the hero product packaging (e.g. 30% OFF, 50% OFF)"
+                    icon={<FaTag />}
+                    accent="#fbbf24"
+                  >
+                    <div className="st-grid-2">
+                      <ToggleRow
+                        label="Enable Promo / Discount Badge"
+                        description="When enabled, a luxury gold circular badge is overlaid on the upper-right corner of the product package."
+                        checked={s.hero?.promoBadge?.enabled ?? true}
+                        onChange={v => setNested('hero', 'promoBadge', 'enabled', v)}
+                      />
+                      <Field label="Discount Percentage (%)" hint="Generates '{percentage}% OFF' automatically without typos">
+                        <input
+                          type="number"
+                          className="st-input"
+                          min="1"
+                          max="99"
+                          value={s.hero?.promoBadge?.percentage ?? 30}
+                          onChange={e => setNested('hero', 'promoBadge', 'percentage', e.target.value === '' ? 0 : parseInt(e.target.value))}
+                          placeholder="30"
+                        />
+                      </Field>
+                    </div>
+                    <div className="st-grid-2" style={{ marginTop: '1rem' }}>
+                      <Field label="Optional Start Date (Auto-activation)" hint="Leave blank to activate immediately">
+                        <input
+                          type="datetime-local"
+                          className="st-input"
+                          value={s.hero?.promoBadge?.startDate ? new Date(s.hero.promoBadge.startDate).toISOString().slice(0, 16) : ''}
+                          onChange={e => setNested('hero', 'promoBadge', 'startDate', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                        />
+                      </Field>
+                      <Field label="Optional End Date (Auto-expiry)" hint="Leave blank to run indefinitely">
+                        <input
+                          type="datetime-local"
+                          className="st-input"
+                          value={s.hero?.promoBadge?.endDate ? new Date(s.hero.promoBadge.endDate).toISOString().slice(0, 16) : ''}
+                          onChange={e => setNested('hero', 'promoBadge', 'endDate', e.target.value ? new Date(e.target.value).toISOString() : null)}
+                        />
+                      </Field>
+                    </div>
+                  </Section>
+
+                  <Section
+                    title="Hero Copy & Typography"
+                    subtitle="Customize the main headline, narrative description, and pre-title pill badge"
+                    icon={<FaFileAlt />}
+                    accent="#10b981"
+                  >
+                    <div className="st-grid-2">
+                      <Input
+                        label="Pre-Title Pill / Small Badge"
+                        hint="Small badge above headline (e.g. 100% Organic Arabica)"
+                        value={s.hero?.pillText ?? '100% Organic Arabica'}
+                        onChange={v => set('hero', 'pillText', v)}
+                        placeholder="100% Organic Arabica"
+                      />
+                      <Input
+                        label="Hero Main Headline"
+                        hint="Use comma to separate normal & gold italic lines"
+                        value={s.hero?.headline ?? 'Highland Mist, Poured for Perfection.'}
+                        onChange={v => set('hero', 'headline', v)}
+                        placeholder="Highland Mist, Poured for Perfection."
+                      />
+                    </div>
+                    <Field label="Hero Subtext Paragraph" hint="Description paragraph below the main headline">
+                      <textarea
+                        className="st-textarea"
+                        rows={3}
+                        value={s.hero?.subheadline ?? 'Experience the rich, bold soul of hand-picked Kenyan coffee beans, roasting secrets passed through generations, delivered fresh to your door.'}
+                        onChange={e => set('hero', 'subheadline', e.target.value)}
+                        placeholder="Hero subtext paragraph..."
+                      />
+                    </Field>
+                  </Section>
+
+                  <Section
+                    title="Call-To-Action (CTA) Buttons"
+                    subtitle="Customize primary & secondary button texts and destination links"
+                    icon={<FaArrowRight />}
+                    accent="#60a5fa"
+                  >
+                    <div className="st-grid-2">
+                      <Input
+                        label="Primary Button Text"
+                        value={s.hero?.primaryCtaText ?? 'Shop Collection'}
+                        onChange={v => set('hero', 'primaryCtaText', v)}
+                        placeholder="Shop Collection"
+                      />
+                      <Input
+                        label="Primary Button Link / Anchor"
+                        value={s.hero?.primaryCtaLink ?? '#coffee-shop'}
+                        onChange={v => set('hero', 'primaryCtaLink', v)}
+                        placeholder="#coffee-shop"
+                      />
+                      <Input
+                        label="Secondary Button Text"
+                        value={s.hero?.secondaryCtaText ?? 'Our Heritage'}
+                        onChange={v => set('hero', 'secondaryCtaText', v)}
+                        placeholder="Our Heritage"
+                      />
+                      <Input
+                        label="Secondary Button Link / Anchor"
+                        value={s.hero?.secondaryCtaLink ?? '#about'}
+                        onChange={v => set('hero', 'secondaryCtaLink', v)}
+                        placeholder="#about"
+                      />
+                    </div>
+                  </Section>
+
+                  <Section
+                    title="Floating Badges & Tags"
+                    subtitle="Toggleable floating corner badge and roast specification tag"
+                    icon={<FaAward />}
+                    accent="#a78bfa"
+                  >
+                    <div className="st-grid-2">
+                      <div>
+                        <ToggleRow
+                          label="Corner Heritage Badge"
+                          description="Round floating badge on the coffee pouch"
+                          checked={s.hero?.cornerBadgeEnabled ?? true}
+                          onChange={v => set('hero', 'cornerBadgeEnabled', v)}
+                        />
+                        <Input
+                          label="Corner Badge Text"
+                          value={s.hero?.cornerBadgeText ?? 'Farm to Cup Since 1986'}
+                          onChange={v => set('hero', 'cornerBadgeText', v)}
+                          disabled={s.hero?.cornerBadgeEnabled === false}
+                        />
+                      </div>
+                      <div>
+                        <ToggleRow
+                          label="Roast / Flavor Info Tag"
+                          description="Small tag floating at bottom of package"
+                          checked={s.hero?.roastTagEnabled ?? true}
+                          onChange={v => set('hero', 'roastTagEnabled', v)}
+                        />
+                        <Input
+                          label="Roast Tag Text"
+                          value={s.hero?.roastTagText ?? 'Dark Roast · Medium Body'}
+                          onChange={v => set('hero', 'roastTagText', v)}
+                          disabled={s.hero?.roastTagEnabled === false}
+                        />
+                      </div>
+                    </div>
+                  </Section>
+
+                  <Section
+                    title="Feature Callouts Row (Speri Inspiration Pattern)"
+                    subtitle="Feature callouts shown below hero subtext (Icon, Title, Subtitle)"
+                    icon={<FaLeaf />}
+                    accent="#34d399"
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                      {(s.hero?.features || [
+                        { icon: '🌱', title: '100% Organic', subtitle: "Nature's finest, ethically sourced" },
+                        { icon: '☕', title: 'Rich Flavour', subtitle: 'Crafted for an unique brew' },
+                        { icon: '🚚', title: 'Farm to Door', subtitle: 'Freshly roasted & dispatched' }
+                      ]).map((feat, fIdx) => (
+                        <div key={fIdx} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border-main)', borderRadius: '12px', padding: '1.2rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.8rem' }}>
+                            <span style={{ fontSize: '1.4rem' }}>{feat.icon}</span>
+                            <strong style={{ color: 'var(--color-primary)' }}>Feature #{fIdx + 1}</strong>
+                          </div>
+                          <div className="st-grid-2">
+                            <Input
+                              label="Icon (Emoji)"
+                              value={feat.icon}
+                              onChange={v => {
+                                const base = (s.hero?.features && s.hero.features.length > 0) ? [...s.hero.features] : [
+                                  { icon: '🌱', title: '100% Organic', subtitle: "Nature's finest, ethically sourced" },
+                                  { icon: '☕', title: 'Rich Flavour', subtitle: 'Crafted for an unique brew' },
+                                  { icon: '🚚', title: 'Farm to Door', subtitle: 'Freshly roasted & dispatched' }
+                                ];
+                                base[fIdx] = { ...base[fIdx], icon: v };
+                                set('hero', 'features', base);
+                              }}
+                              placeholder="🌱"
+                            />
+                            <Input
+                              label="Title"
+                              value={feat.title}
+                              onChange={v => {
+                                const base = (s.hero?.features && s.hero.features.length > 0) ? [...s.hero.features] : [
+                                  { icon: '🌱', title: '100% Organic', subtitle: "Nature's finest, ethically sourced" },
+                                  { icon: '☕', title: 'Rich Flavour', subtitle: 'Crafted for an unique brew' },
+                                  { icon: '🚚', title: 'Farm to Door', subtitle: 'Freshly roasted & dispatched' }
+                                ];
+                                base[fIdx] = { ...base[fIdx], title: v };
+                                set('hero', 'features', base);
+                              }}
+                              placeholder="100% Organic"
+                            />
+                          </div>
+                          <Input
+                            label="Subtitle"
+                            value={feat.subtitle}
+                            onChange={v => {
+                              const base = (s.hero?.features && s.hero.features.length > 0) ? [...s.hero.features] : [
+                                { icon: '🌱', title: '100% Organic', subtitle: "Nature's finest, ethically sourced" },
+                                { icon: '☕', title: 'Rich Flavour', subtitle: 'Crafted for an unique brew' },
+                                { icon: '🚚', title: 'Farm to Door', subtitle: 'Freshly roasted & dispatched' }
+                              ];
+                              base[fIdx] = { ...base[fIdx], subtitle: v };
+                              set('hero', 'features', base);
+                            }}
+                            placeholder="Nature's finest, ethically sourced"
+                          />
+                        </div>
+                      ))}
                     </div>
                   </Section>
                 </>

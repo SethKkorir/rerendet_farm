@@ -6,6 +6,7 @@ import {
   getSettings,
   updateSettings,
   uploadLogo,
+  uploadImage,
   getPublicSettings,
   generateMaintenanceMagicLink,
   triggerSuperGate
@@ -24,6 +25,7 @@ router.use(protect, admin);
 router.get('/', getSettings);
 router.put('/', updateSettings);
 router.post('/upload/logo', upload.single('logo'), uploadLogo);
+router.post('/upload/image', upload.single('image'), uploadImage);
 
 // Super Gate Control
 router.post('/maintenance/magic-link', generateMaintenanceMagicLink);

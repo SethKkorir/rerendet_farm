@@ -123,6 +123,10 @@ router.post('/upload/logo', adminAuth(['settings:manage']), upload.single('logo'
   if (!req.file) { res.status(400); throw new Error('No logo file uploaded'); }
   res.json({ success: true, message: 'Logo uploaded successfully', data: { url: req.file.path } });
 }));
+router.post('/upload/image', adminAuth(['settings:manage', 'marketing:manage', 'products:manage']), upload.single('image'), asyncHandler(async (req, res) => {
+  if (!req.file) { res.status(400); throw new Error('No image file uploaded'); }
+  res.json({ success: true, message: 'Image uploaded successfully', data: { url: req.file.path } });
+}));
 
 // ==================== ANALYTICS & AUDIT TRAIL ====================
 router.get('/analytics/sales', adminAuth(['analytics:view']), getSalesAnalytics);

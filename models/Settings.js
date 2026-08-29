@@ -14,6 +14,53 @@ const settingsSchema = new mongoose.Schema({
     favicon: { type: String, default: '' }
   },
 
+  // Homepage Hero Content & Promo Badge (Dynamic)
+  hero: {
+    headline: { type: String, default: 'Highland Mist, Poured for Perfection.' },
+    subheadline: { type: String, default: 'Experience the rich, bold soul of hand-picked Kenyan coffee beans, roasting secrets passed through generations, delivered fresh to your door.' },
+    pillText: { type: String, default: '100% Organic Arabica' },
+    imageUrl: { type: String, default: '/hero-product.png' },
+
+    // Floating badges & tags
+    cornerBadgeEnabled: { type: Boolean, default: true },
+    cornerBadgeText: { type: String, default: 'Farm to Cup Since 1986' },
+    roastTagEnabled: { type: Boolean, default: true },
+    roastTagText: { type: String, default: 'Dark Roast · Medium Body' },
+
+    // CTA buttons
+    primaryCtaText: { type: String, default: 'Shop Collection' },
+    primaryCtaLink: { type: String, default: '#coffee-shop' },
+    secondaryCtaText: { type: String, default: 'Our Heritage' },
+    secondaryCtaLink: { type: String, default: '#about' },
+
+    // Promo / Discount Tag Overlay (e.g. 30% OFF)
+    promoBadge: {
+      enabled: { type: Boolean, default: true },
+      percentage: { type: Number, default: 30, min: 1, max: 99 },
+      startDate: { type: Date, default: null },
+      endDate: { type: Date, default: null }
+    },
+
+    // Feature Callout Badges
+    features: [
+      {
+        icon: { type: String, default: '🌱' },
+        title: { type: String, default: '100% Organic' },
+        subtitle: { type: String, default: "Nature's finest, ethically sourced" }
+      },
+      {
+        icon: { type: String, default: '☕' },
+        title: { type: String, default: 'Rich Flavour' },
+        subtitle: { type: String, default: 'Crafted for an unique brew' }
+      },
+      {
+        icon: { type: String, default: '🚚' },
+        title: { type: String, default: 'Farm to Door' },
+        subtitle: { type: String, default: 'Freshly roasted & dispatched' }
+      }
+    ]
+  },
+
   // About Us Page Content (Dynamic)
   about: {
     yearsInBusiness: { type: Number, default: 0 },

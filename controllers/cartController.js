@@ -94,9 +94,10 @@ const addToCart = asyncHandler(async (req, res) => {
       throw new Error('Product is not available');
     }
 
-    if (product.inventory.stock < quantity) {
+    const availableStock = product.inventory?.physicalStock ?? product.inventory?.stock ?? (product.inStock !== false ? 999 : 0);
+    if (availableStock < quantity) {
       res.status(400);
-      throw new Error(`Only ${product.inventory.stock} items available in stock`);
+      throw new Error(`Only ${availableStock} items available in stock`);
     }
 
     let cart = await Cart.findOne({ user: req.user._id });
@@ -111,9 +112,9 @@ const addToCart = asyncHandler(async (req, res) => {
     if (existingItemIndex > -1) {
       const newQuantity = cart.items[existingItemIndex].quantity + quantity;
       
-      if (newQuantity > product.inventory.stock) {
+      if (newQuantity > availableStock) {
         res.status(400);
-        throw new Error(`Cannot add more items. Only ${product.inventory.stock} available in stock`);
+        throw new Error(`Cannot add more items. Only ${availableStock} available in stock`);
       }
 
       cart.items[existingItemIndex].quantity = newQuantity;
@@ -184,9 +185,10 @@ const updateCartItem = asyncHandler(async (req, res) => {
         throw new Error('Product not found');
       }
       
-      if (quantity > product.inventory.stock) {
+      const availableStock = product.inventory?.physicalStock ?? product.inventory?.stock ?? (product.inStock !== false ? 999 : 0);
+      if (quantity > availableStock) {
         res.status(400);
-        throw new Error(`Only ${product.inventory.stock} items available in stock`);
+        throw new Error(`Only ${availableStock} items available in stock`);
       }
     }
 

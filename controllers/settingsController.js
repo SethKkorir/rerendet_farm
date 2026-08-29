@@ -285,6 +285,35 @@ const uploadLogo = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Upload media / image (hero, about, branding)
+// @route   POST /api/admin/upload/image
+// @access  Private/Admin
+const uploadImage = asyncHandler(async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const imageUrl = req.file.path || req.file.url || `/uploads/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      message: 'Image uploaded successfully',
+      data: { url: imageUrl }
+    });
+  } catch (error) {
+    console.error('❌ Media image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload image',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // @desc    Get public settings
 // @route   GET /api/settings/public
 // @access  Public
@@ -295,6 +324,8 @@ const getPublicSettings = asyncHandler(async (req, res) => {
     // Return only public information
     const publicSettings = {
       store: settings.store,
+      hero: settings.hero,
+      about: settings.about,
       businessHours: settings.businessHours,
       payment: {
         currency: settings.payment.currency,
@@ -307,7 +338,6 @@ const getPublicSettings = asyncHandler(async (req, res) => {
       seo: settings.seo,
       policies: settings.policies,
       maintenance: settings.maintenance,
-      about: settings.about,
       features: settings.features
     };
 
@@ -541,6 +571,7 @@ export {
   getSettings,
   updateSettings,
   uploadLogo,
+  uploadImage,
   getPublicSettings,
   generateMaintenanceMagicLink,
   triggerSuperGate,

@@ -6,16 +6,18 @@ import { getNewsletterWelcomeEmail, getNewsletterEmail } from '../utils/emailTem
 // @desc    Subscribe to newsletter
 // @route   POST /api/newsletter/subscribe
 // @access  Public
-export const subscribe = async (req, res) => {
+export const subscribe = async (req, res, next) => {
     try {
         const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email is required' });
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
         }
 
+        const normalizedEmail = email.trim().toLowerCase();
+
         // Check if subscriber exists
-        let subscriber = await Subscriber.findOne({ email });
+        let subscriber = await Subscriber.findOne({ email: normalizedEmail });
 
         if (subscriber) {
             if (subscriber.isSubscribed) {
@@ -28,7 +30,7 @@ export const subscribe = async (req, res) => {
             }
         } else {
             // Create new subscriber
-            subscriber = await Subscriber.create({ email });
+            subscriber = await Subscriber.create({ email: normalizedEmail });
 
             // Send welcome email
             try {
@@ -49,23 +51,26 @@ export const subscribe = async (req, res) => {
             message: 'Successfully subscribed to the newsletter!'
         });
     } catch (error) {
-        console.error('Subscription error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        if (error.code === 11000) {
+            return res.status(400).json({ success: false, message: 'This email is already subscribed.' });
+        }
+        next(error);
     }
 };
 
 // @desc    Unsubscribe from newsletter
 // @route   POST /api/newsletter/unsubscribe
 // @access  Public
-export const unsubscribe = async (req, res) => {
+export const unsubscribe = async (req, res, next) => {
     try {
         const { email } = req.body;
 
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email is required' });
+        if (!email || !email.includes('@')) {
+            return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
         }
 
-        const subscriber = await Subscriber.findOne({ email });
+        const normalizedEmail = email.trim().toLowerCase();
+        const subscriber = await Subscriber.findOne({ email: normalizedEmail });
 
         if (subscriber) {
             subscriber.isSubscribed = false;
@@ -74,18 +79,17 @@ export const unsubscribe = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Successfully unsubscribed'
+            message: 'Successfully unsubscribed from the newsletter'
         });
     } catch (error) {
-        console.error('Unsubscribe error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        next(error);
     }
 };
 
 // @desc    Get all subscribers
 // @route   GET /api/newsletter
 // @access  Private/Admin
-export const getAllSubscribers = async (req, res) => {
+export const getAllSubscribers = async (req, res, next) => {
     try {
         const subscribers = await Subscriber.find().sort('-createdAt');
         res.status(200).json({
@@ -94,15 +98,14 @@ export const getAllSubscribers = async (req, res) => {
             data: subscribers
         });
     } catch (error) {
-        console.error('Get subscribers error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        next(error);
     }
 };
 
 // @desc    Send newsletter to all active subscribers
 // @route   POST /api/newsletter/send
 // @access  Private/Admin
-export const sendNewsletter = async (req, res) => {
+export const sendNewsletter = async (req, res, next) => {
     try {
         const { subject, content } = req.body;
 
@@ -117,14 +120,13 @@ export const sendNewsletter = async (req, res) => {
             return res.status(400).json({ success: false, message: 'No active subscribers found' });
         }
 
-        // Send emails in background
+        // Send emails
         let successCount = 0;
         let failCount = 0;
 
-        // Use loop for now - in production use a queue system (Bull/Redis)
         const emailPromises = subscribers.map(async (sub) => {
             try {
-                const html = getNewsletterEmail(content); // We pass content, title is fixed or part of content
+                const html = getNewsletterEmail(content);
                 await sendEmail({
                     email: sub.email,
                     subject: subject,
@@ -149,7 +151,6 @@ export const sendNewsletter = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Send newsletter error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        next(error);
     }
 };

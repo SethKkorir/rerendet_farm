@@ -2,47 +2,89 @@ import * as Sentry from '@sentry/node';
 
 const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  let message = err.message;
+  let message = err.message || 'An unexpected error occurred';
 
-  // Capture server-side 5xx exceptions to Sentry securely
-  if (statusCode >= 500) {
-    Sentry.captureException(err);
-
-    // Track internal crash and spike in alert monitor
-    import('../utils/securityAlerts.js').then(({ recordServerCrash }) => {
-      recordServerCrash(err, req);
-    }).catch(e => console.error('Crash tracker failed:', e));
+  // 1. Handle Mongoose Bad ObjectId / CastError
+  if (err.name === 'CastError') {
+    statusCode = 404;
+    message = `Resource not found with identifier: ${err.value}`;
   }
 
-  // Handle Mongoose Duplicate Key Error (E11000)
-  if (err.code === 11000) {
+  // 2. Handle Mongoose Duplicate Key Error (E11000)
+  else if (err.code === 11000) {
     statusCode = 400;
     const field = err.keyPattern ? Object.keys(err.keyPattern)[0] : 'field';
     const value = err.keyValue ? err.keyValue[field] : 'value';
     const displayField = field.split('.').pop();
-    message = `Duplicate value error: A record with this ${displayField} ("${value}") already exists.`;
+    message = `A record with this ${displayField} ("${value}") already exists.`;
   }
 
-  // Handle Mongoose Validation Error
-  if (err.name === 'ValidationError') {
+  // 3. Handle Mongoose Schema Validation Error
+  else if (err.name === 'ValidationError') {
     statusCode = 400;
     message = Object.values(err.errors).map(val => val.message).join(', ');
   }
 
-  if (statusCode === 400 || statusCode === 500) {
-    console.error(`❌ [ERROR] ${req.method} ${req.path}:`, err);
+  // 4. Handle JWT Authentication & Expiry Errors
+  else if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid authentication token. Please sign in again.';
+  } else if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Authentication session has expired. Please sign in again.';
   }
 
-  res.status(statusCode);
-  res.json({
+  // 5. Handle Multer File Upload Errors
+  else if (err.name === 'MulterError') {
+    statusCode = 400;
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'Uploaded file is too large. Maximum size allowed is 5MB.';
+    } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      message = `Unexpected upload field: ${err.field}`;
+    } else {
+      message = err.message || 'File upload failed';
+    }
+  }
+
+  // 6. Handle Malformed JSON Body Parse Error
+  else if (err.type === 'entity.parse.failed' || (err instanceof SyntaxError && err.status === 400 && 'body' in err)) {
+    statusCode = 400;
+    message = 'Malformed JSON payload in request body';
+  }
+
+  // 7. Handle MongoDB Network / Connection Drops
+  else if (err.code === 'ECONNREFUSED' || err.name === 'MongoServerSelectionError' || err.name === 'MongoNetworkError') {
+    statusCode = 503;
+    message = 'Database service is temporarily unavailable. Please retry in a moment.';
+  }
+
+  // Log error details for diagnosis
+  if (statusCode >= 500) {
+    console.error(`💥 [5xx SERVER ERROR] ${req.method} ${req.originalUrl}:`, err);
+    
+    // Capture to Sentry if initialized
+    if (process.env.SENTRY_DSN) {
+      Sentry.captureException(err);
+    }
+
+    // Record crash internally
+    import('../utils/securityAlerts.js').then(({ recordServerCrash }) => {
+      recordServerCrash(err, req);
+    }).catch(() => {});
+  } else {
+    console.warn(`⚠️ [${statusCode} CLIENT ERROR] ${req.method} ${req.originalUrl}: ${message}`);
+  }
+
+  res.status(statusCode).json({
     success: false,
     message: message,
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+    statusCode: statusCode,
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
   });
 };
 
 const notFound = (req, res, next) => {
-  const error = new Error(`Not Found - ${req.originalUrl}`);
+  const error = new Error(`Resource Not Found - ${req.originalUrl}`);
   res.status(404);
   next(error);
 };

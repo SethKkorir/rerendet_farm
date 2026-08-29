@@ -89,8 +89,8 @@ const getProducts = asyncHandler(async (req, res) => {
   }
 
   // 3. Optimized parallel execution with projection
-  // Only fetch fields needed for the shop grid to reduce data transfer
-  const publicProjection = 'name categoryId categoryAttributes sizes images inStock isFeatured badge inventory.stock seo.slug ratings';
+  // Fetch all necessary fields for rich shop cards, descriptions, origin & flavor profiles
+  const publicProjection = 'name description origin roastLevel flavorNotes roastDate category categoryId categoryAttributes sizes price images inStock isFeatured badge inventory seo.slug ratings brand material capacity';
 
   const [products, total] = await Promise.all([
     Product.find(filter)

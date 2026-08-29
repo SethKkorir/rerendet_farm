@@ -5,19 +5,19 @@ import crypto from 'crypto';
 // @desc    Get all ads (Admin)
 // @route   GET /api/ads
 // @access  Private/Admin
-export const getAds = async (req, res) => {
+export const getAds = async (req, res, next) => {
     try {
         const ads = await Ad.find({}).sort({ createdAt: -1 });
         res.json({ success: true, count: ads.length, data: ads });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server Error', error: err.message });
+        next(err);
     }
 };
 
 // @desc    Get single ad
 // @route   GET /api/ads/:id
 // @access  Private/Admin
-export const getAd = async (req, res) => {
+export const getAd = async (req, res, next) => {
     try {
         const ad = await Ad.findById(req.params.id);
         if (!ad) {
@@ -25,7 +25,7 @@ export const getAd = async (req, res) => {
         }
         res.json({ success: true, data: ad });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server Error', error: err.message });
+        next(err);
     }
 };
 
@@ -125,7 +125,7 @@ export const updateAd = async (req, res) => {
 // @desc    Delete ad
 // @route   DELETE /api/ads/:id
 // @access  Private/Admin
-export const deleteAd = async (req, res) => {
+export const deleteAd = async (req, res, next) => {
     try {
         const ad = await Ad.findByIdAndDelete(req.params.id);
         if (!ad) {
@@ -133,14 +133,14 @@ export const deleteAd = async (req, res) => {
         }
         res.json({ success: true, data: {} });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server Error', error: err.message });
+        next(err);
     }
 };
 
 // @desc    Get active ad by placement
 // @route   GET /api/ads/placement/:zone
 // @access  Public
-export const getAdByPlacement = async (req, res) => {
+export const getAdByPlacement = async (req, res, next) => {
     try {
         const zone = req.params.zone;
         const now = new Date();
@@ -171,7 +171,7 @@ export const getAdByPlacement = async (req, res) => {
 
         res.json({ success: true, data: selectedAd });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server Error', error: err.message });
+        next(err);
     }
 };
 
@@ -234,7 +234,7 @@ export const trackClick = async (req, res) => {
 // @desc    Get ad metrics time-series analytics
 // @route   GET /api/ads/metrics
 // @access  Private/Admin
-export const getAdMetrics = async (req, res) => {
+export const getAdMetrics = async (req, res, next) => {
     try {
         const { adId, timeRange = '7d' } = req.query;
 
@@ -307,6 +307,6 @@ export const getAdMetrics = async (req, res) => {
             }
         });
     } catch (err) {
-        res.status(500).json({ success: false, message: 'Server Error', error: err.message });
+        next(err);
     }
 };
