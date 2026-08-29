@@ -49,6 +49,7 @@ const Login = () => {
       
     } catch (err) {
       console.error('❌ Login error:', err);
+      setFormData(prev => ({ ...prev, password: '' }));
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);

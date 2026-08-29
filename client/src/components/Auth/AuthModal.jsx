@@ -145,7 +145,8 @@ const AuthModal = ({ isOpen, onClose, initialView = 'login' }) => {
                 handleAuthSuccess();
             }
         } catch (err) {
-            // Explicitly set the error here so it shows in the modal
+            // Explicitly clear password field on failure per security policy
+            setLoginData(prev => ({ ...prev, password: '' }));
             const msg = err.response?.data?.message || err.message || 'Login failed';
             setErrors({ general: msg });
         } finally {

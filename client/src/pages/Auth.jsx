@@ -115,6 +115,7 @@ export default function Auth() {
           navigate(redirectParam === 'checkout' ? '/checkout' : '/account');
         }
       } catch (err) {
+        setPassword('');
         setError(err.response?.data?.message || err.message || 'Login failed');
       }
     } else if (mode === 'signup') {

@@ -93,6 +93,28 @@ const registerLimiter = rateLimit({
   }
 });
 
+const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit to 5 reset requests per IP in 15 minutes
+  handler: (req, res, next, options) => {
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
+      dispatchSecurityAlert({
+        eventTitle: 'Password Reset Rate Limit Blocked IP',
+        eventDescription: `An IP address has exceeded password reset attempt thresholds.`,
+        ipAddress: ip,
+        severity: 'WARNING',
+        metadata: { 'Target Path': req.originalUrl }
+      });
+    }).catch(e => console.error(e));
+
+    res.status(429).json({
+      success: false,
+      message: 'Too many password reset requests from this IP. Please try again after 15 minutes.'
+    });
+  }
+});
+
 const router = express.Router();
 
 // ==================== PUBLIC ROUTES ====================
@@ -116,11 +138,11 @@ router.post(`/${adminSegment}/magic-link/verify`, loginLimiter, verifyAdminMagic
 router.post(`/${adminSegment}/magic-link/step-up`, loginLimiter, stepUpVerify);
 
 // Common auth
-router.post('/verify-email', verifyEmail);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
-router.get('/check-email', checkEmail);
-router.post('/resend-verification', resendVerification);
+router.post('/verify-email', passwordResetLimiter, verifyEmail);
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
+router.post('/reset-password', passwordResetLimiter, resetPassword);
+router.get('/check-email', (req, res) => res.status(200).json({ success: true, message: 'Check email endpoint deprecated for privacy' }));
+router.post('/resend-verification', passwordResetLimiter, resendVerification);
 // Silent token refresh — reads HttpOnly refresh cookie, returns new access token
 router.post('/refresh', refreshAccessToken);
 

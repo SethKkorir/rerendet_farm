@@ -484,11 +484,60 @@ const registerCustomer = asyncHandler(async (req, res) => {
     }
   }
 
-  // Check if user already exists
+  // Check if user already exists (Anti-enumeration protection)
   const existingUser = await User.findOne({ email });
   if (existingUser) {
-    res.status(400);
-    throw new Error('User already exists with this email');
+    console.log(`🔒 [Anti-Enumeration] Signup attempted for existing email: ${email}`);
+    if (!existingUser.isVerified) {
+      const verificationCode = existingUser.generateVerificationCode();
+      await existingUser.save({ validateBeforeSave: false });
+      try {
+        let logoUrl;
+        try {
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (_) {}
+        const emailHtml = getVerificationEmail(existingUser.firstName, verificationCode, logoUrl);
+        await sendEmail({
+          to: existingUser.email,
+          subject: 'Verify Your Email - Rerendet Coffee',
+          html: emailHtml
+        });
+      } catch (err) {
+        console.error('Failed to send verification email to existing unverified user:', err);
+      }
+    } else {
+      try {
+        let logoUrl;
+        try {
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (_) {}
+        const clientUrl = resolveClientUrl();
+        await sendEmail({
+          to: existingUser.email,
+          subject: 'Account Registration Attempt - Rerendet Coffee',
+          html: getSecurityAlertEmail(
+            existingUser.firstName,
+            `A registration attempt was made using your email address. If you already have an account, you can log in at ${clientUrl}/login or reset your password if needed.`,
+            logoUrl
+          )
+        });
+      } catch (err) {
+        console.error('Failed to send security alert to existing user:', err);
+      }
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Registration successful! If this email is eligible, a verification email has been sent.',
+      data: {
+        email: existingUser.email,
+        firstName: existingUser.firstName,
+        lastName: existingUser.lastName,
+        userType: existingUser.userType
+      }
+    });
   }
 
   // Create customer user
@@ -997,9 +1046,97 @@ const updateProfile = asyncHandler(async (req, res) => {
       }
     }
 
+    // Handle sensitive email change
+    const oldEmail = user.email;
+    if (req.body.email && req.body.email.toLowerCase() !== user.email.toLowerCase()) {
+      const newEmail = req.body.email.toLowerCase().trim();
+      const currentPassword = req.body.currentPassword;
+      if (!currentPassword) {
+        res.status(400);
+        throw new Error('Current password is required to change your email address');
+      }
+
+      const userWithPass = await User.findById(user._id).select('+password');
+      const isMatch = await bcrypt.compare(currentPassword, userWithPass.password);
+      if (!isMatch) {
+        res.status(401);
+        throw new Error('Incorrect current password');
+      }
+
+      const emailExists = await User.findOne({ email: newEmail });
+      if (emailExists) {
+        res.status(400);
+        throw new Error('Email address is already in use');
+      }
+
+      user.email = newEmail;
+      user.isVerified = false;
+      const verificationCode = user.generateVerificationCode();
+
+      // Send verification email to NEW email
+      try {
+        let logoUrl;
+        try {
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (_) {}
+        const verifyHtml = getVerificationEmail(user.firstName, verificationCode, logoUrl);
+        await sendEmail({
+          to: newEmail,
+          subject: 'Verify Your New Email - Rerendet Coffee',
+          html: verifyHtml
+        });
+      } catch (e) {
+        console.error('Failed to send verification to new email:', e);
+      }
+
+      // Send security alert to OLD email
+      try {
+        let logoUrl;
+        try {
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (_) {}
+        await sendEmail({
+          to: oldEmail,
+          subject: 'Security Alert: Account Email Changed',
+          html: getSecurityAlertEmail(
+            user.firstName,
+            `The email address associated with your account was changed to ${newEmail}. If you did not make this change, please contact customer support immediately.`,
+            logoUrl
+          )
+        });
+      } catch (e) {
+        console.error('Failed to send email change alert to old email:', e);
+      }
+    }
+
+    // Handle phone change notification
+    if (req.body.phone && req.body.phone !== user.phone) {
+      const oldPhone = user.phone;
+      user.phone = req.body.phone;
+      if (oldPhone) {
+        try {
+          let logoUrl;
+          try {
+            const settings = await Settings.getSettings();
+            logoUrl = settings?.store?.logo;
+          } catch (_) {}
+          await sendEmail({
+            to: user.email,
+            subject: 'Security Alert: Phone Number Updated',
+            html: getSecurityAlertEmail(
+              user.firstName,
+              `The phone number on your account was updated to ${req.body.phone}. If this wasn't you, please secure your account.`,
+              logoUrl
+            )
+          });
+        } catch (_) {}
+      }
+    }
+
     user.firstName = req.body.firstName || user.firstName;
     user.lastName = req.body.lastName || user.lastName;
-    user.phone = req.body.phone || user.phone;
     user.gender = req.body.gender || user.gender;
     user.dateOfBirth = req.body.dateOfBirth || user.dateOfBirth;
 
