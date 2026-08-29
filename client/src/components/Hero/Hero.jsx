@@ -1,6 +1,7 @@
-import React, { useRef, useContext } from 'react';
+import React, { useRef, useContext, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { FaArrowRight, FaStar, FaLeaf, FaCoffee, FaTruck, FaShieldAlt } from 'react-icons/fa';
+import gsap from 'gsap';
 import { AppContext } from '../../context/AppContext';
 import './Hero.css';
 
@@ -62,6 +63,14 @@ const PulseRing = ({ delay = 0, scale = 1 }) => (
 const Hero = () => {
   const { publicSettings } = useContext(AppContext);
   const containerRef = useRef(null);
+  const showcaseWrapRef = useRef(null);
+  const imageFrameRef = useRef(null);
+  const coffeeImageRef = useRef(null);
+  const promoBadgeRef = useRef(null);
+  const cornerBadgeRef = useRef(null);
+  const roastCardRef = useRef(null);
+  const socialProofRef = useRef(null);
+  const shadowGlowRef = useRef(null);
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -121,6 +130,143 @@ const Hero = () => {
     } else {
       window.location.href = link;
     }
+  };
+
+  // ── GSAP High-Performance 3D Product Showcase Animations ──
+  useEffect(() => {
+    if (!showcaseWrapRef.current) return;
+
+    const ctx = gsap.context(() => {
+      // 1. Initial 3D Entrance Sequence
+      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+
+      if (imageFrameRef.current) {
+        tl.fromTo(
+          imageFrameRef.current,
+          { scale: 0.82, y: 60, opacity: 0, rotationY: -16, rotationX: 10 },
+          { scale: 1, y: 0, opacity: 1, rotationY: 0, rotationX: 0, duration: 1.4, ease: 'back.out(1.2)' }
+        );
+      }
+
+      if (promoBadgeRef.current) {
+        tl.fromTo(
+          promoBadgeRef.current,
+          { scale: 0, rotation: -45, opacity: 0 },
+          { scale: 1, rotation: 0, opacity: 1, duration: 1.1, ease: 'elastic.out(1, 0.45)' },
+          '-=0.7'
+        );
+      }
+
+      if (cornerBadgeRef.current) {
+        tl.fromTo(
+          cornerBadgeRef.current,
+          { scale: 0, y: 30, rotation: -20, opacity: 0 },
+          { scale: 1, y: 0, rotation: -8, opacity: 1, duration: 0.9, ease: 'back.out(1.7)' },
+          '-=0.8'
+        );
+      }
+
+      if (roastCardRef.current) {
+        tl.fromTo(
+          roastCardRef.current,
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: 'power3.out' },
+          '-=0.7'
+        );
+      }
+
+      if (socialProofRef.current) {
+        tl.fromTo(
+          socialProofRef.current,
+          { y: 25, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: 'power3.out' },
+          '-=0.6'
+        );
+      }
+
+      // 2. Continuous Organic 3D Floating Levitation (Sine Wave)
+      if (coffeeImageRef.current) {
+        gsap.to(coffeeImageRef.current, {
+          y: -16,
+          rotationZ: 1.5,
+          rotationY: 3,
+          duration: 3.2,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      }
+
+      // Dynamic floor glow & shadow breathing
+      if (shadowGlowRef.current) {
+        gsap.to(shadowGlowRef.current, {
+          scaleX: 0.85,
+          scaleY: 0.85,
+          opacity: 0.4,
+          duration: 3.2,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+        });
+      }
+
+      // Floating secondary badges
+      if (promoBadgeRef.current) {
+        gsap.to(promoBadgeRef.current, {
+          y: -8,
+          rotation: 4,
+          duration: 2.6,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+          delay: 0.3,
+        });
+      }
+
+      if (cornerBadgeRef.current) {
+        gsap.to(cornerBadgeRef.current, {
+          y: 8,
+          rotation: -4,
+          duration: 3.4,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut',
+          delay: 0.6,
+        });
+      }
+    }, showcaseWrapRef);
+
+    return () => ctx.revert();
+  }, [heroImage, isPromoActive, discountPercent]);
+
+  // 3. Interactive Mouse Parallax 3D Tilt
+  const handleShowcaseMouseMove = (e) => {
+    if (!imageFrameRef.current || !showcaseWrapRef.current) return;
+    const rect = showcaseWrapRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+
+    gsap.to(imageFrameRef.current, {
+      rotationY: x * 18,
+      rotationX: -y * 18,
+      x: x * 14,
+      y: y * 14,
+      duration: 0.45,
+      ease: 'power2.out',
+      transformPerspective: 1000,
+    });
+  };
+
+  const handleShowcaseMouseLeave = () => {
+    if (!imageFrameRef.current) return;
+    gsap.to(imageFrameRef.current, {
+      rotationY: 0,
+      rotationX: 0,
+      x: 0,
+      y: 0,
+      duration: 0.85,
+      ease: 'elastic.out(1, 0.5)',
+    });
   };
 
   const containerVariants = {
@@ -226,13 +372,13 @@ const Hero = () => {
           )}
         </motion.div>
 
-        {/* ── Right Column: Real Product Packaging & Promo Tag Overlay ── */}
+        {/* ── Right Column: Real Product Packaging & GSAP Animated Showcase ── */}
         <motion.div
           className="hero-image-container"
           style={{ y: yImage }}
-          initial={{ opacity: 0, x: 40 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
+          ref={showcaseWrapRef}
+          onMouseMove={handleShowcaseMouseMove}
+          onMouseLeave={handleShowcaseMouseLeave}
         >
           <div className="hero-animation-wrapper">
             <PulseRing delay={0} scale={1} />
@@ -245,9 +391,10 @@ const Hero = () => {
               transition={{ duration: 45, repeat: Infinity, ease: 'linear' }}
             />
 
-            {/* Main Product Showcase Frame */}
-            <div className="hero-image-frame">
+            {/* Main Product Showcase Frame (GSAP Animated) */}
+            <div className="hero-image-frame" ref={imageFrameRef}>
               <img
+                ref={coffeeImageRef}
                 src={heroImage}
                 alt="Rerendet Specialty Coffee Package"
                 className="hero-main-image"
@@ -259,45 +406,36 @@ const Hero = () => {
 
               {/* ⭐ CIRCULAR PROMO / DISCOUNT BADGE OVERLAY ("30% OFF") ⭐ */}
               {isPromoActive && (
-                <motion.div
+                <div
+                  ref={promoBadgeRef}
                   className="hero-promo-badge"
-                  initial={{ scale: 0, rotate: -20 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: 'spring', stiffness: 350, damping: 20, delay: 0.8 }}
-                  whileHover={{ scale: 1.12, rotate: 5 }}
                 >
                   <div className="promo-badge-inner">
                     <span className="promo-number">{discountPercent}%</span>
                     <span className="promo-text">OFF</span>
                   </div>
                   <div className="promo-badge-glow" />
-                </motion.div>
+                </div>
               )}
             </div>
 
             {/* Floating Heritage Corner Badge */}
             {cornerBadgeEnabled && cornerBadgeText && (
-              <motion.div
+              <div
+                ref={cornerBadgeRef}
                 className="hero-badge"
-                initial={{ opacity: 0, scale: 0.7, rotate: -8 }}
-                animate={{ opacity: 1, scale: 1, rotate: -8 }}
-                transition={{ duration: 0.8, delay: 1.2, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ scale: 1.06, rotate: -4 }}
               >
                 <span className="hero-badge-top">{cornerBadgeText.split(' ')[0] || 'Farm'}</span>
                 <span className="hero-badge-main">{cornerBadgeText.split(' ')[1] || 'to Cup'}</span>
                 <span className="hero-badge-sub">{cornerBadgeText.split(' ').slice(2).join(' ') || 'Since 1986'}</span>
-              </motion.div>
+              </div>
             )}
 
             {/* Floating Roast / Sensory Info Tag */}
             {roastTagEnabled && roastTagText && (
-              <motion.div
+              <div
+                ref={roastCardRef}
                 className="hero-roast-card"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 1.4, ease: [0.22, 1, 0.36, 1] }}
-                whileHover={{ y: -4 }}
               >
                 <div className="hero-roast-dots">
                   {[1, 2, 3, 4, 5].map(i => (
@@ -305,21 +443,20 @@ const Hero = () => {
                   ))}
                 </div>
                 <span className="hero-roast-label">{roastTagText}</span>
-              </motion.div>
+              </div>
             )}
 
-            {/* Social Proof Review Pill (Inspiration element) */}
-            <motion.div
+            {/* Social Proof Review Pill */}
+            <div
+              ref={socialProofRef}
               className="hero-social-proof-pill"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.6 }}
             >
               <span className="proof-heart">❤️</span>
               <span className="proof-text"><strong>15k+</strong> Coffee Lovers</span>
-            </motion.div>
+            </div>
 
-            <div className="hero-image-glow" />
+            {/* Dynamic GSAP Floor Glow */}
+            <div className="hero-image-glow" ref={shadowGlowRef} />
           </div>
         </motion.div>
       </div>

@@ -3,10 +3,11 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import { AppContext } from '../../context/AppContext';
 import { useLocation } from 'react-router-dom';
+import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import './WhatsAppSupport.css';
 
 const WhatsAppSupport = () => {
-    const { settings } = useContext(AppContext);
+    const { publicSettings } = useContext(AppContext);
     const location = useLocation();
 
     // Do not render on admin dashboard pages
@@ -14,19 +15,20 @@ const WhatsAppSupport = () => {
         return null;
     }
 
+    // Check if WhatsApp support widget is disabled by admin
+    if (publicSettings?.whatsappSupport?.enabled === false) {
+        return null;
+    }
+
     const handleClick = () => {
-        const phone = settings?.contact?.whatsapp || '254790000000';
-        const cleanPhone = phone.replace(/[^0-9]/g, '');
-        
-        let message = 'Hi Rerendet Coffee! I am browsing your online store and have a question.';
+        let message = publicSettings?.whatsappSupport?.message || 'Hi Rerendet Coffee! I am browsing your online store and have a question.';
         if (location.pathname.includes('/product/')) {
           message = 'Hi Rerendet Coffee! I am interested in your specialty coffee and would like to ask a quick question.';
         } else if (location.pathname.includes('/cart') || location.pathname.includes('/checkout')) {
           message = 'Hi Rerendet Coffee! I need assistance with my coffee order checkout.';
         }
 
-        const encodedMsg = encodeURIComponent(message);
-        const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
+        const whatsappUrl = getWhatsAppLink(publicSettings, message);
         window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     };
 

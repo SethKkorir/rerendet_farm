@@ -11,6 +11,7 @@ import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from
 import FloatingBeans from '../UI/FloatingBeans';
 import AdPlacement from '../AdPlacement/AdPlacement';
 import { isFreshlyRoasted } from '../../utils/productHelpers';
+import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import './CoffeeShop.css';
 
 /* ☕ Helpers & Icons ☕ */
@@ -79,7 +80,7 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
   const [hovered, setHovered] = useState(false);
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [quantity, setQuantity] = useState(1);
-  const { showAlert } = useContext(AppContext);
+  const { showAlert, publicSettings } = useContext(AppContext);
 
   // Size selection handling
   const availableSizes = product.sizes && product.sizes.length > 0
@@ -106,8 +107,9 @@ const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingT
 
   const onWhatsAppEnquire = (e) => {
     e.stopPropagation();
-    const message = encodeURIComponent(`Hi Rerendet Coffee! I am interested in purchasing ${product.name} (${selectedSizeObj.size} - KES ${currentPrice.toLocaleString()}). Can I get more details?`);
-    window.open(`https://wa.me/254700000000?text=${message}`, '_blank');
+    const message = `Hi Rerendet Coffee! I am interested in purchasing ${product.name} (${selectedSizeObj.size} - KES ${currentPrice.toLocaleString()}). Can I get more details?`;
+    const url = getWhatsAppLink(publicSettings, message);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -348,6 +350,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
   const meta = getCatMeta(product.category);
   const isCoffee = product.category === 'coffee-beans' || !product.category;
   const productInStock = isInStock(product);
+  const { publicSettings } = useContext(AppContext);
   const [selectedSize, setSelectedSize] = useState(
     product.sizes?.length > 0 ? product.sizes[0] : { size: product.size || '250g', price: product.price || 0 }
   );
@@ -365,8 +368,9 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
   };
 
   const handleWhatsApp = () => {
-    const msg = encodeURIComponent(`Hello Rerendet Coffee! I am looking at ${product.name} (${selectedSize.size}) on your store and have a question.`);
-    window.open(`https://wa.me/254700000000?text=${msg}`, '_blank');
+    const msg = `Hello Rerendet Coffee! I am looking at ${product.name} (${selectedSize.size}) on your store and have a question.`;
+    const url = getWhatsAppLink(publicSettings, msg);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (

@@ -163,6 +163,34 @@ const Settings = () => {
 
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
 
+  const handleGenerateMagicLink = async () => {
+    try {
+      setGeneratingLink(true);
+      const res = await fetch('/api/admin/settings/magic-link', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success && data.data?.magicLink) {
+        setMagicLink(data.data.magicLink);
+        showAlert('Emergency Super Gate magic link generated successfully', 'success');
+      } else {
+        showAlert(data.message || 'Failed to generate magic link', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showAlert('Failed to generate magic link', 'error');
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    showAlert('Copied to clipboard!', 'success');
+  };
+
   const set = (section, field, value) => {
     setSettings(p => ({
       ...p,
@@ -401,12 +429,60 @@ const Settings = () => {
                     <div className="st-grid-2">
                       <Input label="Store Name" required value={s.store?.name} onChange={v => set('store', 'name', v)} placeholder="Rerendet Coffee" />
                       <Input label="Store Email" type="email" value={s.store?.email} onChange={v => set('store', 'email', v)} placeholder="info@rerendetcoffee.com" />
-                      <Input label="Phone Number" value={s.store?.phone} onChange={v => set('store', 'phone', v)} placeholder="+254700000000" />
-                      <Input label="Physical Address" value={s.store?.address} onChange={v => set('store', 'address', v)} placeholder="Nairobi, Kenya" />
+                      <Input label="General Phone Number" value={s.store?.phone} onChange={v => set('store', 'phone', v)} placeholder="+254 711 245 765" />
+                      <Input label="Physical Address" value={s.store?.address} onChange={v => set('store', 'address', v)} placeholder="Nandi & Bomet County, Kenya" />
                     </div>
                     <Field label="Store Description" hint="Shown in footers and meta tags">
                       <textarea className="st-textarea" rows={3} value={s.store?.description || ''} onChange={e => set('store', 'description', e.target.value)} placeholder="Premium coffee blends roasted to perfection…" />
                     </Field>
+                  </Section>
+
+                  <Section title="WhatsApp Support & Direct Inquiries" subtitle="Controls WhatsApp buttons, floating chat widget, order confirmation share, and catalog inquiries" icon={<FaWhatsapp />} accent="#25D366">
+                    <div className="st-grid-2">
+                      <Input 
+                        label="WhatsApp Phone Number" 
+                        hint="e.g. +254 711 245 765 or 0711245765 (Used across the entire store for customer WhatsApp chat)" 
+                        value={s.whatsappSupport?.phoneNumber || s.seo?.social?.whatsapp || ''} 
+                        onChange={v => {
+                          setNested('whatsappSupport', 'phoneNumber', v);
+                          setNested('seo', 'social', 'whatsapp', v);
+                        }} 
+                        placeholder="+254 711 245 765" 
+                      />
+                      <Input 
+                        label="Default WhatsApp Greeting Message" 
+                        hint="Pre-filled text when a visitor opens the floating chat widget" 
+                        value={s.whatsappSupport?.message || ''} 
+                        onChange={v => setNested('whatsappSupport', 'message', v)} 
+                        placeholder="Hi Rerendet Coffee! I am browsing your online store and have a question." 
+                      />
+                    </div>
+                    <div className="st-grid-2" style={{ marginTop: '1rem' }}>
+                      <Input 
+                        label="Instagram Profile Link" 
+                        value={s.seo?.social?.instagram || ''} 
+                        onChange={v => setNested('seo', 'social', 'instagram', v)} 
+                        placeholder="https://www.instagram.com/rerendetcoffee" 
+                      />
+                      <Input 
+                        label="Facebook Page Link" 
+                        value={s.seo?.social?.facebook || ''} 
+                        onChange={v => setNested('seo', 'social', 'facebook', v)} 
+                        placeholder="https://facebook.com/rerendetcoffee" 
+                      />
+                      <Input 
+                        label="Twitter / X Profile Link" 
+                        value={s.seo?.social?.twitter || ''} 
+                        onChange={v => setNested('seo', 'social', 'twitter', v)} 
+                        placeholder="https://twitter.com/rerendetcoffee" 
+                      />
+                      <Input 
+                        label="TikTok Profile Link" 
+                        value={s.seo?.social?.tiktok || ''} 
+                        onChange={v => setNested('seo', 'social', 'tiktok', v)} 
+                        placeholder="https://tiktok.com/@rerendetcoffee" 
+                      />
+                    </div>
                   </Section>
 
                   <Section title="Store Logo" subtitle="Displayed in the navigation and emails" icon={<FaImage />} accent="#3b82f6">

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import {
   FaCheckCircle, FaCoffee, FaTruck, FaDownload,
   FaHome, FaReceipt, FaStar, FaLeaf, FaMagic,
@@ -37,7 +38,7 @@ const OrderConfirmation = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { showNotification, token, refreshOrders } = useContext(AppContext);
+  const { showNotification, token, refreshOrders, publicSettings } = useContext(AppContext);
 
   const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!location.state?.order);
@@ -97,7 +98,8 @@ const OrderConfirmation = () => {
   const handleWhatsAppShare = () => {
     if (!order) return;
     const msg = `Hi Rerendet Team! I just placed order #${order.orderNumber} for KES ${order.total?.toLocaleString()}. Tracking updates please!`;
-    window.open(`https://wa.me/254700000000?text=${encodeURIComponent(msg)}`, '_blank');
+    const url = getWhatsAppLink(publicSettings, msg);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const getEstimatedDelivery = () => {

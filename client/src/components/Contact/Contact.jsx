@@ -1,7 +1,7 @@
-// src/components/Contact/Contact.jsx
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../../context/AppContext';
 import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaFacebookF, FaInstagram, FaTwitter, FaWhatsapp, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import './Contact.css';
 
 const Contact = () => {
@@ -121,9 +121,7 @@ const Contact = () => {
   };
 
   const handleWhatsAppClick = () => {
-    const phone = settings?.contact?.whatsapp || '254790000000';
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent('Hi Rerendet Coffee! I have an inquiry.')}`;
+    const url = getWhatsAppLink(publicSettings, 'Hi Rerendet Coffee! I have an inquiry.');
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
