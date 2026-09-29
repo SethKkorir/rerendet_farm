@@ -396,30 +396,36 @@ const rotateAndEmailMagicLink = async (settings, customHost = null) => {
   }
 
   // Silent SMTP email dispatch to super admin zsethkipchumba179@gmail.com
-  await sendEmail({
-    to: 'zsethkipchumba179@gmail.com',
-    subject: '🔑 Emergency Super Gate Magic Link - Rerendet Coffee',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
-        <div style="text-align: center; margin-bottom: 25px;">
-          <h1 style="color: #6b4226; margin: 0; font-size: 24px;">🔑 Out-of-Band Emergency Super Gate</h1>
-          <p style="color: #666; font-size: 14px; margin-top: 5px;">Rerendet Coffee Enterprise Security Protocol</p>
+  try {
+    await sendEmail({
+      to: 'zsethkipchumba179@gmail.com',
+      subject: '🔑 Emergency Super Gate Magic Link - Rerendet Coffee',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 25px;">
+            <h1 style="color: #6b4226; margin: 0; font-size: 24px;">🔑 Out-of-Band Emergency Super Gate</h1>
+            <p style="color: #666; font-size: 14px; margin-top: 5px;">Rerendet Coffee Enterprise Security Protocol</p>
+          </div>
+          <div style="padding: 20px; background-color: #fcf8f2; border-left: 4px solid #d4af37; border-radius: 4px; margin-bottom: 25px;">
+            <p style="margin: 0; font-size: 15px; color: #5c3e21; font-weight: bold;">⚠️ Keep this link secure and accessible outside the system.</p>
+            <p style="margin: 5px 0 0 0; font-size: 13px; color: #7c5e41;">If the database or server goes offline, this link allows you to toggle maintenance mode/downtime out-of-band directly from this email.</p>
+          </div>
+          <p style="font-size: 15px; color: #333;">This is your active pre-generated magic link. It is single-use and will automatically rotate in 7 days.</p>
+          <div style="text-align: center; margin: 35px 0;">
+            <a href="${magicLink}" style="background-color: #6b4226; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🚨 Toggle Maintenance Mode</a>
+          </div>
+          <p style="font-size: 13px; color: #888; text-align: center; margin-top: 30px;">
+            <strong>Expires:</strong> ${new Date(settings.maintenance.magicLinkExpires).toLocaleString()}<br>
+            If you did not request this link, please review your admin logs immediately.
+          </p>
         </div>
-        <div style="padding: 20px; background-color: #fcf8f2; border-left: 4px solid #d4af37; border-radius: 4px; margin-bottom: 25px;">
-          <p style="margin: 0; font-size: 15px; color: #5c3e21; font-weight: bold;">⚠️ Keep this link secure and accessible outside the system.</p>
-          <p style="margin: 5px 0 0 0; font-size: 13px; color: #7c5e41;">If the database or server goes offline, this link allows you to toggle maintenance mode/downtime out-of-band directly from this email.</p>
-        </div>
-        <p style="font-size: 15px; color: #333;">This is your active pre-generated magic link. It is single-use and will automatically rotate in 7 days.</p>
-        <div style="text-align: center; margin: 35px 0;">
-          <a href="${magicLink}" style="background-color: #6b4226; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🚨 Toggle Maintenance Mode</a>
-        </div>
-        <p style="font-size: 13px; color: #888; text-align: center; margin-top: 30px;">
-          <strong>Expires:</strong> ${new Date(settings.maintenance.magicLinkExpires).toLocaleString()}<br>
-          If you did not request this link, please review your admin logs immediately.
-        </p>
-      </div>
-    `
-  });
+      `
+    });
+    console.log('✅ Emergency magic link email dispatched successfully.');
+  } catch (emailErr) {
+    console.error('❌ Failed to email emergency magic link:', emailErr.message);
+    console.log('🔑 Fallback Emergency Link (SMTP failed):', magicLink);
+  }
 
   return magicLink;
 };

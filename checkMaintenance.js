@@ -1,9 +1,7 @@
+import 'dotenv/config';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import Settings from './models/Settings.js';
 import connectDB from './config/db.js';
-
-dotenv.config();
 
 const check = async () => {
   try {

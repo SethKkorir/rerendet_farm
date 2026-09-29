@@ -11,10 +11,12 @@ import connectDB from '../config/db.js';
 const maintenanceMode = asyncHandler(async (req, res, next) => {
     const fullPath = (req.baseUrl + req.path).replace(/\/$/, '');
 
+    const adminSegment = process.env.ADMIN_PATH_SEGMENT || 'admin';
     // 1. Always allow fundamental bypasses (Health, Public Settings, Super Gate, Admin Auth, Heartbeat, Cron, and Admin panel APIs)
     const bypassPaths = [
         '/api/admin',            // Allow all administrative management APIs (e.g. settings, dashboard, products)
-        '/api/auth/admin',       // Allow admin auth endpoints (login, 2fa, etc)
+        `/api/auth/${adminSegment}`,       // Allow admin auth endpoints (login, 2fa, etc) using dynamic segment
+        '/api/auth/admin',       // Keep as a fallback
         '/api/auth/refresh',     // Allow silent token refresh under maintenance mode
         '/api/settings/public',  // Public settings needed to display shop status
         '/api/settings/super-gate', // CRITICAL: Allow the magic link to be triggered even if site is blocked

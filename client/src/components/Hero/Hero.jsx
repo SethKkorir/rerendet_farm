@@ -1,7 +1,7 @@
 import React, { useRef, useContext, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { FaArrowRight, FaStar, FaLeaf, FaCoffee, FaTruck, FaShieldAlt } from 'react-icons/fa';
-import gsap from 'gsap';
+// import gsap from 'gsap';
 import { AppContext } from '../../context/AppContext';
 import './Hero.css';
 
@@ -87,7 +87,7 @@ const Hero = () => {
   const headline = heroData.headline || 'Highland Mist, Poured for Perfection.';
   const subheadline = heroData.subheadline || 'Experience the rich, bold soul of hand-picked Kenyan coffee beans, roasting secrets passed through generations, delivered fresh to your door.';
   const pillText = heroData.pillText || '100% Organic Arabica';
-  
+
   // Real product packaging photo as hero image
   const heroImage = heroData.imageUrl || '/hero-product.png';
 
