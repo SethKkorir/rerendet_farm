@@ -1155,9 +1155,12 @@ const updateProfile = asyncHandler(async (req, res) => {
     // Handle wallet update
     if (req.body.wallet) {
       if (!user.wallet) user.wallet = {};
-
-      const newWallet = { ...user.wallet, ...req.body.wallet };
-      user.wallet = newWallet;
+      if (req.body.wallet.mpesaPhone !== undefined) {
+        user.wallet.mpesaPhone = req.body.wallet.mpesaPhone;
+      }
+      if (req.body.wallet.card && typeof req.body.wallet.card === 'object') {
+        user.wallet.card = { ...user.wallet.card, ...req.body.wallet.card };
+      }
       user.markModified('wallet');
     }
 

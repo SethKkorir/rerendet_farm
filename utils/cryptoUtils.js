@@ -38,8 +38,8 @@ const decrypt = (text) => {
         decrypted = Buffer.concat([decrypted, decipher.final()]);
         return decrypted.toString();
     } catch (error) {
-        console.error('Decryption failed:', error);
-        return text;
+        console.error('Decryption failed:', error.message);
+        return '';
     }
 };
 

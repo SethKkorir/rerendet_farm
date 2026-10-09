@@ -247,9 +247,9 @@ const createOrder = asyncHandler(async (req, res) => {
         lastName: sanitizedAddress.lastName,
         email: sanitizedAddress.email,
         phone: sanitizedAddress.phone,
-        address: sanitizedAddress.address,
-        city: sanitizedAddress.city,
-        county: sanitizedAddress.county,
+        address: sanitizedAddress.address || sanitizedAddress.street || sanitizedAddress.city || 'N/A',
+        city: sanitizedAddress.city || sanitizedAddress.town || 'Nairobi',
+        county: sanitizedAddress.county || sanitizedAddress.city || 'Nairobi',
         country: sanitizedAddress.country || 'Kenya',
         postalCode: sanitizedAddress.postalCode || '',
         landmark: sanitizedAddress.landmark
@@ -548,8 +548,8 @@ const getUserOrders = asyncHandler(async (req, res) => {
   try {
     const [ordersList, total] = await Promise.all([
       Order.find({ user: userId })
-        .select('orderNumber items total orderStatus paymentStatus fulfillmentStatus createdAt')
-        .populate('items.product', 'name images')
+        .select('orderNumber items total subtotal shippingCost discountAmount tax shippingAddress paymentMethod paymentStatus orderStatus fulfillmentStatus roastStage transactionId trackingNumber createdAt')
+        .populate('items.product', 'name images price category')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -564,7 +564,10 @@ const getUserOrders = asyncHandler(async (req, res) => {
       else if (order.fulfillmentStatus === 'returned') status = 'Returned';
       else if (order.fulfillmentStatus === 'delivered') status = 'Delivered';
       else if (order.fulfillmentStatus === 'shipped') status = 'Shipped';
-      else if (order.fulfillmentStatus === 'packed') status = 'Processing';
+      else if (order.fulfillmentStatus === 'packed' || order.roastStage === 'packaged') status = 'Packed';
+      else if (['roasting_in_progress', 'roast_scheduled', 'resting_quality_check'].includes(order.roastStage)) status = 'Roasting';
+      else if (order.paymentStatus === 'paid') status = 'Processing';
+      else if (order.paymentStatus === 'failed') status = 'Payment Failed';
 
       return {
         ...order,
@@ -644,9 +647,22 @@ const getOrderById = asyncHandler(async (req, res) => {
       });
     }
 
+    let status = 'Confirmed';
+    if (order.orderStatus === 'cancelled') status = 'Cancelled';
+    else if (order.fulfillmentStatus === 'returned') status = 'Returned';
+    else if (order.fulfillmentStatus === 'delivered') status = 'Delivered';
+    else if (order.fulfillmentStatus === 'shipped') status = 'Shipped';
+    else if (order.fulfillmentStatus === 'packed' || order.roastStage === 'packaged') status = 'Packed';
+    else if (['roasting_in_progress', 'roast_scheduled', 'resting_quality_check'].includes(order.roastStage)) status = 'Roasting';
+    else if (order.paymentStatus === 'paid') status = 'Processing';
+    else if (order.paymentStatus === 'failed') status = 'Payment Failed';
+
+    const orderObj = order.toObject ? order.toObject() : { ...order };
+    orderObj.status = status;
+
     res.json({
       success: true,
-      data: order
+      data: orderObj
     });
   } catch (error) {
     console.error('❌ Get order by ID/Number error:', error);

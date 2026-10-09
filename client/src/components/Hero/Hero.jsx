@@ -1,7 +1,7 @@
 import React, { useRef, useContext, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { FaArrowRight, FaStar, FaLeaf, FaCoffee, FaTruck, FaShieldAlt } from 'react-icons/fa';
-// import gsap from 'gsap';
+import gsap from 'gsap';
 import { AppContext } from '../../context/AppContext';
 import './Hero.css';
 

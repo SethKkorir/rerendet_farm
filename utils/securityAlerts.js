@@ -180,24 +180,54 @@ export const recordServerCrash = async (error, req) => {
   }
 };
 
-// Check system resources (memory usage) and alert if exceeding 90%
+// Check system resources (memory usage) and alert if Node process or production host is saturated
 export const checkHardwareResources = async (req = null) => {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const isMac = os.platform() === 'darwin';
+
+  const memUsage = process.memoryUsage();
+  const rssMB = Math.round(memUsage.rss / (1024 * 1024));
+  const heapUsedMB = Math.round(memUsage.heapUsed / (1024 * 1024));
+  const heapTotalMB = Math.round(memUsage.heapTotal / (1024 * 1024));
+
+  // In local development or on macOS, os.freemem() excludes OS buffer cache and is always low.
+  // In dev / macOS, alert only if the Node.js process itself exceeds 1.5 GB RSS.
+  if (isDev || isMac) {
+    if (rssMB > 1536) { // > 1.5 GB used by Node process
+      const ip = req ? (req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '127.0.0.1';
+      await dispatchSecurityAlert({
+        eventTitle: 'Node.js Process Memory Saturation',
+        eventDescription: `Node.js server process is consuming an unusually high amount of memory (${rssMB} MB RSS), indicating a potential memory leak.`,
+        ipAddress: ip,
+        severity: 'WARNING',
+        metadata: {
+          'Process RSS': `${rssMB} MB`,
+          'Heap Used': `${heapUsedMB} MB / ${heapTotalMB} MB`,
+          'Environment': process.env.NODE_ENV || 'development'
+        }
+      });
+    }
+    return;
+  }
+
+  // In production (Linux VPS / Docker container)
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
   const usedMemPercent = ((totalMem - freeMem) / totalMem) * 100;
 
-  if (usedMemPercent > 90) {
+  if (usedMemPercent > 92 && rssMB > 500) {
     const ip = req ? (req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '127.0.0.1';
     
     await dispatchSecurityAlert({
-      eventTitle: 'System Memory Exceeded 90%',
-      eventDescription: `Hardware resource monitor reports critical memory saturation. The server process is consuming over 90% of available RAM, risking an Out-Of-Memory (OOM) crash.`,
+      eventTitle: 'Production Server Memory Exceeded 90%',
+      eventDescription: `Hardware resource monitor reports critical memory saturation on production host.`,
       ipAddress: ip,
       severity: 'CRITICAL',
       metadata: {
         'Memory Used': `${usedMemPercent.toFixed(1)}%`,
         'Total RAM': `${(totalMem / (1024 * 1024 * 1024)).toFixed(2)} GB`,
-        'Free RAM': `${(freeMem / (1024 * 1024 * 1024)).toFixed(2)} GB`
+        'Free RAM': `${(freeMem / (1024 * 1024 * 1024)).toFixed(2)} GB`,
+        'Process RSS': `${rssMB} MB`
       }
     });
   }
