@@ -767,6 +767,47 @@ const subscribeRestockNotification = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Report an out-of-stock add-to-cart attempt and alert the admin
+// @route   POST /api/products/:id/out-of-stock-attempt
+// @access  Public
+const reportOutOfStockAttempt = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const product = await Product.findById(id);
+
+  if (!product) {
+    return res.status(404).json({ success: false, message: 'Product not found' });
+  }
+
+  const physical = product.inventory?.physicalStock ?? 0;
+  const reserved = product.inventory?.reservedStock ?? 0;
+  const available = product.availableStock !== undefined ? product.availableStock : (physical - reserved);
+
+  try {
+    const { createAlert } = await import('../models/AdminAlert.js');
+    await createAlert(
+      'warning',
+      'low_stock',
+      `🚨 Out of Stock Alert: Customer attempted to add "${product.name}" to cart, but stock is depleted (Available: ${available}, Physical: ${physical}). Item was prevented from entering cart.`,
+      { productId: product._id }
+    );
+  } catch (err) {
+    console.warn('⚠️ AdminAlert trigger warning:', err.message);
+  }
+
+  try {
+    const { sendLowStockAlert } = await import('../utils/adminNotificationService.js');
+    await sendLowStockAlert(product);
+  } catch (err) {
+    console.warn('⚠️ sendLowStockAlert warning:', err.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Admin has been alerted that this item is out of stock.',
+    availableStock: available
+  });
+});
+
 export {
   getProducts,
   getProductById,
@@ -780,5 +821,6 @@ export {
   uploadProductImages,
   deleteProductImage,
   getBestSellers,
-  subscribeRestockNotification
+  subscribeRestockNotification,
+  reportOutOfStockAttempt
 };

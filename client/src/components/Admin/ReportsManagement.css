@@ -17,7 +17,7 @@
 }
 
 .rm-title-section h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 28px;
   font-weight: 700;
   color: #D4AF37;
@@ -329,7 +329,7 @@
 
 .table-filter-bar h3 {
   margin: 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 18px;
   color: #D4AF37;
 }
@@ -586,7 +586,7 @@
 
 .pdf-modal-title h3 {
   margin: 0;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 18px;
   color: #ffffff;
 }

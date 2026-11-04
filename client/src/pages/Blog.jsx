@@ -17,12 +17,6 @@ const Blog = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (publicSettings?.features && publicSettings.features.coffeeAcademy === false) {
-            navigate('/');
-        }
-    }, [publicSettings, navigate]);
-
-    useEffect(() => {
         const fetchBlogs = async () => {
             try {
                 setLoading(true);
@@ -154,8 +148,6 @@ const Blog = () => {
                     )}
                 </main>
             </div>
-
-            <Footer />
         </div>
     );
 };

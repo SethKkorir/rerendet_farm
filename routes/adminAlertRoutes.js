@@ -43,6 +43,37 @@ router.get('/', asyncHandler(async (req, res) => {
   });
 }));
 
+// PATCH /api/admin/alerts/resolve-all - Bulk resolves all active alerts
+router.patch('/resolve-all', asyncHandler(async (req, res) => {
+  const { type } = req.body || {};
+  const filter = { isResolved: false };
+  if (type && ['critical', 'warning', 'info'].includes(type)) {
+    filter.type = type;
+  }
+
+  const result = await AdminAlert.updateMany(filter, {
+    $set: {
+      isResolved: true,
+      resolvedBy: req.user._id,
+      resolvedAt: new Date()
+    }
+  });
+
+  await logActivity(
+    req,
+    'RESOLVE_ALERT',
+    `Bulk resolved ${result.modifiedCount} alerts (${type || 'all types'})`,
+    'BULK',
+    { actionCategory: 'system_event' }
+  );
+
+  res.json({
+    success: true,
+    message: `Resolved ${result.modifiedCount} alerts`,
+    modifiedCount: result.modifiedCount
+  });
+}));
+
 // PATCH /api/admin/alerts/:id/resolve - Resolves an alert
 router.patch('/:id/resolve', asyncHandler(async (req, res) => {
   const alert = await AdminAlert.findById(req.params.id);

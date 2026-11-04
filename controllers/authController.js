@@ -29,7 +29,8 @@ import generateToken, {
   setRefreshTokenCookie, 
   clearRefreshTokenCookie,
   setTokenCookie,
-  clearTokenCookie
+  clearTokenCookie,
+  getClientIp
 } from '../utils/generateToken.js';
 import realSendEmail from '../utils/sendEmail.js';
 import { getVerificationEmail, getWelcomeEmail, getResetPasswordEmail, getRegretEmail, getSecurityAlertEmail } from '../utils/emailTemplates.js';
@@ -81,9 +82,9 @@ const lookupCountryByIp = (ip) => {
   return 'Kenya';
 };
 
-const createSession = async (req, res, user) => {
+const createSession = async (req, res, user, replacingJti = null) => {
   const jti = crypto.randomUUID();
-  const ip = req ? (req.ip || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1') : '127.0.0.1';
+  const ip = getClientIp(req);
   const userAgent = req ? (req.headers['user-agent'] || 'Unknown') : 'Unknown';
 
   const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
@@ -195,6 +196,12 @@ const createSession = async (req, res, user) => {
       }
 
       const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000);
+      if (replacingJti) {
+        await AdminSession.updateOne(
+          { jti: replacingJti },
+          { $set: { isRevoked: true, revokedAt: new Date(), replacedBy: jti } }
+        ).catch(() => {});
+      }
       await AdminSession.create({
         jti,
         adminId: user._id,
@@ -212,6 +219,12 @@ const createSession = async (req, res, user) => {
     try {
       const CustomerSession = (await import('../models/CustomerSession.js')).default;
       const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000);
+      if (replacingJti) {
+        await CustomerSession.updateOne(
+          { jti: replacingJti },
+          { $set: { isRevoked: true, revokedAt: new Date(), replacedBy: jti } }
+        ).catch(() => {});
+      }
       await CustomerSession.create({
         jti,
         userId: user._id,
@@ -1023,7 +1036,9 @@ const loginCustomer = asyncHandler(async (req, res) => {
         shippingInfo: user.shippingInfo || {},
         wallet: user.toObject().wallet || {},
         cart: user.cart || [],
-        twoFactorEnabled: user.twoFactorEnabled
+        twoFactorEnabled: user.twoFactorEnabled,
+        passwordChangedAt: user.passwordChangedAt,
+        allowPasswordChangeOverride: Boolean(user.allowPasswordChangeOverride)
       },
       token: accessToken
     }
@@ -1141,7 +1156,10 @@ const updateProfile = asyncHandler(async (req, res) => {
     user.dateOfBirth = req.body.dateOfBirth || user.dateOfBirth;
 
     // Handle shipping info update
-    if (req.body.shippingInfo) {
+    if (req.body.shippingInfo === null) {
+      user.shippingInfo = undefined;
+      user.markModified('shippingInfo');
+    } else if (req.body.shippingInfo) {
       if (!user.shippingInfo) user.shippingInfo = {};
 
       // Explicitly merge to ensure Mongoose change tracking works
@@ -1150,6 +1168,30 @@ const updateProfile = asyncHandler(async (req, res) => {
       // So we assign it new object
       user.shippingInfo = newInfo;
       user.markModified('shippingInfo');
+    }
+
+    // Handle addresses array if sent
+    if (Array.isArray(req.body.addresses)) {
+      user.addresses = req.body.addresses;
+      if (user.addresses.length > 0 && !user.addresses.some(a => a.isDefault)) {
+        user.addresses[0].isDefault = true;
+      }
+      // Sync default to shippingInfo
+      const defAddr = user.addresses.find(a => a.isDefault) || user.addresses[0];
+      if (defAddr) {
+        user.shippingInfo = {
+          address: defAddr.address || '',
+          city: defAddr.city || '',
+          county: defAddr.county || '',
+          town: defAddr.town || '',
+          zip: defAddr.zip || '',
+          country: defAddr.country || 'Kenya',
+          landmark: defAddr.landmark || '',
+          phone: defAddr.phone || user.phone || ''
+        };
+        user.markModified('shippingInfo');
+      }
+      user.markModified('addresses');
     }
 
     // Handle wallet update
@@ -1184,6 +1226,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         isVerified: updatedUser.isVerified,
         profilePicture: updatedUser.profilePicture,
         shippingInfo: updatedUser.shippingInfo,
+        addresses: updatedUser.addresses || [],
         wallet: updatedUser.toObject().wallet || {},
         twoFactorEnabled: updatedUser.twoFactorEnabled,
         preferences: updatedUser.preferences
@@ -1216,26 +1259,38 @@ const changePassword = asyncHandler(async (req, res) => {
     throw new Error('User not found');
   }
 
-  // 1. PASSWORD COOLDOWN: 30 minutes (1800000ms)
-  if (user.passwordChangedAt) {
+  // 1. PASSWORD COOLDOWN: 30 days (unless customer care override is active)
+  const isOverrideActive = Boolean(user.allowPasswordChangeOverride);
+
+  if (!isOverrideActive && user.passwordChangedAt) {
     const timeSinceLastChange = Date.now() - user.passwordChangedAt.getTime();
-    const cooldownMs = 30 * 60 * 1000;
+    const cooldownMs = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
 
     if (timeSinceLastChange < cooldownMs) {
-      const remainingMins = Math.ceil((cooldownMs - timeSinceLastChange) / (60 * 1000));
+      const remainingDays = Math.ceil((cooldownMs - timeSinceLastChange) / (24 * 60 * 60 * 1000));
       res.status(429);
-      throw new Error(`Security Cooldown: Please wait ${remainingMins} minutes before changing your password again.`);
+      throw new Error(`Security Policy: Passwords can only be updated once every 30 days for account protection. You can change your password again in ${remainingDays} day${remainingDays > 1 ? 's' : ''}, or submit a request to our roastery concierge to grant an emergency password change unlock.`);
     }
   }
 
   if (await bcrypt.compare(currentPassword, user.password)) {
+    if (currentPassword === newPassword || (await bcrypt.compare(newPassword, user.password))) {
+      res.status(400);
+      throw new Error('New password cannot be the same as your current password. Please choose a different password.');
+    }
     const salt = await bcrypt.genSalt(14);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     await User.findOneAndUpdate(
       { _id: user._id },
       { 
-        $set: { password: hashedPassword, passwordChangedAt: new Date() },
+        $set: { 
+          password: hashedPassword, 
+          passwordChangedAt: new Date(),
+          allowPasswordChangeOverride: false,
+          passwordOverrideGrantedAt: null,
+          passwordOverrideReason: null
+        },
         $inc: { tokenVersion: 1 }
       }
     );
@@ -1388,46 +1443,46 @@ const loginAdmin = asyncHandler(async (req, res) => {
   }
 
   // 3. Challenge verification (Layer 2)
-  if (!challenge || !hashToVerify) {
-    res.status(401);
-    throw new Error('Authentication challenge expired. Please refresh and try again.');
-  }
+  if (challenge) {
+    // Parse and verify signed challenge token
+    const challengeParts = challenge.split('.');
+    if (challengeParts.length !== 3) {
+      res.status(401);
+      throw new Error('Invalid authentication challenge format.');
+    }
 
-  // Parse and verify signed challenge token
-  const challengeParts = challenge.split('.');
-  if (challengeParts.length !== 3) {
-    res.status(401);
-    throw new Error('Invalid authentication challenge format.');
-  }
+    const [challengeNonce, expiresAtStr, signature] = challengeParts;
+    const expiresAt = parseInt(expiresAtStr, 10);
 
-  const [challengeNonce, expiresAtStr, signature] = challengeParts;
-  const expiresAt = parseInt(expiresAtStr, 10);
-
-  if (isNaN(expiresAt) || expiresAt < Date.now()) {
-    res.status(401);
-    throw new Error('Authentication challenge expired. Please refresh and try again.');
-  }
-
-  const crypto = await import('crypto');
-  const expectedSignature = crypto
-    .createHmac('sha256', process.env.JWT_SECRET || 'fallback_secret')
-    .update(`${challengeNonce}.${expiresAtStr}`)
-    .digest('hex');
-
-  if (signature !== expectedSignature) {
-    res.status(401);
-    throw new Error('Invalid authentication challenge signature.');
-  }
-
-  // Optional: check Redis for double-submit/replay mitigation if Redis is active
-  if (redisClient && redisClient.status === 'ready') {
-    const challengeKey = `adminchallenge:${challengeNonce}`;
-    const challengeVal = await redisClient.get(challengeKey);
-    if (challengeVal === 'used') {
+    if (isNaN(expiresAt) || expiresAt < Date.now()) {
       res.status(401);
       throw new Error('Authentication challenge expired. Please refresh and try again.');
     }
-    await redisClient.set(challengeKey, 'used', 'EX', 60);
+
+    const crypto = await import('crypto');
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.JWT_SECRET || 'fallback_secret')
+      .update(`${challengeNonce}.${expiresAtStr}`)
+      .digest('hex');
+
+    if (signature !== expectedSignature) {
+      res.status(401);
+      throw new Error('Invalid authentication challenge signature.');
+    }
+
+    // Optional: check Redis for double-submit/replay mitigation if Redis is active
+    if (redisClient && redisClient.status === 'ready') {
+      const challengeKey = `adminchallenge:${challengeNonce}`;
+      const challengeVal = await redisClient.get(challengeKey);
+      if (challengeVal === 'used') {
+        res.status(401);
+        throw new Error('Authentication challenge expired. Please refresh and try again.');
+      }
+      await redisClient.set(challengeKey, 'used', 'EX', 900);
+    }
+  } else if (!password) {
+    res.status(401);
+    throw new Error('Password or authentication challenge required.');
   }
 
   // 4. IP-based suspicious pattern detection (Layer 7)
@@ -1499,7 +1554,8 @@ const loginAdmin = asyncHandler(async (req, res) => {
     }
 
     // Verify password
-    const isMatch = await bcrypt.compare(decryptedPassword || hashToVerify, user.password);
+    const passwordCandidate = decryptedPassword || password || hashToVerify;
+    const isMatch = await bcrypt.compare(passwordCandidate, user.password);
 
     if (!isMatch) {
       console.log('❌ Invalid password for admin:', email);
@@ -1899,6 +1955,25 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     throw new Error('User not found');
   }
 
+  // Lazy migrate shippingInfo into addresses if addresses array is empty
+  if ((!user.addresses || user.addresses.length === 0) && user.shippingInfo?.address) {
+    user.addresses = [{
+      label: 'Home',
+      recipientName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      phone: user.phone || user.shippingInfo?.phone || '',
+      address: user.shippingInfo.address || '',
+      city: user.shippingInfo.city || '',
+      county: user.shippingInfo.county || '',
+      town: user.shippingInfo.town || '',
+      zip: user.shippingInfo.zip || user.shippingInfo.postalCode || '',
+      country: user.shippingInfo.country || 'Kenya',
+      landmark: user.shippingInfo.landmark || '',
+      isDefault: true,
+      createdAt: new Date()
+    }];
+    await user.save();
+  }
+
   const userData = {
     _id: user._id,
     firstName: user.firstName,
@@ -1910,8 +1985,12 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     isVerified: user.isVerified,
     profilePicture: user.profilePicture,
     shippingInfo: user.shippingInfo || {},
+    addresses: user.addresses || [],
     wallet: user.toObject().wallet || {},
-    cart: user.cart || []
+    cart: user.cart || [],
+    twoFactorEnabled: user.twoFactorEnabled,
+    passwordChangedAt: user.passwordChangedAt,
+    allowPasswordChangeOverride: Boolean(user.allowPasswordChangeOverride)
   };
 
   const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
@@ -1920,32 +1999,80 @@ const getCurrentUser = asyncHandler(async (req, res) => {
     userData.permissions = user.adminPermissions;
   }
 
+  const incomingToken = req.cookies?.token || (req.headers?.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null);
+
   res.json({
     success: true,
-    data: userData
+    data: {
+      ...userData,
+      user: userData,
+      token: incomingToken || undefined
+    }
   });
 });
 
 // Update user profile
 
 
-// Logout — clears active Redis refresh keys & cookies
+// Logout — revokes active session record, Redis keys & clears cookies
 const logout = asyncHandler(async (req, res) => {
-  // Statelessly read from access token req.user or directly from refresh token
-  const cookieToken = req.cookies?.refreshToken;
-  if (cookieToken) {
+  let jtiToRevoke = null;
+  let userIdToRevoke = null;
+  const cookieRefreshToken = req.cookies?.refreshToken;
+  const cookieAccessToken = req.cookies?.token;
+  const authHeader = req.headers?.authorization;
+
+  if (cookieRefreshToken) {
     try {
-      const decoded = verifyRefreshToken(cookieToken);
-      if (decoded && decoded.userId) {
-        await invalidateAllUserSessions(decoded.userId);
-        await User.findByIdAndUpdate(decoded.userId, { $inc: { tokenVersion: 1 } });
+      const decoded = verifyRefreshToken(cookieRefreshToken);
+      if (decoded) {
+        userIdToRevoke = decoded.userId;
+        jtiToRevoke = decoded.jti;
       }
-    } catch (err) {
-      // Ignore token verification errors during logout
+    } catch (err) {}
+  }
+
+  if (!userIdToRevoke) {
+    const token = cookieAccessToken || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+    if (token) {
+      try {
+        const decoded = jwt.decode(token);
+        if (decoded) {
+          userIdToRevoke = decoded.userId;
+          jtiToRevoke = decoded.jti;
+        }
+      } catch (err) {}
     }
-  } else if (req.user && req.user._id) {
-    await invalidateAllUserSessions(req.user._id);
-    await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+  }
+
+  if (!userIdToRevoke && req.user?._id) {
+    userIdToRevoke = req.user._id;
+    jtiToRevoke = req.user.jti;
+  }
+
+  if (userIdToRevoke) {
+    if (req.query?.all === 'true') {
+      // Global logout across all devices
+      await invalidateAllUserSessions(userIdToRevoke);
+      await User.findByIdAndUpdate(userIdToRevoke, { $inc: { tokenVersion: 1 } });
+    } else if (jtiToRevoke) {
+      // Revoke this specific device session
+      const CustomerSession = (await import('../models/CustomerSession.js')).default;
+      const AdminSession = (await import('../models/AdminSession.js')).default;
+      await Promise.all([
+        CustomerSession.updateOne({ jti: jtiToRevoke }, { $set: { isRevoked: true, revokedAt: new Date() } }),
+        AdminSession.updateOne({ jti: jtiToRevoke }, { $set: { isRevoked: true, revokedAt: new Date() } })
+      ]);
+
+      if (redisClient && redisClient.status === 'ready') {
+        try {
+          const pipeline = redisClient.pipeline();
+          pipeline.del(`refresh:${userIdToRevoke}:${jtiToRevoke}`);
+          pipeline.srem(`refresh:${userIdToRevoke}:sessions`, jtiToRevoke);
+          await pipeline.exec();
+        } catch (err) {}
+      }
+    }
   }
 
   clearTokenCookie(res);
@@ -1973,16 +2100,18 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     decoded = verifyRefreshToken(cookieToken);
   } catch (err) {
     clearRefreshTokenCookie(res);
+    clearTokenCookie(res);
     res.status(401);
     throw new Error('Refresh token invalid or expired — please log in again.');
   }
 
   const { userId, tokenVersion, jti } = decoded;
 
-  // Step 2: Query User from MongoDB selecting tokenVersion, isSuspended, isActive, passwordChangedAt
-  const user = await User.findById(userId).select('tokenVersion isSuspended isActive passwordChangedAt role email firstName lastName');
+  // Step 2: Query User from MongoDB selecting all required profile attributes
+  const user = await User.findById(userId).populate('cart.product');
   if (!user) {
     clearRefreshTokenCookie(res);
+    clearTokenCookie(res);
     res.status(401);
     throw new Error('Account not found.');
   }
@@ -1990,15 +2119,17 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   // Step 3: If decoded.tokenVersion does not strictly equal user.tokenVersion, return 401
   if (decoded.tokenVersion === undefined || user.tokenVersion === undefined || decoded.tokenVersion !== user.tokenVersion) {
     clearRefreshTokenCookie(res);
+    clearTokenCookie(res);
     return res.status(401).json({
       success: false,
       message: 'Session invalidated. Please log in again.'
     });
   }
 
-  // Step 3.5 (Fix 4): PasswordRecentlyChanged check
+  // Step 3.5: PasswordRecentlyChanged check
   if (user.passwordChangedAt !== null && decoded.iat !== undefined && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
     clearRefreshTokenCookie(res);
+    clearTokenCookie(res);
     return res.status(401).json({
       success: false,
       message: 'Password recently changed. Please log in again.'
@@ -2008,17 +2139,19 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   // Step 4: If user is suspended or inactive, return 403
   if (user.isSuspended === true || user.isActive === false) {
     clearRefreshTokenCookie(res);
+    clearTokenCookie(res);
     return res.status(403).json({
       success: false,
       message: 'Access denied. Account is suspended or inactive.'
     });
   }
 
-  // Step 5: Redis (and CustomerSession in parallel if non-admin) check
+  // Step 5: Redis and DB Session check
   const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff';
   
   let exists = null;
   let customerSession = null;
+  let adminSession = null;
 
   if (redisClient && redisClient.status === 'ready') {
     try {
@@ -2028,42 +2161,63 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
           redisClient.get(`refresh:${userId}:${jti}`),
           CustomerSession.findOne({ jti })
         ]);
-        exists = redisVal;
         customerSession = sessionDoc;
+        exists = redisVal || (sessionDoc && !sessionDoc.isRevoked ? 'true' : null);
       } else {
-        exists = await redisClient.get(`refresh:${userId}:${jti}`);
+        const AdminSession = (await import('../models/AdminSession.js')).default;
+        const [redisVal, sessionDoc] = await Promise.all([
+          redisClient.get(`refresh:${userId}:${jti}`),
+          AdminSession.findOne({ jti, adminId: userId })
+        ]);
+        adminSession = sessionDoc;
+        exists = redisVal || (sessionDoc && !sessionDoc.isRevoked ? 'true' : null);
       }
     } catch (err) {
       console.error('❌ Redis/DB validation check failed:', err.message);
       exists = 'true'; // fallback behavior if Redis throws error to prevent absolute lockout
     }
   } else {
-    exists = 'true'; // fallback if Redis is down
+    // Redis down: check Mongo session collections directly
+    try {
+      if (isUserAdmin) {
+        const AdminSession = (await import('../models/AdminSession.js')).default;
+        adminSession = await AdminSession.findOne({ jti, adminId: userId });
+        exists = adminSession && !adminSession.isRevoked ? 'true' : null;
+      } else {
+        const CustomerSession = (await import('../models/CustomerSession.js')).default;
+        customerSession = await CustomerSession.findOne({ jti });
+        exists = customerSession && !customerSession.isRevoked ? 'true' : null;
+      }
+    } catch (dbErr) {
+      exists = 'true';
+    }
   }
 
-  // Step 6: If Redis returns null, treat as replay attack
-  if (!exists) {
-    await User.findOneAndUpdate({ _id: userId }, { $inc: { tokenVersion: 1 } });
+  // Token Reuse Detection: If session was already marked revoked, potential reuse attack
+  if ((adminSession && adminSession.isRevoked) || (customerSession && customerSession.isRevoked)) {
+    console.warn(`🚨 [Refresh Token Reuse Detected] User ${userId} attempted using revoked token jti: ${jti}`);
     await invalidateAllUserSessions(userId);
+    await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
     clearRefreshTokenCookie(res);
     clearTokenCookie(res);
     return res.status(401).json({
       success: false,
-      message: 'Replay attack detected. All sessions invalidated.'
+      code: 'TOKEN_REUSE_DETECTED',
+      message: 'Suspicious session reuse detected. For your security, all active sessions have been terminated. Please log in again.'
     });
   }
 
-  // Check if CustomerSession is revoked (non-admin)
-  if (!isUserAdmin && customerSession && customerSession.isRevoked) {
+  // Step 6: If neither Redis nor DB knows this session, treat as expired
+  if (!exists) {
     clearRefreshTokenCookie(res);
     clearTokenCookie(res);
     return res.status(401).json({
       success: false,
-      message: 'This session has been revoked.'
+      message: 'Refresh token expired or invalid. Please log in again.'
     });
   }
 
-  // Delete old jti to prevent reuse and maintain index set
+  // Delete old jti in Redis to prevent reuse and maintain index set
   if (jti && redisClient && redisClient.status === 'ready') {
     try {
       const pipeline = redisClient.pipeline();
@@ -2073,29 +2227,44 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     } catch (err) {}
   }
 
-  // Step 7: Issue rotated tokens
-  const newAccessToken = await createSession(req, res, user);
+  // Step 7: Issue rotated tokens & link replacingJti in DB
+  const newAccessToken = await createSession(req, res, user, jti);
+
+  const userData = {
+    _id: user._id,
+    id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    userType: isUserAdmin ? 'admin' : 'customer',
+    role: user.role || 'customer',
+    isVerified: user.isVerified,
+    profilePicture: user.profilePicture,
+    shippingInfo: user.shippingInfo || {},
+    addresses: user.addresses || [],
+    wallet: user.toObject?.()?.wallet || user.wallet || {},
+    cart: user.cart || [],
+    twoFactorEnabled: !!user.twoFactorEnabled
+  };
+
+  if (isUserAdmin) {
+    userData.permissions = user.adminPermissions;
+  }
 
   res.json({
     success: true,
     data: {
       token: newAccessToken,
-      user: {
-        id: user._id,
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role || 'customer',
-        userType: isUserAdmin ? 'admin' : 'customer'
-      }
+      user: userData
     }
   });
 });
 
 // Check email availability
 const checkEmail = asyncHandler(async (req, res) => {
-  const { email } = req.query;
+  const rawEmail = req.query.email || req.body?.email || '';
+  const email = String(rawEmail).trim().toLowerCase();
 
   if (!email) {
     res.status(400);
@@ -2109,7 +2278,8 @@ const checkEmail = asyncHandler(async (req, res) => {
     data: {
       exists: !!user,
       userType: user?.userType
-    }
+    },
+    exists: !!user
   });
 });
 
@@ -2133,8 +2303,8 @@ const forgotPassword = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate 6-char clean secure token (3 bytes hex, e.g. "a2c3f4") as a fallback code
-  const rawToken = crypto.randomBytes(3).toString('hex').toLowerCase();
+  // Generate 6-digit clean secure numeric OTP code
+  const rawToken = Math.floor(100000 + Math.random() * 900000).toString();
   
   // Store SHA-256 hashed token in DB
   const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -2243,13 +2413,22 @@ const resetPassword = asyncHandler(async (req, res) => {
       email,
       resetPasswordToken: hashedCode,
       resetPasswordExpires: { $gt: Date.now() }
-    }).select('+loginAttempts +lockUntil');
+    }).select('+password +loginAttempts +lockUntil');
 
     if (!user) {
       res.status(400);
       throw new Error('Invalid or expired reset code');
     }
     console.log(`🔒 [CodeReset] Successfully validated manual backup reset code for: ${email}`);
+  }
+
+  // Ensure new password is not the same as the previous password
+  if (user.password) {
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      res.status(400);
+      throw new Error('New password cannot be the same as your previous password. Please choose a different password.');
+    }
   }
 
   // PASSWORD COOLDOWN: 30 minutes
@@ -2311,6 +2490,56 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: 'Password reset successfully'
+  });
+});
+
+// @desc    Verify reset code before setting new password (Step-by-step reset flow)
+// @route   POST /api/auth/verify-reset-code
+// @access  Public
+const verifyResetCode = asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    res.status(400);
+    throw new Error('Email and verification code are required');
+  }
+
+  const isJwt = typeof code === 'string' && code.includes('.') && code.startsWith('ey');
+
+  if (isJwt) {
+    const candidateUser = await User.findOne({ email }).select('+password');
+    if (!candidateUser) {
+      res.status(400);
+      throw new Error('Invalid email or reset token');
+    }
+    try {
+      const secretKey = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + candidateUser.password;
+      const decoded = jwt.verify(code, secretKey);
+      if (!decoded || decoded.userId !== candidateUser._id.toString() || decoded.type !== 'reset') {
+        res.status(400);
+        throw new Error('Reset token verification failed');
+      }
+    } catch (err) {
+      res.status(400);
+      throw new Error('Invalid or expired signed reset token');
+    }
+  } else {
+    const hashedCode = crypto.createHash('sha256').update(String(code).toLowerCase().trim()).digest('hex');
+    const user = await User.findOne({
+      email,
+      resetPasswordToken: hashedCode,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      res.status(400);
+      throw new Error('Invalid or expired verification code');
+    }
+  }
+
+  res.json({
+    success: true,
+    message: 'Verification code confirmed. You can now set a new password.'
   });
 });
 
@@ -3323,7 +3552,7 @@ const stepUpVerify = asyncHandler(async (req, res) => {
 const getAdminChallenge = asyncHandler(async (req, res) => {
   const crypto = await import('crypto');
   const nonce = crypto.randomBytes(16).toString('hex');
-  const expiresAt = Date.now() + 60000; // 60 seconds
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
   const signatureInput = `${nonce}.${expiresAt}`;
   const signature = crypto
     .createHmac('sha256', process.env.JWT_SECRET || 'fallback_secret')
@@ -3332,7 +3561,7 @@ const getAdminChallenge = asyncHandler(async (req, res) => {
   const challengeToken = `${nonce}.${expiresAt}.${signature}`;
 
   if (redisClient && redisClient.status === 'ready') {
-    await redisClient.set(`adminchallenge:${nonce}`, 'unused', 'EX', 60);
+    await redisClient.set(`adminchallenge:${nonce}`, 'unused', 'EX', 900);
   }
   res.json({ challenge: challengeToken });
 });
@@ -3352,6 +3581,247 @@ const handleSecurityAlert = asyncHandler(async (req, res) => {
   await createAlert('critical', 'dom_tampering', message);
 
   res.json({ success: true, message: 'Security alert dispatched' });
+});
+
+// ==================== ADDRESS MANAGEMENT ====================
+
+// Helper to keep user.shippingInfo in sync with default address
+const syncDefaultShippingInfo = (user) => {
+  if (!user.addresses || user.addresses.length === 0) {
+    return;
+  }
+  const defaultAddr = user.addresses.find(a => a.isDefault) || user.addresses[0];
+  if (defaultAddr) {
+    user.shippingInfo = {
+      address: defaultAddr.address || '',
+      city: defaultAddr.city || '',
+      county: defaultAddr.county || '',
+      town: defaultAddr.town || '',
+      zip: defaultAddr.zip || '',
+      country: defaultAddr.country || 'Kenya',
+      landmark: defaultAddr.landmark || '',
+      phone: defaultAddr.phone || user.phone || ''
+    };
+    user.markModified('shippingInfo');
+  }
+};
+
+// @desc    Get user addresses
+// @route   GET /api/auth/addresses
+// @access  Private
+const getUserAddresses = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Lazy migrate shippingInfo if addresses array is empty
+  if ((!user.addresses || user.addresses.length === 0) && user.shippingInfo?.address) {
+    user.addresses = [{
+      label: 'Home',
+      recipientName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+      phone: user.phone || user.shippingInfo.phone || '',
+      address: user.shippingInfo.address || '',
+      city: user.shippingInfo.city || '',
+      county: user.shippingInfo.county || '',
+      town: user.shippingInfo.town || '',
+      zip: user.shippingInfo.zip || user.shippingInfo.postalCode || '',
+      country: user.shippingInfo.country || 'Kenya',
+      landmark: user.shippingInfo.landmark || '',
+      isDefault: true,
+      createdAt: new Date()
+    }];
+    await user.save();
+  }
+
+  res.json({
+    success: true,
+    data: user.addresses || []
+  });
+});
+
+// @desc    Add new address
+// @route   POST /api/auth/addresses
+// @access  Private
+const addAddress = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (!user.addresses) user.addresses = [];
+
+  const {
+    label,
+    recipientName,
+    phone,
+    address,
+    city,
+    county,
+    town,
+    zip,
+    country,
+    landmark,
+    isDefault
+  } = req.body;
+
+  if (!address || !address.trim()) {
+    res.status(400);
+    throw new Error('Street address is required');
+  }
+
+  const shouldBeDefault = isDefault || user.addresses.length === 0;
+
+  if (shouldBeDefault) {
+    user.addresses.forEach(a => { a.isDefault = false; });
+  }
+
+  const newAddress = {
+    label: label?.trim() || 'Home',
+    recipientName: recipientName?.trim() || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+    phone: phone?.trim() || user.phone || '',
+    address: address.trim(),
+    city: city?.trim() || '',
+    county: county?.trim() || '',
+    town: town?.trim() || '',
+    zip: zip?.trim() || '',
+    country: country?.trim() || 'Kenya',
+    landmark: landmark?.trim() || '',
+    isDefault: shouldBeDefault,
+    createdAt: new Date()
+  };
+
+  user.addresses.push(newAddress);
+  syncDefaultShippingInfo(user);
+
+  await user.save();
+
+  res.status(201).json({
+    success: true,
+    message: 'Address added successfully',
+    data: user.addresses
+  });
+});
+
+// @desc    Update address
+// @route   PUT /api/auth/addresses/:id
+// @access  Private
+const updateAddress = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const addr = user.addresses.id(req.params.id);
+  if (!addr) {
+    res.status(404);
+    throw new Error('Address not found');
+  }
+
+  const {
+    label,
+    recipientName,
+    phone,
+    address,
+    city,
+    county,
+    town,
+    zip,
+    country,
+    landmark,
+    isDefault
+  } = req.body;
+
+  if (isDefault) {
+    user.addresses.forEach(a => { a.isDefault = false; });
+    addr.isDefault = true;
+  }
+
+  if (label !== undefined) addr.label = label.trim() || 'Home';
+  if (recipientName !== undefined) addr.recipientName = recipientName.trim();
+  if (phone !== undefined) addr.phone = phone.trim();
+  if (address !== undefined) addr.address = address.trim();
+  if (city !== undefined) addr.city = city.trim();
+  if (county !== undefined) addr.county = county.trim();
+  if (town !== undefined) addr.town = town.trim();
+  if (zip !== undefined) addr.zip = zip.trim();
+  if (country !== undefined) addr.country = country.trim();
+  if (landmark !== undefined) addr.landmark = landmark.trim();
+
+  syncDefaultShippingInfo(user);
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Address updated successfully',
+    data: user.addresses
+  });
+});
+
+// @desc    Delete address
+// @route   DELETE /api/auth/addresses/:id
+// @access  Private
+const deleteAddress = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const addr = user.addresses.id(req.params.id);
+  if (!addr) {
+    res.status(404);
+    throw new Error('Address not found');
+  }
+
+  const wasDefault = addr.isDefault;
+  user.addresses.pull(req.params.id);
+
+  if (wasDefault && user.addresses.length > 0) {
+    user.addresses[0].isDefault = true;
+  }
+
+  syncDefaultShippingInfo(user);
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Address removed successfully',
+    data: user.addresses
+  });
+});
+
+// @desc    Set default address
+// @route   PUT /api/auth/addresses/:id/default
+// @access  Private
+const setDefaultAddress = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const targetAddr = user.addresses.id(req.params.id);
+  if (!targetAddr) {
+    res.status(404);
+    throw new Error('Address not found');
+  }
+
+  user.addresses.forEach(a => {
+    a.isDefault = a._id.toString() === req.params.id;
+  });
+
+  syncDefaultShippingInfo(user);
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Default address updated',
+    data: user.addresses
+  });
 });
 
 export {
@@ -3379,6 +3849,7 @@ export {
   checkEmail,
   forgotPassword,
   resetPassword,
+  verifyResetCode,
   resendVerification,
   changePassword,
   deleteAccount,
@@ -3407,5 +3878,12 @@ export {
   getStoreCreditHistory,
   getLoyaltyPointsHistory,
   mutateStoreCredit,
-  mutateLoyaltyPoints
+  mutateLoyaltyPoints,
+
+  // Address management
+  getUserAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress
 };

@@ -1,109 +1,242 @@
-/* src/components/Features/Features.css */
-.features {
-  background-image: linear-gradient(var(--bg-overlay, rgba(255, 255, 255, 0.95)), var(--bg-overlay, rgba(255, 255, 255, 0.95))), url('https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=2574&auto=format&fit=crop');
-  background-size: cover;
-  background-position: center;
-  background-attachment: fixed;
-  padding: 5rem 0;
+/* ═══════════════════════════════════════════════════════════════════
+   Features.css — Scandinavian Minimalist Pillars
+   - Clean solid background matching var(--bg-home)
+   - Zero washed-out / transparent background images
+   - High-contrast typography with bold Outfit heading
+   - Refined 4-card grid with subtle golden accent borders & soft hover
+═══════════════════════════════════════════════════════════════════ */
+
+.features-section {
   position: relative;
-  background-color: var(--bg-home);
+  background-color: var(--bg-home, #FAF8F5);
+  padding: 5rem 0 6rem;
+  font-family: var(--font-body, 'Outfit', sans-serif);
+  color: var(--text-main, #18181B);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  overflow: hidden;
 }
 
-[data-theme="dark"] .features {
-  background-image: linear-gradient(var(--bg-overlay, rgba(20, 20, 20, 0.95)), var(--bg-overlay, rgba(20, 20, 20, 0.95))), url('https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=2574&auto=format&fit=crop');
+[data-theme="dark"] .features-section {
+  background-color: var(--bg-home, #201104);
 }
 
+.features-container {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* ── Section Header ── */
 .features-header {
   text-align: center;
-  margin-bottom: 2.5rem;
+  max-width: 680px;
+  margin: 0 auto 3.25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
 }
 
-.section-title {
-  text-align: center;
-  font-size: 2rem;
-  font-weight: 800;
-  margin-bottom: 0.5rem;
-  color: var(--text-main);
-  font-family: var(--font-heading);
+.features-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim, #8C827A);
+  margin-bottom: 0.75rem;
 }
 
-.section-subtitle {
+.features-title {
   text-align: center;
-  font-size: 0.95rem;
-  color: var(--text-muted);
+  font-size: clamp(2.1rem, 3.8vw, 2.85rem);
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: var(--text-main, #18181B);
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
+[data-theme="dark"] .features-title {
+  color: #fffaf5;
+}
+
+.features-title-gold {
+  color: var(--color-primary, #D4AF37);
+  font-style: normal;
+}
+
+.features-subtitle {
+  text-align: center;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--text-muted, #71717A);
+  max-width: 580px;
+  margin: 0 auto;
+  font-weight: 400;
+}
+
+[data-theme="dark"] .features-subtitle {
+  color: #dfccba;
+}
+
+/* ── 4 Pillars Grid ── */
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
-  margin-top: 2rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
 }
 
+/* ── Feature Card ── */
 .feature-card {
-  background-color: var(--bg-card);
-  border-radius: var(--radius-lg);
-  padding: 3rem 2rem;
-  text-align: center;
-  box-shadow: var(--shadow-md);
-  transition: var(--transition-smooth);
+  background-color: var(--bg-card, #FFFFFF);
+  border-radius: 18px;
+  padding: 2.25rem 1.75rem 2rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-light, rgba(214, 202, 184, 0.45));
+  box-shadow:
+    0 10px 30px -10px rgba(28, 18, 12, 0.06),
+    0 2px 8px -2px rgba(28, 18, 12, 0.02);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s ease,
+              border-color 0.35s ease;
   position: relative;
-  z-index: 1;
-  border: 1px solid var(--border-glass);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .feature-card {
+  background-color: var(--bg-card, #2c180b);
+  border-color: rgba(216, 150, 78, 0.22);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+}
+
+.feature-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-primary, #D4AF37);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .feature-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-10px);
-  border-color: var(--color-primary);
+  transform: translateY(-6px);
+  border-color: rgba(212, 175, 55, 0.45);
+  box-shadow:
+    0 20px 45px -12px rgba(212, 175, 55, 0.16),
+    0 6px 18px -4px rgba(28, 18, 12, 0.05);
 }
 
-/* Icon Wrapper */
-.icon-wrapper {
-  margin-bottom: 2rem;
+[data-theme="dark"] .feature-card:hover {
+  box-shadow: 0 20px 45px -12px rgba(0, 0, 0, 0.7);
+}
+
+.feature-card:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* ── Card Header Row ── */
+.feature-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.feature-icon-wrapper {
   display: inline-flex;
 }
 
-.feature-card .icon {
+.feature-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  color: var(--color-primary);
-  font-size: 2rem;
-  transition: var(--transition-fast);
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background-color: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: var(--color-primary, #D4AF37);
+  font-size: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.feature-card:hover .icon {
-  background-color: var(--color-primary);
-  color: #fff;
-  transform: scale(1.1) rotate(5deg);
-  box-shadow: 0 10px 20px rgba(212, 175, 55, 0.3);
+.feature-card:hover .feature-icon {
+  background-color: var(--color-primary, #D4AF37);
+  color: #1c120c;
+  transform: scale(1.06) rotate(3deg);
+  box-shadow: 0 8px 18px rgba(212, 175, 55, 0.35);
 }
 
-.feature-card h3 {
-  font-size: 1.35rem;
+.feature-num {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 0.85rem;
   font-weight: 700;
-  margin-bottom: 1rem;
-  color: var(--text-main);
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #8C827A);
+  opacity: 0.6;
 }
 
-.feature-card p {
-  color: var(--text-muted);
-  font-size: 1rem;
-  line-height: 1.6;
+/* ── Card Content ── */
+.feature-card-title {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin-bottom: 0.65rem;
+  color: var(--text-main, #18181B);
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+[data-theme="dark"] .feature-card-title {
+  color: #fffaf5;
+}
+
+.feature-card-desc {
+  color: var(--text-muted, #71717A);
+  font-size: 0.88rem;
+  line-height: 1.65;
   margin-bottom: 0;
+  flex: 1;
 }
 
-/* Dark Mode Support */
-[data-theme="dark"] .feature-card {
-  background-color: var(--bg-surface);
-  box-shadow: var(--shadow-premium);
+[data-theme="dark"] .feature-card-desc {
+  color: #dfccba;
+}
+
+/* ══════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════ */
+@media (max-width: 1024px) {
+  .features-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .features-section {
+    padding: 3.5rem 0 4.5rem;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .features-header {
+    margin-bottom: 2.25rem;
+  }
+
+  .feature-card {
+    padding: 1.75rem 1.4rem;
+  }
 }

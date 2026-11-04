@@ -11,8 +11,10 @@ import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js'; // For fetching logs later
 import PaymentTransaction from '../models/PaymentTransaction.js';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import sendEmail from '../utils/sendEmail.js';
-import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail } from '../utils/emailTemplates.js';
+import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail, getResetPasswordEmail } from '../utils/emailTemplates.js';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { invalidateCatalog, redisClient, isRedisConnected } from '../config/redis.js';
@@ -1180,7 +1182,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/contacts
 // @access  Private/Admin
 const getContacts = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 10, status } = req.query;
+  const { page = 1, limit = 10, status, search } = req.query;
   const skip = (page - 1) * limit;
 
   let filter = {};
@@ -1188,7 +1190,30 @@ const getContacts = asyncHandler(async (req, res) => {
     filter.status = status;
   }
 
+  if (search && search.trim()) {
+    const s = search.trim();
+    const searchRegex = new RegExp(s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
+    const orConditions = [
+      { ticketNumber: searchRegex },
+      { name: searchRegex },
+      { email: searchRegex },
+      { subject: searchRegex },
+      { orderNumber: searchRegex }
+    ];
+
+    if (mongoose.Types.ObjectId.isValid(s)) {
+      orConditions.push({ _id: s });
+    }
+
+    if (filter.$or) {
+      filter = { $and: [filter, { $or: orConditions }] };
+    } else {
+      filter.$or = orConditions;
+    }
+  }
+
   const contacts = await Contact.find(filter)
+    .populate('user', 'firstName lastName email phone passwordChangedAt allowPasswordChangeOverride')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
@@ -1214,8 +1239,6 @@ const getContacts = asyncHandler(async (req, res) => {
 const updateContactStatus = asyncHandler(async (req, res) => {
   const { status, adminResponse } = req.body;
 
-
-
   const contact = await Contact.findByIdAndUpdate(
     req.params.id,
     {
@@ -1231,39 +1254,43 @@ const updateContactStatus = asyncHandler(async (req, res) => {
     throw new Error('Contact submission not found');
   }
 
+  const ticketRef = contact.ticketNumber || `TKT-${contact._id.toString().slice(-6).toUpperCase()}`;
+
   // Send email response if status is 'replied' and we have a response body
   if (status === 'replied' && adminResponse) {
     try {
-
       await sendEmail({
         to: contact.email,
-        subject: `Re: ${contact.subject} - Rerendet Coffee Support`,
+        subject: `Re: [${ticketRef}] ${contact.subject} - Rerendet Coffee Support`,
         html: `
           <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
             <div style="text-align: center; margin-bottom: 20px;">
               <h2 style="color: #6F4E37;">Rerendet Coffee</h2>
+              <span style="font-size: 12px; color: #8b7566; text-transform: uppercase; letter-spacing: 1.5px; font-weight: bold;">
+                Ticket Reference: #${ticketRef}
+              </span>
             </div>
             
             <div style="background: #ffffff; padding: 25px; border-radius: 8px; border: 1px solid #e0e0e0;">
               <p>Dear ${contact.name},</p>
               
-              <p>Thank you for contacting us. We have received your message regarding "<strong>${contact.subject}</strong>".</p>
+              <p>Thank you for contacting us. We have received your message regarding "<strong>${contact.subject}</strong>" (Ref: <strong>#${ticketRef}</strong>).</p>
               
               <div style="margin: 20px 0; padding: 15px; background: #f9f9f9; border-left: 4px solid #6F4E37; border-radius: 4px;">
                 <p style="margin: 0; font-weight: bold; color: #555;">Our Response:</p>
                 <p style="margin-top: 8px; white-space: pre-wrap;">${adminResponse}</p>
               </div>
 
-              <p>If you have any further questions, please simply reply to this email.</p>
+              <p>If you have any further questions regarding this matter, simply reply to this email quoting reference <strong>#${ticketRef}</strong>.</p>
               
               <p style="margin-top: 30px; font-size: 14px; color: #777;">
-                Best regards,<br>
-                The Rerendet Coffee Team
+                Warm regards,<br>
+                The Rerendet Coffee Concierge Team
               </p>
             </div>
             
             <div style="margin-top: 20px; font-size: 12px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
-              <p>Original Message selected on ${new Date(contact.createdAt).toLocaleDateString()}:</p>
+              <p>Original inquiry submitted on ${new Date(contact.createdAt).toLocaleDateString()}:</p>
               <p><em>"${contact.message}"</em></p>
             </div>
           </div>
@@ -1305,6 +1332,64 @@ const deleteContact = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: 'Contact deleted successfully'
+  });
+});
+
+// @desc    Toggle password change unlock/override for a customer
+// @route   PUT /api/admin/contacts/:id/unlock-password
+// @access  Private/Admin
+const toggleCustomerPasswordUnlock = asyncHandler(async (req, res) => {
+  const { reason, unlock } = req.body;
+
+  let contact = await Contact.findById(req.params.id);
+  let user = null;
+
+  if (contact) {
+    if (contact.user) {
+      user = await User.findById(contact.user);
+    }
+    if (!user && contact.email) {
+      user = await User.findOne({ email: contact.email.toLowerCase() });
+    }
+  } else {
+    user = await User.findById(req.params.id);
+  }
+
+  if (!user) {
+    res.status(404);
+    throw new Error('Registered customer account not found for this inquiry.');
+  }
+
+  const shouldUnlock = typeof unlock === 'boolean' ? unlock : !user.allowPasswordChangeOverride;
+
+  user.allowPasswordChangeOverride = shouldUnlock;
+  user.passwordOverrideGrantedAt = shouldUnlock ? new Date() : null;
+  user.passwordOverrideGrantedBy = shouldUnlock ? req.user._id : null;
+  user.passwordOverrideReason = shouldUnlock ? (reason || 'Customer requested early password change') : null;
+
+  await user.save({ validateBeforeSave: false });
+
+  // Log activity
+  logActivity(
+    req,
+    shouldUnlock ? 'UNLOCK_PASSWORD_COOLDOWN' : 'REVOKE_PASSWORD_COOLDOWN',
+    `Password change cooldown ${shouldUnlock ? 'unlocked' : 'revoked'} for ${user.email}`,
+    user._id,
+    { reason: user.passwordOverrideReason, contactId: contact?._id }
+  );
+
+  res.json({
+    success: true,
+    message: shouldUnlock
+      ? `Password policy override granted for ${user.firstName || user.email}. They can now change their password immediately in their dashboard.`
+      : `Password policy override revoked for ${user.firstName || user.email}. 30-day policy restored.`,
+    data: {
+      userId: user._id,
+      email: user.email,
+      allowPasswordChangeOverride: user.allowPasswordChangeOverride,
+      passwordOverrideReason: user.passwordOverrideReason,
+      passwordChangedAt: user.passwordChangedAt
+    }
   });
 });
 
@@ -1761,6 +1846,93 @@ const resetUserSecurity = asyncHandler(async (req, res) => {
     success: true,
     message: `${type === 'mfa' ? 'Two-Factor Authentication' : 'Recovery phone'} has been reset for this user.`,
     data: user
+  });
+});
+
+// @desc    Generate password reset link & OTP code for a user (Admin assistance)
+// @route   POST /api/admin/users/:id/generate-password-reset
+// @access  Private/Admin
+const generateUserPasswordReset = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select('+password');
+
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Generate 6-digit numeric OTP code
+  const rawCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Store SHA-256 hashed code in DB
+  const hashedCode = crypto.createHash('sha256').update(rawCode).digest('hex');
+  user.resetPasswordToken = hashedCode;
+  user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 60 minutes for admin-assisted reset
+  user.loginAttempts = 0;
+  user.lockUntil = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  // Generate signed stateless recovery token (JWT signed with secret + current password hash)
+  const secretKey = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + (user.password || '');
+  const resetToken = jwt.sign(
+    { userId: user._id, tokenVersion: user.tokenVersion || 0, type: 'reset' },
+    secretKey,
+    { expiresIn: '1h' }
+  );
+
+  // Construct reset URL
+  const originHeader = req.get('origin') || (req.get('referer') ? new URL(req.get('referer')).origin : null);
+  const frontendUrl = (originHeader && !originHeader.includes('/api'))
+    ? originHeader
+    : (process.env.FRONTEND_URL || ((process.env.NODE_ENV === 'production' || process.env.VERCEL) ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173'));
+
+  const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&code=${rawCode}&email=${encodeURIComponent(user.email)}`;
+
+  // Attempt email delivery in background (best effort, do not crash if email fails)
+  let emailSent = false;
+  let emailError = null;
+  try {
+    let logoUrl;
+    try {
+      const settings = await Settings.getSettings();
+      logoUrl = settings?.store?.logo;
+    } catch (e) {}
+
+    const emailHtml = getResetPasswordEmail(user.firstName || 'Valued Customer', rawCode, logoUrl, resetUrl);
+    await sendEmail({
+      to: user.email,
+      subject: 'Password Reset Request (Customer Care Assistance)',
+      html: emailHtml
+    });
+    emailSent = true;
+  } catch (err) {
+    emailError = err.message;
+    console.error('📧 [Admin Assisted Reset] Email dispatch error:', err.message);
+  }
+
+  // Log activity
+  await logActivity(req, 'ADMIN_PASSWORD_RESET_GENERATED', user.email, user._id, {
+    affectedUser: user.email,
+    emailSent,
+    expiresIn: '60 minutes'
+  });
+
+  res.json({
+    success: true,
+    message: emailSent
+      ? 'Password reset code and link generated & emailed to customer!'
+      : 'Password reset code and link generated successfully! (Share with customer directly).',
+    data: {
+      userId: user._id,
+      email: user.email,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+      phone: user.phone || '',
+      code: rawCode,
+      resetToken,
+      resetUrl,
+      expiresIn: '60 minutes',
+      emailSent,
+      emailError
+    }
   });
 });
 
@@ -2826,6 +2998,7 @@ export {
   updateContactStatus,
   replyContact,
   deleteContact,
+  toggleCustomerPasswordUnlock,
   getSettings,
   updateSettings,
   getSalesAnalytics,
@@ -2845,6 +3018,7 @@ export {
   exportCustomersCSV,
   updateProductStock,
   resetUserSecurity,
+  generateUserPasswordReset,
   getPaymentTransactions,
   manualPaymentOverride,
   refundOrder,

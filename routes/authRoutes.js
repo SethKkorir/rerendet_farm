@@ -24,6 +24,7 @@ import {
   checkEmail,
   forgotPassword,
   resetPassword,
+  verifyResetCode,
   resendVerification,
   updateProfile,
   changePassword,
@@ -43,7 +44,12 @@ import {
   revokeCustomerSession,
   revokeAllOtherSessions,
   getStoreCreditHistory,
-  getLoyaltyPointsHistory
+  getLoyaltyPointsHistory,
+  getUserAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress
 } from '../controllers/authController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { requireRecentReauth } from '../middleware/reauthMiddleware.js';
@@ -140,8 +146,10 @@ router.post(`/${adminSegment}/magic-link/step-up`, loginLimiter, stepUpVerify);
 // Common auth
 router.post('/verify-email', passwordResetLimiter, verifyEmail);
 router.post('/forgot-password', passwordResetLimiter, forgotPassword);
+router.post('/verify-reset-code', passwordResetLimiter, verifyResetCode);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
-router.get('/check-email', (req, res) => res.status(200).json({ success: true, message: 'Check email endpoint deprecated for privacy' }));
+router.get('/check-email', checkEmail);
+router.post('/check-email', checkEmail);
 router.post('/resend-verification', passwordResetLimiter, resendVerification);
 // Silent token refresh — reads HttpOnly refresh cookie, returns new access token
 router.post('/refresh', refreshAccessToken);
@@ -158,6 +166,11 @@ router.get('/loyalty/history', protect, getLoyaltyPointsHistory);
 
 // Protected User Routes
 router.put('/profile', protect, updateProfile);
+router.get('/addresses', protect, getUserAddresses);
+router.post('/addresses', protect, addAddress);
+router.put('/addresses/:id', protect, updateAddress);
+router.delete('/addresses/:id', protect, deleteAddress);
+router.put('/addresses/:id/default', protect, setDefaultAddress);
 router.put('/toggle-2fa', protect, toggle2FA);
 router.delete('/profile', protect, requireRecentReauth, deleteAccount);
 router.put('/change-password', protect, requireRecentReauth, changePassword);
@@ -178,7 +191,7 @@ router.post('/cart', protect, syncCart);
 
 // Common protected
 router.get('/me', protect, getCurrentUser);
-router.post('/logout', protect, logout);
+router.post('/logout', logout);
 
 // Admin management (admin only - using existing admin middleware)
 router.post(`/${adminSegment}/create`, protect, admin, createAdmin);

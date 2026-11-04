@@ -1,22 +1,24 @@
-// components/Checkout/OrderReceipt.jsx — Premium Digital Invoice
+// components/Checkout/OrderReceipt.jsx — Editorial Luxury Invoice
 import React, { useEffect, useState, useContext, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion } from 'framer-motion';
-import {
-  FaCheckCircle, FaPrint, FaArrowLeft, FaTruck,
-  FaDownload, FaHome, FaCoffee, FaMapMarkerAlt,
-  FaEnvelope, FaPhone, FaCreditCard, FaCalendarAlt,
-  FaReceipt, FaShieldAlt
-} from 'react-icons/fa';
+import { FaPrint, FaArrowLeft, FaReceipt } from 'react-icons/fa';
 import './OrderReceipt.css';
 
-const PMLabel = { mpesa: 'M-Pesa', card: 'Card', cod: 'Cash on Delivery' };
+/* ── 4x4 Gold Dot Matrix Pattern Component ── */
+const DotGrid = ({ className = '' }) => (
+  <div className={`or-dot-grid ${className}`} aria-hidden="true">
+    {Array.from({ length: 16 }).map((_, i) => (
+      <span key={i} />
+    ))}
+  </div>
+);
 
 const OrderReceipt = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token, showNotification } = useContext(AppContext);
+  const { token, showNotification, publicSettings } = useContext(AppContext);
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const printRef = useRef(null);
@@ -29,236 +31,287 @@ const OrderReceipt = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         const result = await res.json();
-        if (result.success) setOrder(result.data);
-        else throw new Error(result.message);
+        if (result.success && result.data) {
+          setOrder(result.data);
+        } else {
+          throw new Error(result.message);
+        }
       } catch (err) {
         console.error(err);
-        showNotification?.('Could not load receipt', 'error');
+        showNotification?.('Could not load invoice details', 'error');
       } finally {
         setLoading(false);
       }
     })();
   }, [id, token]);
 
-  const handlePrint = () => window.print();
-
-  const handleDownload = async () => {
-    try {
-      showNotification?.('Opening digital invoice…', 'info');
-      const res = await fetch(`/api/orders/${id}/invoice`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error();
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    } catch {
-      showNotification?.('Failed to open invoice', 'error');
-    }
+  const handlePrint = () => {
+    window.print();
   };
 
-  /* ── Loading ── */
-  if (loading) return (
-    <div className="or-loading">
-      <div className="or-spinner" />
-      <p>Preparing your receipt…</p>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="or-page">
+        <div className="or-loading">
+          <div className="or-spinner" />
+          <p>Preparing official invoice…</p>
+        </div>
+      </div>
+    );
+  }
 
-  if (!order) return (
-    <div className="or-error">
-      <FaCoffee className="or-error-icon" />
-      <h2>Receipt not found</h2>
-      <Link to="/account" className="or-btn primary">Go to My Orders</Link>
-    </div>
-  );
+  if (!order) {
+    return (
+      <div className="or-page">
+        <div className="or-error">
+          <FaReceipt className="or-error-icon" />
+          <h2>Invoice Not Found</h2>
+          <button className="or-btn primary" onClick={() => navigate('/account?tab=orders')}>
+            Go to My Orders
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const addr = order.shippingAddress || {};
-  const isPaid = order.paymentStatus === 'paid';
-  const orderDate = new Date(order.createdAt).toLocaleDateString('en-KE', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
+  const items = order.items || [];
+  const store = publicSettings?.store || {};
+
+  // Formatted date (e.g. "17 November, 2024")
+  const invoiceDate = order.createdAt
+    ? new Date(order.createdAt).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
+    : new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+  const clientName = `${addr.firstName || ''} ${addr.lastName || ''}`.trim() || order.user?.name || 'Valued Customer';
+  const clientPhone = addr.phone || store.phone || '+254 700 000 000';
+  const clientEmail = addr.email || order.user?.email || 'customer@rerendetcoffee.com';
+  const clientLocation = `${addr.town ? addr.town + ', ' : ''}${addr.city || addr.county || 'Nairobi, Kenya'}`;
+
+  // Signature: use admin uploaded signature if present, or fallback to signature script
+  const signatureUrl = store.signature || '';
+  const signatoryName = store.signatoryName || 'Sacha Dubois';
 
   return (
     <div className="or-page">
-      {/* ── Print/Download toolbar (hides on print) ── */}
+      {/* ── Top Floating Toolbar (No Print) ── */}
       <div className="or-toolbar no-print">
         <button className="or-back-btn" onClick={() => navigate(-1)}>
           <FaArrowLeft /> Back
         </button>
         <div className="or-toolbar-actions">
           <button className="or-btn outline" onClick={handlePrint}>
-            <FaPrint /> Print
-          </button>
-          <button className="or-btn primary" onClick={handleDownload}>
-            <FaReceipt /> View Digital Invoice
+            <FaPrint /> Print Invoice
           </button>
         </div>
       </div>
 
-      {/* ── Invoice document ── */}
+      {/* ── Editorial Invoice Document Sheet ── */}
       <motion.div
-        className="or-invoice"
+        className="or-sheet"
         ref={printRef}
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
       >
+        {/* Subtle decorative curves in upper corner */}
+        <svg className="or-sheet-curves" viewBox="0 0 480 240" fill="none">
+          <path
+            d="M50 0C160 80 320 60 480 180"
+            stroke="#D4AF37"
+            strokeWidth="1"
+            strokeDasharray="4 6"
+            opacity="0.4"
+          />
+          <path
+            d="M120 0C220 120 360 90 480 220"
+            stroke="#171311"
+            strokeWidth="0.8"
+            opacity="0.25"
+          />
+          <circle cx="430" cy="50" r="140" stroke="#E2DDD5" strokeWidth="1" />
+        </svg>
 
-        {/* ══ HEADER ══ */}
-        <div className="or-inv-header">
-          <div className="or-inv-header-glow" />
-          <div className="or-inv-brand">
-            <img src="/rerendet-logo.png" alt="Rerendet" className="or-inv-logo" />
+        {/* ══ Upper Body Grid ══ */}
+        <div className="or-body-grid">
+          {/* ── Left Column: Giant Vertical Title + Client Info ── */}
+          <div className="or-left-col">
+            <div className="or-title-wrapper">
+              <h1 className="or-vertical-title">Invoice.</h1>
+              <div className="or-vertical-accent-line">
+                <div className="or-accent-dot" />
+              </div>
+            </div>
+
+            <div className="or-client-box">
+              <span className="or-label-sm">Invoice To :</span>
+              <h2 className="or-client-name">{clientName}</h2>
+              <p className="or-client-text">{clientPhone}</p>
+              <p className="or-client-text">{clientEmail}</p>
+              <p className="or-client-text">{clientLocation}</p>
+
+              <div className="or-three-dots">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Right Column: Brand Capsule & Items Table ── */}
+          <div className="or-right-col">
+            {/* Header Meta */}
+            <div className="or-header-meta">
+              <div className="or-brand-capsule">
+                <span className="or-capsule-name">
+                  {store.name || 'Rerendet Co.'}
+                </span>
+                <img
+                  src={store.logo || '/rerendet-emblem.png'}
+                  alt="Rerendet Emblem"
+                  className="or-capsule-emblem"
+                  onError={(e) => {
+                    e.target.src = '/rerendet-logo.png';
+                  }}
+                />
+              </div>
+
+              <div className="or-meta-item">
+                <span className="or-meta-title">Invoice No :</span>
+                <span className="or-meta-val">No. {order.orderNumber}</span>
+              </div>
+
+              <div className="or-meta-item">
+                <span className="or-meta-title">Invoice Date:</span>
+                <span className="or-meta-val">{invoiceDate}</span>
+              </div>
+
+              <div className="or-three-dots" style={{ justifyContent: 'flex-end', marginTop: '4px' }}>
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+
+            {/* Editorial Table */}
+            <div className="or-table-container">
+              <table className="or-table">
+                <thead>
+                  <tr>
+                    <th className="col-no">No</th>
+                    <th className="col-desc">Description</th>
+                    <th className="col-amt">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="col-no">{idx + 1}.</td>
+                      <td className="col-desc">
+                        <div className="or-desc-name">{item.name}</div>
+                        <div className="or-desc-meta">
+                          {item.size || 'Standard 250g'} · Qty: {item.quantity}
+                        </div>
+                      </td>
+                      <td className="col-amt">
+                        KES {(item.price * item.quantity).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Shipping Fee if applicable */}
+                  {order.shippingCost > 0 && (
+                    <tr>
+                      <td className="col-no">{items.length + 1}.</td>
+                      <td className="col-desc">
+                        <div className="or-desc-name">Highland Express Delivery</div>
+                        <div className="or-desc-meta">Courier Dispatch to {addr.city || 'Destination'}</div>
+                      </td>
+                      <td className="col-amt">
+                        KES {order.shippingCost.toLocaleString()}
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Discount row if applicable */}
+                  {order.discountAmount > 0 && (
+                    <tr>
+                      <td className="col-no">—</td>
+                      <td className="col-desc">
+                        <div className="or-desc-name" style={{ color: '#10B981' }}>Special Promotion Applied</div>
+                        <div className="or-desc-meta">Coupon / Seasonal Perk</div>
+                      </td>
+                      <td className="col-amt" style={{ color: '#10B981' }}>
+                        − KES {order.discountAmount.toLocaleString()}
+                      </td>
+                    </tr>
+                  )}
+
+                  {/* Total Row */}
+                  <tr className="or-table-total-row">
+                    <td colSpan="2" style={{ fontWeight: 800 }}>Total</td>
+                    <td className="col-amt">
+                      KES {order.total?.toLocaleString()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ══ Lower Dark Espresso Banner ══ */}
+        <div className="or-dark-banner">
+          {/* Gold dot matrices */}
+          <DotGrid className="top-right" />
+          <DotGrid className="bottom-left" />
+
+          {/* Left: Signature Section */}
+          <div className="or-signature-block">
+            <div className="or-signature-area">
+              {signatureUrl ? (
+                <img
+                  src={signatureUrl}
+                  alt="Authorized Signature"
+                  className="or-signature-img"
+                />
+              ) : (
+                <div className="or-signature-cursive">
+                  Rerendet
+                </div>
+              )}
+            </div>
+            <p className="or-signatory-name">{signatoryName}</p>
+          </div>
+
+          {/* Right: Payment Details & Notes */}
+          <div className="or-details-block">
             <div>
-              <h1 className="or-inv-brand-name">Rerendet Coffee</h1>
-              <p className="or-inv-brand-sub">Premium Fresh Coffee · Nairobi, Kenya</p>
+              <h3 className="or-banner-section-title">Payment Details:</h3>
+              <p className="or-banner-text">
+                <strong>Method:</strong> {order.paymentMethod === 'mpesa' ? 'M-PESA Express' : 'Credit / Debit Card'}<br />
+                <strong>Receipt Ref:</strong> {order.transactionId || 'M-PESA · Completed Transaction'}
+              </p>
+            </div>
+
+            <div>
+              <h3 className="or-banner-section-title">Notes:</h3>
+              <p className="or-banner-text">
+                Payment must be made immediately on receipt, either in the form of transfer or direct payment at our store. Enjoy your 100% shade-grown Arabica from the Great Rift Valley.
+              </p>
             </div>
           </div>
-          <div className="or-inv-header-right">
-            <span className="or-inv-label">DIGITAL INVOICE</span>
-            <div className={`or-inv-status ${isPaid ? 'paid' : 'pending'}`}>
-              {isPaid ? <><FaCheckCircle /> Paid</> : '⏳ Pending'}
-            </div>
-          </div>
         </div>
 
-        <div className="or-gold-stripe" />
-
-        {/* ══ META ROW ══ */}
-        <div className="or-inv-meta">
-          <div className="or-meta-cell">
-            <span className="or-meta-label"><FaReceipt /> Invoice Number</span>
-            <span className="or-meta-value mono">#{order.orderNumber}</span>
-          </div>
-          <div className="or-meta-cell">
-            <span className="or-meta-label"><FaCalendarAlt /> Date Issued</span>
-            <span className="or-meta-value">{orderDate}</span>
-          </div>
-          <div className="or-meta-cell">
-            <span className="or-meta-label"><FaCreditCard /> Payment Method</span>
-            <span className="or-meta-value">
-              {PMLabel[order.paymentMethod?.toLowerCase()] || order.paymentMethod?.toUpperCase() || '—'}
-            </span>
-          </div>
-          <div className="or-meta-cell">
-            <span className="or-meta-label"><FaTruck /> Tracking ID</span>
-            <span className="or-meta-value gold">{order.trackingNumber || 'Awaiting Prep'}</span>
-          </div>
-          <div className="or-meta-cell highlight">
-            <span className="or-meta-label">Total Amount</span>
-            <span className="or-meta-value gold-amt">KSh {order.total?.toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* ══ ADDRESSES ══ */}
-        <div className="or-inv-addresses">
-          <div className="or-addr-block">
-            <h3 className="or-addr-title"><FaEnvelope /> Billed To</h3>
-            <div className="or-addr-line name">{addr.firstName} {addr.lastName}</div>
-            <div className="or-addr-line">{addr.email}</div>
-            <div className="or-addr-line">{addr.phone}</div>
-          </div>
-          <div className="or-addr-divider" />
-          <div className="or-addr-block">
-            <h3 className="or-addr-title"><FaMapMarkerAlt /> Shipped To</h3>
-            <div className="or-addr-line name">{addr.firstName} {addr.lastName}</div>
-            <div className="or-addr-line">{addr.address}</div>
-            <div className="or-addr-line">{addr.city}, {addr.county}</div>
-            <div className="or-addr-line">{addr.country || 'Kenya'}</div>
-          </div>
-        </div>
-
-        {/* ══ ITEMS TABLE ══ */}
-        <div className="or-inv-table-wrap">
-          <table className="or-inv-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Size</th>
-                <th className="center">Qty</th>
-                <th className="right">Unit Price</th>
-                <th className="right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.items?.map((item, i) => (
-                <tr key={i}>
-                  <td>
-                    <div className="or-item-name">{item.name}</div>
-                    {item.category === 'coffee-beans' ? (
-                      <div className="or-item-sub">Freshly roasted selection</div>
-                    ) : (
-                      <div className="or-item-sub">Premium selection</div>
-                    )}
-                  </td>
-                  <td><span className="or-tag">{item.size}</span></td>
-                  <td className="center">{item.quantity}</td>
-                  <td className="right">KSh {item.price?.toLocaleString()}</td>
-                  <td className="right bold">KSh {(item.price * item.quantity)?.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* ══ TOTALS ══ */}
-        <div className="or-inv-totals">
-          <div className="or-tot-row">
-            <span>Subtotal</span>
-            <span>KSh {order.subtotal?.toLocaleString()}</span>
-          </div>
-          {(order.shippingCost || 0) > 0 && (
-            <div className="or-tot-row">
-              <span>Shipping & Handling</span>
-              <span>KSh {order.shippingCost?.toLocaleString()}</span>
-            </div>
-          )}
-          {(order.discountAmount || 0) > 0 && (
-            <div className="or-tot-row discount">
-              <span>Discount Applied</span>
-              <span>− KSh {order.discountAmount?.toLocaleString()}</span>
-            </div>
-          )}
-          <div className="or-tot-row grand">
-            <span>Grand Total</span>
-            <strong>KSh {order.total?.toLocaleString()}</strong>
-          </div>
-        </div>
-
-        {/* ══ TRUST STRIP ══ */}
-        <div className="or-inv-trust">
-          <div className="or-trust-item">
-            <FaShieldAlt /> Secure Transaction
-          </div>
-          <div className="or-trust-item">
-            <FaCoffee /> {order.items?.some(item => item.category === 'coffee-beans') ? 'Freshly Roasted' : 'Premium Quality'}
-          </div>
-          <div className="or-trust-item">
-            <FaTruck /> Premium Delivery
-          </div>
-        </div>
-
-        {/* ══ FOOTER ══ */}
-        <div className="or-inv-footer">
-          <p className="or-footer-thanks">Thank you for choosing Rerendet Coffee</p>
-          <p className="or-footer-note">
-            This is a computer-generated document. No signature is required.<br />
-            For queries: <strong>orders@rerendetcoffee.com</strong> · +254 700 123 456
-          </p>
-        </div>
-
-      </motion.div>{/* /or-invoice */}
-
-      {/* ── Bottom action row (no-print) ── */}
-      <div className="or-bottom-actions no-print">
-        <button className="or-btn ghost" onClick={() => navigate('/')}>
-          <FaHome /> Back to Shop
-        </button>
-        <button className="or-btn ghost" onClick={() => navigate('/account/orders')}>
-          <FaTruck /> My Orders
-        </button>
-      </div>
+      </motion.div>
     </div>
   );
 };

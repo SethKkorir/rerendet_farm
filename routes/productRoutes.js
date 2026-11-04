@@ -13,7 +13,8 @@ import {
   uploadProductImages,
   deleteProductImage,
   getBestSellers,
-  subscribeRestockNotification
+  subscribeRestockNotification,
+  reportOutOfStockAttempt
 } from '../controllers/productController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
 import { upload } from '../middleware/uploadMiddleware.js';
@@ -35,6 +36,7 @@ router.get('/featured/products', getFeaturedProducts);
 router.get('/category/:category', getProductsByCategory);
 router.get('/slug/:slug', getProductBySlug);
 router.post('/:id/restock-subscribe', subscribeRestockNotification);
+router.post('/:id/out-of-stock-attempt', reportOutOfStockAttempt);
 
 router.route('/')
   .get(apiLimiter, getProducts)

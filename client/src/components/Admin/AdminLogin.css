@@ -1,149 +1,221 @@
 /* ============================================================
-   Admin Login — Full Redesign
-   Design tokens: gold #D4AF37, dark base #0d0d0d
-   All colours meet WCAG AA contrast on dark backgrounds
+   ADMIN PORTAL LOGIN — CLEAN LIGHT LUXURY REDESIGN
+   Harmonized with Customer Login (AuthModal / Auth.css) Light Aesthetic
+   Colors: Warm Cream #FAF7F2, Clean Card #FFFFFF, Espresso #1D1510,
+   Muted Roast #6B5E55, Royal Gold #D4A737, Crisp Borders #D5DDE5
    ============================================================ */
 
-/* ── Page shell ── */
+/* ── Page Shell ── */
 .adl-page {
   min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px;
-  background: #0d0d0d;
-  font-family: 'Outfit', 'Inter', sans-serif;
+  padding: 32px 16px;
+  background-color: #FAF7F2;
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(212, 167, 55, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 90% 90%, rgba(111, 78, 55, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 10% 80%, rgba(212, 167, 55, 0.05) 0%, transparent 50%);
+  font-family: var(--font-body, 'Outfit', 'Inter', sans-serif);
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* ── Ambient glows ── */
-.adl-glow {
+/* ── Ambient Soft Accents ── */
+.adl-ambient-glow {
   position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
+  top: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 750px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(212, 167, 55, 0.07) 0%, transparent 70%);
   pointer-events: none;
+  filter: blur(80px);
   z-index: 0;
 }
-.adl-glow--gold {
-  width: 520px;
-  height: 520px;
-  top: -180px;
-  left: -120px;
-  background: radial-gradient(circle, rgba(212, 175, 55, 0.18) 0%, transparent 70%);
-}
-.adl-glow--blue {
-  width: 400px;
-  height: 400px;
-  bottom: -140px;
-  right: -100px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+
+.adl-ambient-spotlight {
+  position: absolute;
+  bottom: -15%;
+  right: -10%;
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, rgba(111, 78, 55, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(90px);
+  z-index: 0;
 }
 
-/* ── Card ── */
+/* ── Card Container ── */
 .adl-card {
   position: relative;
-  z-index: 1;
+  z-index: 10;
   width: 100%;
-  max-width: 440px;
-  background: rgba(18, 18, 18, 0.92);
-  border: 1px solid rgba(212, 175, 55, 0.18);
-  border-radius: 24px;
-  padding: 36px 36px 28px;
+  max-width: 420px;
+  background: #FFFFFF;
+  border: 1px solid rgba(111, 78, 55, 0.12);
+  border-radius: 28px;
+  padding: 2.25rem 2rem 1.75rem;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 32px 64px rgba(0, 0, 0, 0.7),
-    0 0 40px rgba(212, 175, 55, 0.06);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+    0 25px 70px rgba(29, 21, 16, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* ── Top bar ── */
+/* ── Top Bar ── */
 .adl-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 28px;
+  margin-bottom: 1.5rem;
   min-height: 32px;
 }
 
-.adl-icon-btn {
-  display: flex;
+.adl-icon-btn,
+.adl-store-link {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+  gap: 6px;
+  background: #F4EFEB;
+  border: 1px solid rgba(111, 78, 55, 0.14);
+  color: #4B5563;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 99px;
   cursor: pointer;
+  text-decoration: none;
   transition: all 0.2s ease;
 }
-.adl-icon-btn:hover {
-  background: rgba(212, 175, 55, 0.15);
-  border-color: #D4AF37;
-  color: #D4AF37;
+
+.adl-icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.adl-icon-btn:hover,
+.adl-store-link:hover {
+  background: #EAE3DC;
+  color: #1D1510;
+  border-color: #D4A737;
+  transform: translateX(-2px);
 }
 
 .adl-badge {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 0.65rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
-  color: #D4AF37;
-  background: rgba(212, 175, 55, 0.1);
-  border: 1px solid rgba(212, 175, 55, 0.22);
-  padding: 4px 10px;
-  border-radius: 100px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9A6F1A;
+  background: rgba(212, 167, 55, 0.12);
+  border: 1px solid rgba(212, 167, 55, 0.28);
+  padding: 4px 11px;
+  border-radius: 99px;
+}
+
+.adl-badge-icon {
+  font-size: 0.65rem;
 }
 
 /* ── Header ── */
 .adl-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 1.5rem;
+}
+
+.adl-logo-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 0.85rem;
 }
 
 .adl-logo {
-  height: 72px;
-  margin-bottom: 20px;
-  filter: drop-shadow(0 4px 16px rgba(212, 175, 55, 0.18));
-  transition: transform 0.4s ease;
+  height: 64px;
+  max-height: 64px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  transition: transform 0.35s ease;
 }
+
 .adl-logo:hover {
   transform: scale(1.04);
 }
 
 .adl-title {
-  font-size: 1.75rem;
+  font-family: var(--font-heading, 'Outfit', 'Playfair Display', sans-serif);
+  font-size: 1.65rem;
   font-weight: 700;
-  color: #ffffff;
-  margin: 0 0 8px;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  color: #1D1510;
+  margin: 0 0 0.35rem 0;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
 }
 
 .adl-subtitle {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.5;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-weight: 700;
+  color: #6B5E55;
+  line-height: 1.4;
   margin: 0;
 }
 
-/* ── Error banner ── */
+/* ── Error Banner ── */
 .adl-error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: #FEF2F2;
+  border: 1px solid #FCA5A5;
   border-radius: 12px;
-  padding: 12px 16px;
-  font-size: 0.875rem;
+  padding: 10px 14px;
+  font-size: 0.82rem;
   font-weight: 500;
-  color: #fca5a5;
-  overflow: hidden;
+  color: #B91C1C;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* ── Form ── */
+/* ── Destroyed / Inactivity Notice ── */
+.adl-destroyed-message {
+  text-align: center;
+  padding: 1.75rem 1rem;
+  background: #FFFBEB;
+  border: 1.5px dashed rgba(212, 167, 55, 0.45);
+  border-radius: 16px;
+  margin-bottom: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.adl-destroyed-message:hover {
+  background: #FEF3C7;
+  border-color: #D4A737;
+}
+
+.adl-destroyed-message p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #92400E;
+  line-height: 1.4;
+}
+
+/* ── Form & Fields ── */
 .adl-form {
   display: flex;
   flex-direction: column;
@@ -153,86 +225,85 @@
 .adl-fields {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  margin-bottom: 24px;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
-/* ── Field ── */
 .adl-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.35rem;
 }
 
 .adl-label {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.75); /* clearly visible */
+  color: #1D1510;
+  padding-left: 0.2rem;
 }
 
-/* ── Input wrapper ── */
+/* ── Input Wrapper ── */
 .adl-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-/* ── Input ── */
 .adl-input {
   width: 100%;
-  padding: 14px 46px 14px 16px; /* right pad clears icon */
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  height: 48px;
+  padding: 0 2.8rem 0 1rem;
+  background: #FFFFFF;
+  border: 1.5px solid #D5DDE5;
   border-radius: 12px;
   font-size: 0.95rem;
-  color: #ffffff;          /* typed text: full white */
+  color: #1D1510;
   box-sizing: border-box;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   outline: none;
   font-family: inherit;
 }
 
 .adl-input::placeholder {
-  color: rgba(255, 255, 255, 0.32);
+  color: #8E99A8;
+  font-weight: 400;
   transition: color 0.2s ease;
-}
-
-.adl-input:focus::placeholder {
-  color: transparent;
 }
 
 .adl-input:focus {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: #D4AF37;
-  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.15);
+  background: #FFFFFF;
+  border-color: #D4A737;
+  box-shadow: 0 0 0 3px rgba(212, 167, 55, 0.18);
 }
 
 .adl-input:disabled {
-  opacity: 0.5;
+  opacity: 0.6;
+  background: #F9FAFB;
   cursor: not-allowed;
 }
 
-/* ── Right-side icon ── */
+/* ── Right-Side Icon ── */
 .adl-input-icon {
   position: absolute;
-  right: 14px;
-  width: 16px;
-  height: 16px;
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.3); /* muted, not screaming white */
+  right: 1rem;
+  font-size: 0.95rem;
+  color: #6B7280;
+  opacity: 0.8;
   pointer-events: none;
   flex-shrink: 0;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
-/* Icon turns gold when field is active */
 .adl-input-wrap:focus-within .adl-input-icon {
-  color: #D4AF37;
+  color: #D4A737;
+  opacity: 1;
+  transform: scale(1.08);
 }
 
-/* Eye toggle inherits icon position but needs pointer events */
+/* Eye Toggle Button */
 .adl-eye-btn {
   pointer-events: auto;
   cursor: pointer;
@@ -243,85 +314,86 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-}
-.adl-eye-btn:hover {
-  color: rgba(255, 255, 255, 0.75);
-}
-.adl-input-wrap:focus-within .adl-eye-btn {
-  color: rgba(212, 175, 55, 0.7);
-}
-.adl-eye-btn:hover {
-  color: #D4AF37 !important;
+  opacity: 0.7;
+  color: #6B7280;
+  transition: opacity 0.2s ease, color 0.2s ease;
 }
 
-/* ── OTP input ── */
+.adl-eye-btn:hover {
+  opacity: 1;
+  color: #1D1510 !important;
+}
+
+/* ── OTP Input (2FA Step) ── */
 .adl-input--otp {
-  padding: 18px 16px;
+  padding: 0 1rem;
+  height: 54px;
   text-align: center;
-  font-size: 2rem;
-  letter-spacing: 14px;
-  font-weight: 700;
+  font-size: 1.85rem;
+  letter-spacing: 12px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: #D4AF37;           /* OTP digits in gold — unmistakable */
+  color: #1D1510;
+  background: #FAF7F2;
+  border: 2px solid #D4A737;
 }
 
-/* ── Submit button ── */
+.adl-input--otp:focus {
+  background: #FFFFFF;
+  border-color: #D4A737;
+  box-shadow: 0 0 0 4px rgba(212, 167, 55, 0.22);
+}
+
+/* ── Submit Button (Pill Rounded CTA) ── */
 .adl-submit {
   width: 100%;
-  padding: 15px;
-  background: #D4AF37;
-  color: #0d0d0d;           /* near-black text on gold — max contrast */
+  height: 48px;
+  background: #D4A737;
+  color: #FFFFFF;
   border: none;
-  border-radius: 12px;
+  border-radius: 99px;
+  font-family: inherit;
   font-size: 0.95rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.02em;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
-  position: relative;
-  overflow: hidden;
-  margin-bottom: 24px;
+  gap: 8px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 6px 18px rgba(212, 167, 55, 0.32);
+  margin-bottom: 1.5rem;
+  outline: none;
 }
 
-.adl-submit::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%);
-  transform: translateX(-100%);
-  transition: transform 0.55s ease;
-}
-.adl-submit:not(:disabled):hover::after {
-  transform: translateX(100%);
-}
 .adl-submit:not(:disabled):hover {
-  background: #e5c14a;
+  background: #C2952E;
   transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(212, 175, 55, 0.35);
+  box-shadow: 0 8px 22px rgba(212, 167, 55, 0.42);
 }
+
 .adl-submit:not(:disabled):active {
   transform: translateY(0);
-  box-shadow: none;
 }
+
 .adl-submit:disabled {
-  opacity: 0.55;
+  opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
 }
 
 /* ── Spinner ── */
 .adl-spinner {
   display: inline-block;
-  width: 20px;
-  height: 20px;
-  border: 2.5px solid rgba(0, 0, 0, 0.2);
-  border-top-color: #0d0d0d;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #FFFFFF;
   border-radius: 50%;
-  animation: adl-spin 0.9s linear infinite;
+  animation: adl-spin 0.8s linear infinite;
 }
+
 @keyframes adl-spin {
   to { transform: rotate(360deg); }
 }
@@ -332,26 +404,25 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 0.75rem;
-  letter-spacing: 0.03em;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(111, 78, 55, 0.1);
+  color: #6B5E55;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
 }
 
 .adl-footer-icon {
-  color: #D4AF37;
-  font-size: 0.75rem;
-  opacity: 0.8;
+  color: #D4A737;
+  font-size: 0.82rem;
 }
 
 /* ── Responsive ── */
 @media (max-width: 480px) {
   .adl-card {
-    padding: 28px 20px 22px;
-    border-radius: 20px;
+    padding: 1.75rem 1.25rem 1.5rem;
+    border-radius: 22px;
   }
   .adl-title {
-    font-size: 1.5rem;
+    font-size: 1.45rem;
   }
 }

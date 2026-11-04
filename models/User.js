@@ -114,6 +114,10 @@ const userSchema = new mongoose.Schema({
   loginAttempts: { type: Number, default: 0, select: false },
   lockUntil: { type: Date, select: false },
   passwordChangedAt: { type: Date, default: null },
+  allowPasswordChangeOverride: { type: Boolean, default: false },
+  passwordOverrideGrantedAt: { type: Date, default: null },
+  passwordOverrideGrantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  passwordOverrideReason: { type: String, default: null },
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: { type: String, select: false },
   twoFactorBackupCodes: { type: [String], select: false },
@@ -134,7 +138,7 @@ const userSchema = new mongoose.Schema({
     default: 'prefer-not-to-say'
   },
 
-  // Shipping info
+  // Shipping info (primary/default address for backward compatibility)
   shippingInfo: {
     firstName: String,
     lastName: String,
@@ -150,6 +154,22 @@ const userSchema = new mongoose.Schema({
     landmark: String,
     additionalAddresses: { type: Array, default: [] }
   },
+
+  // Multiple saved delivery addresses
+  addresses: [{
+    label: { type: String, default: 'Home' },
+    recipientName: String,
+    phone: String,
+    address: String,
+    city: String,
+    county: String,
+    town: String,
+    zip: String,
+    country: { type: String, default: 'Kenya' },
+    landmark: String,
+    isDefault: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
 
   // Wallet / Payment Methods
   wallet: {

@@ -1,514 +1,797 @@
-/* client/src/components/Admin/SystemTelemetry.css */
+/* client/src/components/Admin/SystemTelemetry.css — Quiet Luxury Telemetry & Observability */
 
 .system-telemetry {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  padding: 0.5rem 0;
   color: var(--text-main);
-  animation: fadeIn 0.4s ease-out;
+  animation: telFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Header */
+@keyframes telFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── HEADER BAR ─── */
 .tel-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 1.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-glass);
 }
 
-.tel-title-block h3 {
+.tel-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.tel-heading {
   font-size: 1.5rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.tel-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  letter-spacing: 0.01em;
+}
+
+.tel-status-pill.healthy {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.tel-status-pill.degraded {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.tel-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: telPulse 2s infinite;
+}
+
+@keyframes telPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.tel-subheading {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.tel-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0;
-  color: var(--text-main);
+  flex-wrap: wrap;
 }
 
-.tel-subtext {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  margin: 0.25rem 0 0 0;
-}
-
-.tel-refresh-btn {
-  background: var(--bg-card);
+.tel-last-synced {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  padding: 0.35rem 0.65rem;
+  background: var(--bg-surface);
   border: 1px solid var(--border-glass);
-  color: var(--text-main);
-  padding: 0.6rem 1.2rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  display: flex;
+  border-radius: var(--radius-sm);
+}
+
+.tel-btn-refresh {
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-main);
+  color: var(--text-main);
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: var(--transition-fast);
   box-shadow: var(--shadow-sm);
 }
 
-.tel-refresh-btn:hover {
+.tel-btn-refresh:hover:not(:disabled) {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #000000;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
+  color: #1a0f05;
+  transform: translateY(-1px);
 }
 
-.tel-refresh-btn:active {
-  transform: translateY(0);
+.tel-btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .tel-spin {
   animation: spin 1s linear infinite;
 }
 
-/* Status Cards */
-.tel-status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1.25rem;
-}
-
-.tel-status-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-glass);
-  border-radius: 16px;
-  padding: 1.25rem;
-  box-shadow: var(--shadow-md);
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.tel-status-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-lg);
-}
-
-.tel-sc-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tel-sc-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.tel-sc-badge {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-  letter-spacing: 0.02em;
-}
-
-.tel-sc-badge.active {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.tel-sc-badge.inactive {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
-}
-
-.tel-sc-badge.info {
-  background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
-}
-
-.tel-sc-value {
-  font-size: 1.75rem;
-  font-weight: 800;
-  margin: 0.75rem 0 0.5rem 0;
-  color: var(--text-main);
-  letter-spacing: -0.02em;
-}
-
-.tel-sc-footer {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-/* Diagnostics Cards */
-.tel-diagnostics-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-}
-
-@media (min-width: 992px) {
-  .tel-diagnostics-row {
-    grid-template-columns: 1fr 1fr;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.tel-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-glass);
-  border-radius: 20px;
-  padding: 1.5rem;
-  box-shadow: var(--shadow-md);
+/* ─── TOP EXECUTIVE HEALTH KPI GRID ─── */
+.tel-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
 }
 
-.tel-card-head {
+@media (max-width: 1200px) {
+  .tel-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .tel-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tel-kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tel-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-main);
+}
+
+.tel-kpi-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border-glass);
-  padding-bottom: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 0.75rem;
 }
 
-.tel-card-head h4 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 0;
+.tel-kpi-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: var(--text-main);
+  justify-content: center;
 }
 
-.tel-card-badge {
-  font-size: 0.7rem;
+.tel-kpi-icon-wrap.primary {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.tel-kpi-icon-wrap.accent {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.tel-kpi-icon-wrap.gold {
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--color-primary);
+}
+
+.tel-kpi-icon-wrap.muted {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-dim);
+}
+
+.tel-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  background: var(--border-glass);
-  color: var(--text-muted);
-  padding: 0.25rem 0.6rem;
-  border-radius: 8px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
 }
 
-.tel-card-badge.secure {
+.tel-badge-pill.success {
   background: rgba(16, 185, 129, 0.1);
   color: #10b981;
 }
 
-.tel-card-badge.warning {
+.tel-badge-pill.warning {
   background: rgba(245, 158, 11, 0.1);
   color: #f59e0b;
 }
 
-.tel-card-badge.logs {
-  background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
+.tel-badge-pill.neutral {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
 }
 
-/* Cache ops */
-.tel-cache-body {
+.tel-kpi-metric {
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.tel-kpi-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+}
+
+.tel-kpi-foot {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border-top: 1px dashed var(--border-glass);
+  padding-top: 0.6rem;
+  margin-top: auto;
+}
+
+/* ─── SPLIT GRID (ROW 2 & 3) ─── */
+.tel-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .tel-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tel-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.tel-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-glass);
+  margin-bottom: 1.25rem;
+}
+
+.tel-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tel-icon-accent {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.tel-panel-title h4 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.tel-panel-title p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.15rem 0 0 0;
+}
+
+.tel-panel-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+}
+
+.tel-status-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--radius-sm);
+}
+
+.tel-status-tag.active {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.tel-status-tag.warn {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* ─── QUEUE ITEMS LIST ─── */
+.tel-queues-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.tel-stat-row {
+.tel-queue-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.85rem;
+  transition: border-color 0.2s ease;
+}
+
+.tel-queue-item:hover {
+  border-color: var(--border-main);
+}
+
+.tel-qi-title {
+  display: flex;
   align-items: center;
-  font-size: 0.85rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px dashed var(--border-glass);
-}
-
-.tel-sr-lbl {
-  color: var(--text-muted);
-}
-
-.tel-sr-val {
+  gap: 0.5rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: var(--text-main);
 }
 
-.tel-sr-val.secure {
-  color: #10b981;
+.tel-qi-title code {
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  color: var(--text-dim);
 }
 
-.tel-sr-val.warning {
+[data-theme='dark'] .tel-qi-title code {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tel-qi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.2rem 0 0 0;
+}
+
+.tel-qi-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.tel-stat-pill {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.tel-sp-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tel-sp-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tel-sp-val.active {
+  color: #3b82f6;
+}
+
+.tel-sp-val.waiting {
   color: #f59e0b;
 }
 
-.tel-cache-actions {
-  margin-top: 1.25rem;
+.tel-sp-val.completed {
+  color: #10b981;
 }
 
-.tel-cache-actions h5 {
-  font-size: 0.9rem;
-  font-weight: 700;
-  margin: 0 0 0.25rem 0;
+.tel-sp-val.failed {
+  color: #ef4444;
+}
+
+.tel-sp-val.neutral {
   color: var(--text-main);
 }
 
-.tel-ca-sub {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0 0 1rem 0;
+/* ─── REDIS CACHE CONTENT ─── */
+.tel-cache-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  height: 100%;
+  justify-content: space-between;
 }
 
-.tel-btn-group {
+.tel-detail-list {
   display: flex;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.tel-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-bottom: 1px dashed var(--border-glass);
+  gap: 1rem;
+}
+
+.tel-detail-row:last-child {
+  border-bottom: none;
+}
+
+.tel-detail-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tel-dm-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.tel-dm-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.tel-detail-val code {
+  font-size: 0.78rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  color: var(--text-main);
+}
+
+.tel-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.tel-tag.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.tel-tag.neutral {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+}
+
+/* Invalidation Box */
+.tel-cache-actions-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  margin-top: auto;
+}
+
+.tel-cab-header h5 {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.tel-cab-header p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0.2rem 0 0.85rem 0;
+}
+
+.tel-flush-btn-group {
+  display: flex;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
-.tel-btn-danger {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  padding: 0.5rem 1rem;
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  display: flex;
+.tel-flush-btn {
+  display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-main);
+  color: var(--text-main);
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-fast);
 }
 
-.tel-btn-danger:hover:not(:disabled) {
-  background: #ef4444;
-  color: #ffffff;
-  transform: translateY(-1px);
+.tel-flush-btn:hover:not(:disabled) {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
 }
 
-.tel-btn-danger:disabled {
+.tel-flush-btn.secondary:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.tel-flush-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* BullMQ Queues list */
-.tel-queue-list {
+/* ─── SECURITY PERIMETER ─── */
+.tel-security-list {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.9rem;
 }
 
-.tel-q-row {
-  background: rgba(148, 163, 184, 0.03);
+.tel-sec-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem;
+  background: var(--bg-surface);
   border: 1px solid var(--border-glass);
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
+  border-radius: var(--radius-sm);
 }
 
-.tel-q-info {
+.tel-sec-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.tel-sec-info {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
 }
 
-.tel-q-name {
-  font-size: 0.9rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.tel-sec-name {
+  font-size: 0.84rem;
+  font-weight: 600;
   color: var(--text-main);
 }
 
-.tel-q-desc {
-  font-size: 0.75rem;
+.tel-sec-desc {
+  font-size: 0.74rem;
   color: var(--text-muted);
-  margin: 0;
 }
 
-.tel-q-badges {
+.tel-sec-desc code {
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+[data-theme='dark'] .tel-sec-desc code {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── AUDIT FEED (REFINED QUIET LUXURY STREAM) ─── */
+.tel-audit-stream {
+  max-height: 250px;
+  overflow-y: auto;
+  border-radius: var(--radius-sm);
+}
+
+.tel-audit-list {
   display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.tel-qb {
-  font-size: 0.65rem;
+.tel-audit-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  gap: 0.75rem;
+  font-size: 0.78rem;
+}
+
+.tel-ai-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tel-ai-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.tel-ai-action {
+  font-size: 0.68rem;
   font-weight: 700;
   padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-  letter-spacing: 0.01em;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
 }
 
-.tel-qb.active {
-  background: rgba(59, 130, 246, 0.1);
+.tel-ai-action.primary {
+  background: rgba(59, 130, 246, 0.12);
   color: #3b82f6;
 }
 
-.tel-qb.pending {
-  background: rgba(245, 158, 11, 0.1);
+.tel-ai-action.warning {
+  background: rgba(245, 158, 11, 0.12);
   color: #f59e0b;
 }
 
-.tel-qb.completed {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-
-.tel-qb.failed {
-  background: rgba(239, 68, 68, 0.1);
+.tel-ai-action.danger {
+  background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
 }
 
-/* Resources box */
-.tel-server-stats {
-  margin-top: 1.25rem;
-}
-
-.tel-server-stats h5 {
-  font-size: 0.9rem;
-  font-weight: 700;
-  margin: 0 0 0.75rem 0;
-  color: var(--text-main);
-}
-
-.tel-rs-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-}
-
-.tel-rs-box {
-  background: rgba(148, 163, 184, 0.05);
-  border: 1px solid var(--border-glass);
-  border-radius: 10px;
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  text-align: center;
-}
-
-.tel-rs-lbl {
-  font-size: 0.7rem;
-  font-weight: 600;
+.tel-ai-action.neutral {
+  background: rgba(148, 163, 184, 0.12);
   color: var(--text-muted);
 }
 
-.tel-rs-val {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-/* Terminal logs styles */
-.tel-terminal {
-  background: #0f172a;
-  border: 1px solid #1e293b;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  height: 230px;
-}
-
-.tel-term-header {
-  background: #1e293b;
-  padding: 0.5rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-bottom: 1px solid #334155;
-}
-
-.tel-th-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.tel-th-dot.red { background: #ef4444; }
-.tel-th-dot.yellow { background: #f59e0b; }
-.tel-th-dot.green { background: #10b981; }
-
-.tel-th-title {
-  font-size: 0.7rem;
-  color: #94a3b8;
-  margin-left: 0.5rem;
-}
-
-.tel-term-body {
-  padding: 1rem;
-  overflow-y: auto;
-  font-size: 0.75rem;
-  color: #38bdf8;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.tel-ai-center {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.tel-term-line {
-  line-height: 1.4;
-  word-break: break-all;
+.tel-ai-details {
+  color: var(--text-main);
+  font-weight: 500;
 }
 
-.tel-tl-time {
-  color: #64748b;
+.tel-ai-right {
+  flex-shrink: 0;
 }
 
-.tel-tl-action {
-  color: #f43f5e;
-  font-weight: bold;
+.tel-ai-ip {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  background: var(--bg-card);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-glass);
 }
 
-.tel-tl-details {
-  color: #e2e8f0;
-}
-
-.tel-tl-ip {
-  color: #0ea5e9;
-}
-
-.tel-term-empty {
-  color: #64748b;
+.tel-audit-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  color: var(--text-dim);
   text-align: center;
-  padding: 2rem 0;
-  font-style: italic;
 }
 
-/* Loading spinner */
+.tel-audit-empty p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+/* ─── LOADING STATE ─── */
 .telemetry-loading {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  padding: 5rem 0;
-  color: var(--text-muted);
+  justify-content: center;
+  padding: 6rem 1rem;
+  gap: 1rem;
 }
 
-.telemetry-loading .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-glass);
+.tel-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-glass);
   border-top-color: var(--color-primary);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  animation: spin 0.8s linear infinite;
 }
 
-/* Fonts and utilities */
-.font-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
-
-/* Keyframes */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.tel-loading-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
 }

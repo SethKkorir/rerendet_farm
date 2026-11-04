@@ -194,3 +194,12 @@ export const CardModal = () => {
     </div>
   );
 };
+
+const PaymentModals = (props) => (
+  <>
+    <MpesaModal {...props} />
+    <CardModal {...props} />
+  </>
+);
+
+export default PaymentModals;

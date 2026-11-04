@@ -1,3 +1,11 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+# Disallow indexing of private customer/admin portals
+Disallow: /admin
+Disallow: /account
+Disallow: /api/
+
+# XML Sitemap for Google Search Console & search engine bots
+Sitemap: https://rerendetcoffee.com/sitemap.xml

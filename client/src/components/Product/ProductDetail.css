@@ -2,8 +2,8 @@
     padding-top: 120px;
     padding-bottom: 80px;
     min-height: 85vh;
-    background: var(--bg-home, #0f0a08);
-    color: var(--text-main, #faf6f0);
+    background: var(--bg-home, #201104);
+    color: var(--text-main, #ffffff);
     font-family: var(--font-body, 'Outfit', sans-serif);
 }
 
@@ -87,8 +87,10 @@
     font-size: clamp(2rem, 3.5vw, 2.75rem);
     color: var(--text-main, #faf6f0);
     margin: 0 0 6px;
-    font-family: var(--font-heading, 'Playfair Display', serif);
+    font-family: var(--font-heading, 'Outfit', -apple-system, sans-serif);
     font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
 }
 
 .origin {
@@ -105,7 +107,7 @@
     font-size: 2.2rem;
     font-weight: 800;
     color: var(--color-primary, #D4AF37);
-    font-family: var(--font-heading, serif);
+    font-family: var(--font-heading);
     margin-bottom: 20px;
     display: flex;
     align-items: baseline;

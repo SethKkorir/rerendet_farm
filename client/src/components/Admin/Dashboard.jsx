@@ -131,13 +131,13 @@ const Dashboard = () => {
 
   useEffect(() => { fetchAll(); }, [timeframe]);
 
-  // KPI metrics derived from stats + analytics
+  // KPI metrics derived from stats + analytics (Clean 4-metric executive grid)
   const kpis = useMemo(() => [
     {
       id: 'revenue',
       label: 'Total Revenue',
       value: fmtKES(stats?.overview?.totalRevenue),
-      change: 0,
+      change: analyticsData?.revenueTrend,
       sub: `${fmtKES((stats?.overview?.totalRevenue || 0) / 30)} / day avg`,
       icon: <FaDollarSign />, accent: '#D4AF37',
     },
@@ -145,7 +145,7 @@ const Dashboard = () => {
       id: 'orders',
       label: 'Total Orders',
       value: (stats?.overview?.totalOrders || 0).toLocaleString(),
-      change: 0,
+      change: analyticsData?.ordersTrend,
       sub: `${stats?.overview?.pendingOrders || 0} awaiting fulfillment`,
       icon: <FaShoppingBag />, accent: '#3b82f6',
     },
@@ -153,7 +153,7 @@ const Dashboard = () => {
       id: 'customers',
       label: 'Customers',
       value: (stats?.overview?.totalUsers || 0).toLocaleString(),
-      change: 0,
+      change: analyticsData?.customersTrend,
       sub: `${stats?.overview?.newUsersThisMonth || 0} new this month`,
       icon: <FaUsers />, accent: '#8b5cf6',
     },
@@ -161,19 +161,11 @@ const Dashboard = () => {
       id: 'products',
       label: 'Active Products',
       value: (stats?.overview?.totalProducts || 0).toLocaleString(),
-      change: 0,
+      change: null,
       sub: `${stats?.lowStockProducts?.length || 0} low stock alerts`,
       icon: <FaBox />, accent: '#10b981',
-    },
-    {
-      id: 'abandoned',
-      label: 'Lost Sales',
-      value: (abandonedData?.length || 0).toLocaleString(),
-      change: 0,
-      sub: `Failed payment attempts`,
-      icon: <FaExclamationTriangle />, accent: '#ef4444',
     }
-  ], [stats, abandonedData]);
+  ], [stats, analyticsData]);
 
   // Quick actions
   const quickActions = [
@@ -197,19 +189,20 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER (Clean, Minimalist, Premium) ── */}
       <header className="db-header">
         <div className="db-header-left">
-          <p className="db-greeting">{greet()}, <strong>{user?.firstName || 'Admin'}</strong> 👋</p>
-          <h1 className="db-title">Dashboard Overview</h1>
+          <h1 className="db-title">Overview</h1>
           <p className="db-sub">
-            Real-time performance · Last updated{' '}
-            <span className="db-time">{new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+            {greet()}, {user?.firstName || 'Admin'}
+            <span className="db-sub-sep">·</span>
+            Updated {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
+
         <div className="db-header-right">
-          {/* Timeframe pills */}
-          <div className="db-tf-pills">
+          {/* Timeframe selector */}
+          <div className="db-tf-pills" role="group" aria-label="Timeframe">
             {[['7d', '7D'], ['30d', '30D'], ['90d', '90D'], ['1y', '1Y'], ['all', 'ALL']].map(([val, lbl]) => (
               <button
                 key={val}
@@ -220,21 +213,37 @@ const Dashboard = () => {
               </button>
             ))}
           </div>
-          {/* Tab switcher */}
-          <div className="db-tabs">
+
+          <div className="db-toolbar-divider" />
+
+          {/* Section tabs */}
+          <div className="db-tabs" role="tablist">
             {[
-              { id: 'overview', label: 'Overview', icon: <FaChartLine /> },
+              { id: 'overview', label: 'Metrics', icon: <FaChartLine /> },
               { id: 'reports', label: 'Reports', icon: <FaChartBar /> },
               { id: 'telemetry', label: 'Telemetry', icon: <FaServer /> },
               isSuperAdmin && { id: 'logs', label: 'Logs', icon: <FaThList /> },
             ].filter(Boolean).map(t => (
-              <button key={t.id} className={`db-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
-                {t.icon} {t.label}
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={activeTab === t.id}
+                className={`db-tab ${activeTab === t.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(t.id)}
+              >
+                {t.icon} <span>{t.label}</span>
               </button>
             ))}
           </div>
-          {/* Refresh */}
-          <button className="db-refresh-btn" onClick={() => fetchAll(true)} disabled={refreshing}>
+
+          {/* Refresh button */}
+          <button
+            className="db-refresh-btn"
+            onClick={() => fetchAll(true)}
+            disabled={refreshing}
+            title="Refresh Data"
+            aria-label="Refresh Data"
+          >
             <FaSync className={refreshing ? 'db-spin' : ''} />
           </button>
         </div>
@@ -263,10 +272,12 @@ const Dashboard = () => {
                     <div className="db-kpi-icon" style={{ background: `${k.accent}1A`, color: k.accent }}>
                       {k.icon}
                     </div>
-                    <div className={`db-kpi-change ${k.change > 0 ? 'up' : k.change < 0 ? 'down' : 'flat'}`}>
-                      {k.change > 0 ? <FaArrowUp /> : k.change < 0 ? <FaArrowDown /> : null}
-                      {k.change !== 0 ? `${Math.abs(k.change)}%` : '—'}
-                    </div>
+                    {k.change !== undefined && k.change !== null && k.change !== 0 ? (
+                      <div className={`db-kpi-change ${k.change > 0 ? "up" : "down"}`}>
+                        {k.change > 0 ? <FaArrowUp /> : <FaArrowDown />}
+                        {k.change > 0 ? `+${k.change}%` : `${k.change}%`}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="db-kpi-value">{k.value}</div>
                   <div className="db-kpi-label">{k.label}</div>
@@ -288,7 +299,16 @@ const Dashboard = () => {
                 <div className="db-chart-head">
                   <div>
                     <h3>Revenue Trajectory</h3>
-                    <span className="db-chart-badge up"><FaArrowUp /> +12.5% vs last period</span>
+                    {analyticsData?.revenueTrend !== undefined && analyticsData?.revenueTrend !== 0 ? (
+                      <span className={`db-chart-badge ${analyticsData.revenueTrend >= 0 ? "up" : "down"}`}>
+                        {analyticsData.revenueTrend >= 0 ? <FaArrowUp /> : <FaArrowDown />}
+                        {analyticsData.revenueTrend > 0 ? `+${analyticsData.revenueTrend}%` : `${analyticsData.revenueTrend}%`} vs prev period
+                      </span>
+                    ) : (
+                      <span className="db-chart-badge neutral">
+                        {timeframe === "all" ? "All-time performance" : `Last ${timeframe.toUpperCase()}`}
+                      </span>
+                    )}
                   </div>
                   <div className="db-legend-pills">
                     <span className="db-lpill" style={{ '--c': tc.primary }}>Revenue</span>
@@ -431,38 +451,47 @@ const Dashboard = () => {
 
               {/* Right col: Low Stock + Summary Stats */}
               <div className="db-bottom-right">
-                {/* Inventory Alerts */}
+                {/* Inventory Alerts Card */}
                 <motion.div
                   className="db-panel"
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
+                  transition={{ delay: 0.28 }}
                 >
                   <div className="db-panel-head">
                     <div>
                       <h3>Inventory Alerts</h3>
-                      <span className="db-panel-sub">{stats?.lowStockProducts?.length || 0} items need attention</span>
+                      <span className="db-panel-sub">
+                        {stats?.lowStockProducts?.length > 0
+                          ? `${stats.lowStockProducts.length} item${stats.lowStockProducts.length > 1 ? "s" : ""} low on stock`
+                          : "All items well stocked"}
+                      </span>
                     </div>
-                    <button className="db-view-all" onClick={() => navigate('/admin/products')}>Manage</button>
+                    <button className="db-view-all" onClick={() => navigate("/admin/products")}>
+                      Manage
+                    </button>
                   </div>
 
                   {stats?.lowStockProducts?.length > 0 ? (
                     <div className="db-stock-list">
-                      {stats.lowStockProducts.slice(0, 5).map((p, i) => {
+                      {stats.lowStockProducts.slice(0, 4).map((p) => {
                         const stock = p.inventory?.stock || 0;
                         const threshold = p.inventory?.lowStockThreshold || 10;
                         const pct = Math.min(100, (stock / (threshold * 2)) * 100);
                         const critical = stock <= 2;
                         return (
-                          <div key={p._id} className={`db-stock-row ${critical ? 'critical' : ''}`}>
+                          <div key={p._id} className={`db-stock-row ${critical ? "critical" : ""}`}>
                             <div className="db-stock-info">
                               <span className="db-stock-name">{p.name}</span>
-                              <span className={`db-stock-count ${critical ? 'critical' : 'low'}`}>
-                                {critical ? '🔴' : '🟡'} {stock} unit{stock !== 1 ? 's' : ''}
+                              <span className={`db-stock-badge ${critical ? "critical" : "low"}`}>
+                                {critical ? "Critical" : "Low"}: {stock} unit{stock !== 1 ? "s" : ""}
                               </span>
                             </div>
                             <div className="db-stock-bar-wrap">
-                              <div className="db-stock-bar-fill" style={{ width: `${pct}%`, background: critical ? '#ef4444' : '#f59e0b' }} />
+                              <div
+                                className="db-stock-bar-fill"
+                                style={{ width: `${pct}%`, background: critical ? "#ef4444" : "#f59e0b" }}
+                              />
                             </div>
                           </div>
                         );
@@ -471,66 +500,65 @@ const Dashboard = () => {
                   ) : (
                     <div className="db-empty-state success">
                       <FaCheckCircle />
-                      <p>All products well stocked</p>
+                      <p>All catalog products healthy</p>
                     </div>
                   )}
                 </motion.div>
 
-                {/* Mini KPI summary */}
-                <motion.div
-                  className="db-mini-kpis"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
-                >
-                  {[
-                    { label: 'Avg. Order Value', value: fmtKES(analyticsData?.averageOrderValue || overview.totalRevenue / Math.max(1, overview.totalOrders)), icon: <FaChartLine />, c: '#D4AF37' },
-                    { label: 'Awaiting Prep', value: (overview.totalOrders - overview.shippedOrders - overview.deliveredOrders || 0), icon: <FaClock />, c: '#f59e0b' },
-                    { label: 'Shipped (M)', value: overview.shippedOrders || 0, icon: <FaTruck />, c: '#3b82f6' },
-                    { label: 'Subscribers', value: analyticsData?.subscriberCount || 0, icon: <FaBell />, c: '#10b981' },
-                  ].map(m => (
-                    <div key={m.label} className="db-mini-kpi">
-                      <span className="db-mk-icon" style={{ color: m.c }}>{m.icon}</span>
-                      <div>
-                        <div className="db-mk-value">{m.value}</div>
-                        <div className="db-mk-label">{m.label}</div>
-                      </div>
-                    </div>
-                  ))}
-                </motion.div>
-
-                {/* Abandoned Checkouts Alerts */}
+                {/* Abandoned Checkouts / Payment Failures Card */}
                 <motion.div
                   className="db-panel"
-                  style={{ marginTop: '1.5rem', borderLeft: '4px solid #ef4444' }}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
+                  transition={{ delay: 0.32 }}
                 >
                   <div className="db-panel-head">
                     <div>
-                      <h3 style={{ color: '#ef4444' }}>Payment Failures</h3>
-                      <span className="db-panel-sub">Recent drop-offs during checkout</span>
+                      <h3>Payment & Checkout Alerts</h3>
+                      <span className="db-panel-sub">
+                        {abandonedData?.length > 0
+                          ? `${abandonedData.length} recent checkout drop-off${abandonedData.length > 1 ? "s" : ""}`
+                          : "Zero checkout drop-offs"}
+                      </span>
                     </div>
                   </div>
+
                   {abandonedData?.length > 0 ? (
-                    <div className="db-stock-list">
-                      {abandonedData.slice(0, 3).map((ab, i) => (
-                        <div key={ab._id} className="db-stock-row" style={{ padding: '0.75rem 0' }}>
-                          <div className="db-stock-info">
-                            <span className="db-stock-name" style={{ fontWeight: 600 }}>{ab.user?.firstName} {ab.user?.lastName}</span>
-                            <span className="db-stock-count" style={{ fontSize: '0.7rem', color: '#ef4444' }}>
-                              KES {ab.totalAmount?.toLocaleString()} · {ab.failureReason?.split('.')[0]}
-                            </span>
+                    <div className="db-dropoff-list">
+                      {abandonedData.slice(0, 4).map((ab) => {
+                        const customerName = ab.user?.firstName
+                          ? `${ab.user.firstName} ${ab.user.lastName || ""}`.trim()
+                          : (ab.shippingAddress?.fullName || "Guest Customer");
+
+                        const cleanReason = (ab.failureReason || "Incomplete transaction")
+                          .replace(/Awaiting M-Pesa PIN authorization on your phone/i, "PIN Authorization Pending")
+                          .replace(/M-Pesa transaction was cancelled or failed/i, "Cancelled by User")
+                          .replace(/Request cancelled by user/i, "Cancelled by User")
+                          .split(".")[0];
+
+                        return (
+                          <div key={ab._id} className="db-dropoff-row">
+                            <div className="db-dropoff-main">
+                              <div className="db-dropoff-customer">
+                                <span className="db-dropoff-name">{customerName}</span>
+                                <span className="db-dropoff-amount">KES {Number(ab.totalAmount || 0).toLocaleString()}</span>
+                              </div>
+                              <div className="db-dropoff-meta">
+                                <span className="db-dropoff-reason">{cleanReason}</span>
+                                <span className="db-dropoff-time">
+                                  {new Date(ab.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            {new Date(ab.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>No recent failures</p>
+                    <div className="db-empty-state success">
+                      <FaCheckCircle />
+                      <p>No checkout failures recorded</p>
+                    </div>
                   )}
                 </motion.div>
               </div>
@@ -545,15 +573,14 @@ const Dashboard = () => {
           <motion.div key="reports" className="db-reports" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <div className="db-kpi-grid">
               {[
-                { label: 'Avg. Order Value', value: fmtKES(analyticsData?.averageOrderValue), icon: <FaDollarSign />, accent: '#D4AF37', trend: '0%' },
-                { label: 'Conversion Rate', value: `${analyticsData?.conversionRate || 0}%`, icon: <FaChartLine />, accent: '#3b82f6', trend: '0%' },
-                { label: 'Retention Rate', value: `${analyticsData?.retentionRate || 0}%`, icon: <FaUsers />, accent: '#8b5cf6', trend: '0%' },
-                { label: 'Products Sold', value: (analyticsData?.productsSold || 0).toLocaleString(), icon: <FaBox />, accent: '#10b981', trend: '0%' },
+                { label: 'Avg. Order Value', value: fmtKES(analyticsData?.averageOrderValue), icon: <FaDollarSign />, accent: '#D4AF37' },
+                { label: 'Products Sold', value: (analyticsData?.productsSold || 0).toLocaleString(), icon: <FaBox />, accent: '#10b981' },
+                { label: 'Active Customers', value: (analyticsData?.activeCustomers || 0).toLocaleString(), icon: <FaUsers />, accent: '#8b5cf6' },
+                { label: 'Period Revenue', value: fmtKES(analyticsData?.totalRevenue), icon: <FaChartLine />, accent: '#3b82f6' },
               ].map((k, i) => (
                 <motion.div key={k.label} className="db-kpi-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }} style={{ '--kpi-accent': k.accent }}>
                   <div className="db-kpi-top">
                     <div className="db-kpi-icon" style={{ background: `${k.accent}1A`, color: k.accent }}>{k.icon}</div>
-                    <div className="db-kpi-change up"><FaArrowUp /> {k.trend}</div>
                   </div>
                   <div className="db-kpi-value">{k.value}</div>
                   <div className="db-kpi-label">{k.label}</div>

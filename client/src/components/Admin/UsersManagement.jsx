@@ -7,7 +7,8 @@ import {
   FaSync, FaTimes, FaShoppingBag, FaMapMarkerAlt,
   FaTrash, FaUserTag, FaShieldAlt, FaUserCheck,
   FaUserClock, FaChevronLeft, FaChevronRight,
-  FaCrown, FaUsers, FaUserShield, FaLockOpen, FaLock
+  FaCrown, FaUsers, FaUserShield, FaLockOpen, FaLock,
+  FaKey, FaUnlock, FaCopy, FaCheck, FaExternalLinkAlt, FaWhatsapp
 } from 'react-icons/fa';
 import './UsersManagement.css';
 
@@ -54,7 +55,7 @@ const RoleBadge = ({ role }) => {
 
 // ─── Main Component ────────────────────────────────────────────
 const UsersManagement = () => {
-  const { showAlert, fetchAdminUsers, updateUserRole, deleteUser, unlockAccount, resetUserSecurity } = useContext(AppContext);
+  const { showAlert, fetchAdminUsers, updateUserRole, deleteUser, unlockAccount, resetUserSecurity, generateAdminPasswordReset, togglePasswordUnlock } = useContext(AppContext);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,6 +65,38 @@ const UsersManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [stats, setStats] = useState({ total: 0, admins: 0, verified: 0, recent: 0 });
+  const [resetModal, setResetModal] = useState({
+    isOpen: false,
+    user: null,
+    loading: false,
+    result: null,
+    error: null
+  });
+
+  const handleTriggerReset = async (targetUser) => {
+    setResetModal({
+      isOpen: true,
+      user: targetUser,
+      loading: true,
+      result: null,
+      error: null
+    });
+
+    try {
+      const res = await generateAdminPasswordReset(targetUser._id);
+      setResetModal(prev => ({
+        ...prev,
+        loading: false,
+        result: res.data || res
+      }));
+    } catch (err) {
+      setResetModal(prev => ({
+        ...prev,
+        loading: false,
+        error: err.response?.data?.message || err.message || 'Failed to generate reset credentials'
+      }));
+    }
+  };
 
   // Helper: check if a user account is currently locked
   const isUserLocked = (user) => user.lockUntil && new Date(user.lockUntil) > new Date();
@@ -175,6 +208,51 @@ const UsersManagement = () => {
       }
     } catch {
       // Error is already handled by context
+    }
+  };
+
+  const handleTogglePasswordUnlock = async (userId, currentOverride) => {
+    let reason = null;
+    if (!currentOverride) {
+      reason = window.prompt(
+        "Reason for granting early 30-day password unlock (e.g. 'Customer lost device' or 'Security request'):",
+        "Customer requested early password change"
+      );
+      if (reason === null) return;
+      if (!reason.trim()) reason = "Customer requested early password change";
+    }
+
+    try {
+      const res = await togglePasswordUnlock(userId, {
+        unlock: !currentOverride,
+        reason: reason
+      });
+      if (res?.success) {
+        setUsers(prev => prev.map(u => {
+          if (u._id === userId) {
+            return {
+              ...u,
+              allowPasswordChangeOverride: res.data?.allowPasswordChangeOverride,
+              passwordOverrideReason: res.data?.passwordOverrideReason,
+              passwordOverrideGrantedAt: res.data?.passwordOverrideGrantedAt,
+              passwordChangedAt: res.data?.passwordChangedAt
+            };
+          }
+          return u;
+        }));
+
+        if (selectedUser?._id === userId) {
+          setSelectedUser(prev => ({
+            ...prev,
+            allowPasswordChangeOverride: res.data?.allowPasswordChangeOverride,
+            passwordOverrideReason: res.data?.passwordOverrideReason,
+            passwordOverrideGrantedAt: res.data?.passwordOverrideGrantedAt,
+            passwordChangedAt: res.data?.passwordChangedAt
+          }));
+        }
+      }
+    } catch {
+      // Handled by context
     }
   };
 
@@ -341,6 +419,15 @@ const UsersManagement = () => {
                           <FaLock style={{ fontSize: '0.65rem' }} /> Locked
                         </span>
                       )}
+                      {user.allowPasswordChangeOverride ? (
+                        <span className="um-verified-badge" style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }} title={`Password Override Active: ${user.passwordOverrideReason || 'Admin approved'}`}>
+                          <FaUnlock style={{ fontSize: '0.62rem' }} /> Pass Unlocked
+                        </span>
+                      ) : (user.passwordChangedAt && (Date.now() - new Date(user.passwordChangedAt).getTime()) < 30 * 24 * 60 * 60 * 1000) ? (
+                        <span className="um-verified-badge" style={{ background: 'rgba(245,158,11,0.12)', color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }} title="30-day password cooldown active">
+                          <FaKey style={{ fontSize: '0.62rem' }} /> Cooldown ({Math.ceil((30 * 24 * 60 * 60 * 1000 - (Date.now() - new Date(user.passwordChangedAt).getTime())) / (24 * 60 * 60 * 1000))}d)
+                        </span>
+                      ) : null}
                     </div>
                   </td>
                   <td>
@@ -351,6 +438,14 @@ const UsersManagement = () => {
                         onClick={() => setSelectedUser(user)}
                       >
                         <FaUser />
+                      </button>
+                      <button
+                        className="um-action-btn key"
+                        title="Generate Password Reset Link & Code"
+                        style={{ color: '#D4AF37' }}
+                        onClick={() => handleTriggerReset(user)}
+                      >
+                        <FaKey />
                       </button>
                       <button
                         className="um-action-btn delete"
@@ -409,7 +504,19 @@ const UsersManagement = () => {
             onDelete={handleDeleteUser}
             onUnlock={handleUnlockUser}
             onSecurityReset={handleSecurityReset}
+            onTogglePasswordUnlock={handleTogglePasswordUnlock}
+            onTriggerReset={handleTriggerReset}
             isLocked={isUserLocked(selectedUser)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Admin Password Reset Modal ── */}
+      <AnimatePresence>
+        {resetModal.isOpen && (
+          <AdminResetModal
+            modal={resetModal}
+            onClose={() => setResetModal({ isOpen: false, user: null, loading: false, result: null, error: null })}
           />
         )}
       </AnimatePresence>
@@ -418,7 +525,7 @@ const UsersManagement = () => {
 };
 
 // ─── User Profile Drawer ────────────────────────────────────────
-const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, onSecurityReset, isLocked }) => {
+const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, onSecurityReset, onTogglePasswordUnlock, onTriggerReset, isLocked }) => {
   const [role, setRole] = useState(user.userType || user.role || 'customer');
   const [unlocking, setUnlocking] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -437,6 +544,52 @@ const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, on
 
   const initials = getInitials(user.firstName, user.lastName);
   const joinDate = formatDate(user.createdAt);
+
+  const getCooldownInfo = () => {
+    if (user.allowPasswordChangeOverride) {
+      return {
+        status: 'unlocked',
+        label: 'Early Password Change Permitted (Override Active)',
+        sublabel: `Reason: ${user.passwordOverrideReason || 'Admin concierge approved upon request'}. Member can change their password immediately in dashboard.`,
+        color: '#10b981',
+        bg: 'rgba(16, 185, 129, 0.08)',
+        canUnlock: false,
+        canRevoke: true
+      };
+    }
+
+    if (user.passwordChangedAt) {
+      const elapsed = Date.now() - new Date(user.passwordChangedAt).getTime();
+      const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+      if (elapsed < COOLDOWN_MS) {
+        const daysRemaining = Math.ceil((COOLDOWN_MS - elapsed) / (24 * 60 * 60 * 1000));
+        return {
+          status: 'cooldown',
+          label: `30-Day Policy Cooldown (${daysRemaining} days remaining)`,
+          sublabel: `Standard security policy restricts password updates to once every 30 days. Last changed: ${formatDate(user.passwordChangedAt)}.`,
+          color: '#d97706',
+          bg: 'rgba(245, 158, 11, 0.08)',
+          daysRemaining,
+          canUnlock: true,
+          canRevoke: false
+        };
+      }
+    }
+
+    return {
+      status: 'eligible',
+      label: 'Eligible to Change Password (30+ Days Satisfied)',
+      sublabel: user.passwordChangedAt
+        ? `Last updated on ${formatDate(user.passwordChangedAt)}. Member is currently eligible to update credentials.`
+        : 'Member has not recently changed password and is fully eligible.',
+      color: '#6F4E37',
+      bg: 'rgba(111, 78, 55, 0.06)',
+      canUnlock: true,
+      canRevoke: false
+    };
+  };
+
+  const cooldownInfo = getCooldownInfo();
 
   return (
     <>
@@ -587,6 +740,132 @@ const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, on
             </div>
           )}
 
+          {/* Customer Security & Credential Control (30-Day Policy Concierge Override) */}
+          <div className="um-drawer-section" style={{
+            border: cooldownInfo.status === 'unlocked'
+              ? '1px solid rgba(16, 185, 129, 0.35)'
+              : cooldownInfo.status === 'cooldown'
+                ? '1px solid rgba(245, 158, 11, 0.35)'
+                : '1px solid var(--border-main)',
+            background: cooldownInfo.status === 'unlocked'
+              ? 'rgba(16, 185, 129, 0.03)'
+              : cooldownInfo.status === 'cooldown'
+                ? 'rgba(245, 158, 11, 0.02)'
+                : 'var(--bg-home)'
+          }}>
+            <h4 className="um-drawer-section-title" style={{ color: cooldownInfo.status === 'unlocked' ? '#10b981' : cooldownInfo.status === 'cooldown' ? '#d97706' : 'var(--text-muted)' }}>
+              <FaKey /> Credential & Password Policy Control
+            </h4>
+            <p className="um-drawer-section-hint">
+              Rerendet Farm enforces a 30-day password cooldown to protect customer accounts. Administrators can grant a concierge override upon verified customer request.
+            </p>
+
+            {/* Status Card */}
+            <div style={{
+              padding: '0.85rem 1rem',
+              borderRadius: '10px',
+              background: cooldownInfo.bg,
+              border: `1px solid ${cooldownInfo.color}35`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.85rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                background: `${cooldownInfo.color}20`,
+                color: cooldownInfo.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1rem',
+                flexShrink: 0
+              }}>
+                {cooldownInfo.status === 'unlocked' ? <FaUnlock /> : <FaLock />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: cooldownInfo.color }}>
+                  {cooldownInfo.label}
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '2px', lineHeight: 1.4 }}>
+                  {cooldownInfo.sublabel}
+                </div>
+              </div>
+            </div>
+
+            {/* Override metadata if unlocked */}
+            {user.allowPasswordChangeOverride && (
+              <div className="um-info-rows" style={{ marginBottom: '1rem', fontSize: '0.78rem' }}>
+                <div className="um-info-row">
+                  <span className="um-info-label">Override Reason</span>
+                  <span className="um-info-value" style={{ fontWeight: 600 }}>{user.passwordOverrideReason || 'Concierge approved'}</span>
+                </div>
+                {user.passwordOverrideGrantedAt && (
+                  <div className="um-info-row">
+                    <span className="um-info-label">Granted On</span>
+                    <span className="um-info-value">{formatDate(user.passwordOverrideGrantedAt)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Button */}
+            {user.allowPasswordChangeOverride ? (
+              <button
+                className="um-save-role-btn"
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  boxShadow: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem'
+                }}
+                onClick={() => onTogglePasswordUnlock(user._id, true)}
+              >
+                <FaLock /> Revoke Unlock (Restore 30-Day Policy)
+              </button>
+            ) : (
+              <button
+                className="um-save-role-btn"
+                style={{
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem'
+                }}
+                onClick={() => onTogglePasswordUnlock(user._id, false)}
+              >
+                <FaUnlock /> Unlock Password Change (Grant Override)
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="um-save-role-btn"
+              style={{
+                background: 'linear-gradient(135deg, #D4AF37, #996515)',
+                color: '#1a1816',
+                fontWeight: 700,
+                marginTop: '0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                boxShadow: '0 4px 14px rgba(212, 175, 55, 0.25)'
+              }}
+              onClick={() => onTriggerReset(user)}
+            >
+              <FaKey /> Generate Reset Link &amp; OTP Code
+            </button>
+          </div>
+
           {/* Emergency Recovery */}
           <div className="um-drawer-section">
             <h4 className="um-drawer-section-title" style={{ color: '#f59e0b' }}><FaShieldAlt /> Emergency Recovery</h4>
@@ -654,6 +933,157 @@ const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, on
         </div>
       </motion.div>
     </>
+  );
+};
+
+// ─── Admin Password Reset Modal ─────────────────────────────────
+const AdminResetModal = ({ modal, onClose }) => {
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  if (!modal?.isOpen) return null;
+
+  const { user, loading, result, error } = modal;
+  const name = result?.name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email;
+  const email = result?.email || user?.email;
+  const code = result?.code;
+  const resetUrl = result?.resetUrl;
+  const phone = (result?.phone || user?.phone || '').replace(/[^0-9]/g, '');
+
+  const copyToClipboard = (text, type) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    if (type === 'link') {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } else {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
+
+  const whatsappMessage = encodeURIComponent(
+    `Hello ${name}, here is your secure password reset link for Rerendet Farm: ${resetUrl}\n\nOr enter code: ${code}\n(This link expires in 60 minutes).`
+  );
+  const whatsappUrl = phone ? `https://wa.me/${phone}?text=${whatsappMessage}` : `https://wa.me/?text=${whatsappMessage}`;
+
+  return (
+    <div className="um-modal-overlay" onClick={onClose}>
+      <motion.div
+        className="um-reset-modal"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="um-reset-modal-header">
+          <div className="um-reset-modal-icon">
+            <FaKey />
+          </div>
+          <div>
+            <h3>Customer Password Recovery</h3>
+            <p>Direct reset link &amp; OTP code for <strong>{name}</strong></p>
+          </div>
+          <button className="um-drawer-close" onClick={onClose}><FaTimes /></button>
+        </div>
+
+        <div className="um-reset-modal-body">
+          {loading && (
+            <div className="um-modal-loading">
+              <FaSync className="spin" />
+              <span>Generating secure cryptographic recovery tokens…</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="um-modal-error">
+              <p>⚠️ {error}</p>
+            </div>
+          )}
+
+          {result && (
+            <>
+              {/* Notice Banner */}
+              <div className={`um-status-banner ${result.emailSent ? 'success' : 'warning'}`}>
+                {result.emailSent ? (
+                  <span>✅ An automated email was sent to <strong>{email}</strong>, but you can also share the direct link below immediately.</span>
+                ) : (
+                  <span>ℹ️ Automated email could not be delivered, but this direct link and code are live and ready to send to the customer!</span>
+                )}
+              </div>
+
+              {/* 6-Digit OTP Code */}
+              <div className="um-reset-block">
+                <label className="um-reset-label">6-Digit Verification Code (OTP)</label>
+                <div className="um-code-display-wrap">
+                  <span className="um-code-digits">{code}</span>
+                  <button
+                    type="button"
+                    className="um-copy-btn"
+                    onClick={() => copyToClipboard(code, 'code')}
+                  >
+                    {copiedCode ? <><FaCheck /> Copied!</> : <><FaCopy /> Copy Code</>}
+                  </button>
+                </div>
+                <span className="um-reset-hint">Customer can enter this 6-digit code on the reset screen or login portal.</span>
+              </div>
+
+              {/* 1-Click Direct Reset Link */}
+              <div className="um-reset-block">
+                <label className="um-reset-label">Direct 1-Click Reset Link</label>
+                <div className="um-link-display-wrap">
+                  <input
+                    type="text"
+                    readOnly
+                    value={resetUrl}
+                    className="um-link-input"
+                    onClick={e => e.target.select()}
+                  />
+                  <button
+                    type="button"
+                    className="um-copy-btn primary"
+                    onClick={() => copyToClipboard(resetUrl, 'link')}
+                  >
+                    {copiedLink ? <><FaCheck /> Copied Link!</> : <><FaCopy /> Copy Link</>}
+                  </button>
+                </div>
+                <span className="um-reset-hint">Customer can click this link directly to set their new password without needing an email.</span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="um-reset-actions-row">
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="um-whatsapp-btn"
+                >
+                  <FaWhatsapp /> Send via WhatsApp
+                </a>
+                <a
+                  href={resetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="um-test-link-btn"
+                >
+                  <FaExternalLinkAlt /> Open Reset Page
+                </a>
+              </div>
+
+              <div className="um-expiry-notice">
+                <span>⏱️ Token &amp; Code expire in <strong>60 minutes</strong>. The customer must choose a <strong>new password</strong> different from their previous one.</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="um-reset-modal-footer">
+          <button type="button" className="um-btn-close" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

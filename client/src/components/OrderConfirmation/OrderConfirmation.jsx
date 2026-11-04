@@ -1,38 +1,37 @@
 // components/OrderConfirmation/OrderConfirmation.jsx
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import {
-  FaCheckCircle, FaCoffee, FaTruck, FaDownload,
-  FaHome, FaReceipt, FaStar, FaLeaf, FaMagic,
-  FaEnvelope, FaShieldAlt, FaCreditCard, FaMapMarkerAlt,
-  FaClock, FaGift, FaArrowRight, FaUser, FaCopy, FaCheck,
-  FaWhatsapp, FaPrint, FaPhoneAlt, FaCalendarAlt
+  FaStore, FaBell, FaLeaf, FaTimes, FaReceipt,
+  FaPrint
 } from 'react-icons/fa';
 import './OrderConfirmation.css';
+import '../Checkout/OrderReceipt.css';
 
-/* ── Luxury Confetti particles ── */
+/* ── 4x4 Gold Dot Matrix Pattern Component ── */
+const DotGrid = ({ className = '' }) => (
+  <div className={`or-dot-grid ${className}`} aria-hidden="true">
+    {Array.from({ length: 16 }).map((_, i) => (
+      <span key={i} />
+    ))}
+  </div>
+);
+
+/* ── Minimal Confetti Burst ── */
 const Particle = ({ style }) => <div className="oc-particle" style={style} />;
 
-const generateParticles = (count = 50) =>
+const generateParticles = (count = 35) =>
   Array.from({ length: count }, (_, i) => ({
     id: i,
     left: `${Math.random() * 100}%`,
-    delay: `${Math.random() * 2}s`,
-    duration: `${2.2 + Math.random() * 2}s`,
-    color: ['#D4AF37', '#C4835A', '#10B981', '#ffffff', '#E5A96E', '#38bdf8'][i % 6],
-    size: `${5 + Math.random() * 7}px`,
+    delay: `${Math.random() * 1.5}s`,
+    duration: `${2.0 + Math.random() * 2}s`,
+    color: ['#10B981', '#D4AF37', '#C4835A', '#FAF7F2', '#E5A96E'][i % 5],
+    size: `${5 + Math.random() * 6}px`,
     rotate: `${Math.random() * 360}deg`,
   }));
-
-const JOURNEY_STEPS = [
-  { id: 'confirmed', icon: FaCheckCircle, label: 'Order Confirmed', desc: 'Payment verified & secured', time: 'Just now' },
-  { id: 'roasting', icon: FaCoffee, label: 'Fresh Roast Batch', desc: 'Crafting in Nandi Highlands', time: 'Within 12 hrs' },
-  { id: 'shipped', icon: FaTruck, label: 'Express Dispatch', desc: 'Handed over to courier', time: '24-48 hrs' },
-  { id: 'delivered', icon: FaGift, label: 'Doorstep Delivery', desc: 'Fresh coffee at your door', time: 'Estimated ETA' },
-];
 
 const OrderConfirmation = () => {
   const { id } = useParams();
@@ -43,21 +42,16 @@ const OrderConfirmation = () => {
   const [order, setOrder] = useState(location.state?.order || null);
   const [loading, setLoading] = useState(!location.state?.order);
   const [showBurst, setShowBurst] = useState(true);
-  const [particles] = useState(() => generateParticles(50));
-  const [copiedOrderNumber, setCopiedOrderNumber] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
+  const [particles] = useState(() => generateParticles(35));
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
 
   useEffect(() => {
     refreshOrders?.();
     if (!order && id) {
       fetchOrder();
     }
-    const t1 = setTimeout(() => setShowBurst(false), 3500);
-    const t2 = setTimeout(() => setActiveStep(1), 700);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    const timer = setTimeout(() => setShowBurst(false), 3200);
+    return () => clearTimeout(timer);
   }, [id]);
 
   const fetchOrder = async () => {
@@ -77,56 +71,24 @@ const OrderConfirmation = () => {
       }
     } catch (err) {
       showNotification('Failed to load order details', 'error');
-      navigate('/account/orders');
+      navigate('/account?tab=orders');
     } finally {
       setLoading(false);
     }
-  };
-
-  const copyOrderNumber = () => {
-    if (!order?.orderNumber) return;
-    navigator.clipboard.writeText(order.orderNumber);
-    setCopiedOrderNumber(true);
-    showNotification('Order Number copied to clipboard!', 'success');
-    setTimeout(() => setCopiedOrderNumber(false), 2500);
   };
 
   const handlePrint = () => {
     window.print();
   };
 
-  const handleWhatsAppShare = () => {
-    if (!order) return;
-    const msg = `Hi Rerendet Team! I just placed order #${order.orderNumber} for KES ${order.total?.toLocaleString()}. Tracking updates please!`;
-    const url = getWhatsAppLink(publicSettings, msg);
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
-
-  const getEstimatedDelivery = () => {
-    if (!order?.createdAt) return '2–3 Business Days';
-    const d = new Date(order.createdAt);
-    d.setDate(d.getDate() + 3);
-    return d.toLocaleDateString('en-KE', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
-
-  const getPaymentLabel = (method) => {
-    const map = { mpesa: 'M-Pesa Express', card: 'Credit / Debit Card', cod: 'Cash on Delivery' };
-    return map[method?.toLowerCase()] || method?.toUpperCase() || 'Secured Payment';
-  };
-
-  const getPaymentStatusBadge = (status) => {
-    if (status === 'paid') return { text: 'Paid & Confirmed', className: 'paid' };
-    if (status === 'payment_failed' || status === 'failed') return { text: 'Payment Failed', className: 'failed' };
-    return { text: 'Payment Pending', className: 'pending' };
-  };
-
   if (loading) {
     return (
-      <div className="oc-modern-page">
-        <div className="oc-loading-state">
-          <div className="oc-luxury-spinner" />
-          <h2>Preparing Your Fresh Coffee Summary…</h2>
-          <p>Connecting to highland roast masters</p>
+      <div className="oc-clean-page">
+        <div className="oc-loading-wrap">
+          <div className="oc-clean-spinner" />
+          <p style={{ color: 'var(--oc-text-muted)', fontSize: '0.95rem' }}>
+            Preparing your order confirmation…
+          </p>
         </div>
       </div>
     );
@@ -134,17 +96,46 @@ const OrderConfirmation = () => {
 
   if (!order) return null;
 
-  const paymentBadge = getPaymentStatusBadge(order.paymentStatus);
+  // Extract clean summary data
   const items = order.items || [];
+  const itemCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
   const shipping = order.shippingAddress || {};
+  const customerName = shipping.firstName || order.user?.name?.split(' ')[0] || 'Coffee Lover';
+  const destination = shipping.town || shipping.city || shipping.county || 'Nairobi';
+
+  // Format order confirmation time & date
+  const orderTime = order.createdAt
+    ? new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'Just now';
+
+  const invoiceDate = order.createdAt
+    ? new Date(order.createdAt).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
+    : new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+  // Hero product image matching the home hero section
+  const heroProductImage = publicSettings?.hero?.imageUrl || '/hero-product.png';
+
+  const store = publicSettings?.store || {};
+  const clientName = `${shipping.firstName || ''} ${shipping.lastName || ''}`.trim() || order.user?.name || 'Valued Customer';
+  const clientPhone = shipping.phone || store.phone || '+254 700 000 000';
+  const clientEmail = shipping.email || order.user?.email || 'customer@rerendetcoffee.com';
+  const clientLocation = `${shipping.town ? shipping.town + ', ' : ''}${shipping.city || shipping.county || 'Nairobi, Kenya'}`;
+
+  // Signature: use admin uploaded signature if present, or fallback to signature script
+  const signatureUrl = store.signature || '';
+  const signatoryName = store.signatoryName || 'Sacha Dubois';
 
   return (
-    <div className="oc-modern-page">
-      {/* Ambient glowing orbs */}
-      <div className="oc-ambient-orb oc-orb-1" />
-      <div className="oc-ambient-orb oc-orb-2" />
-
-      {/* Confetti Animation */}
+    <div className="oc-clean-page">
+      {/* Subtle celebratory confetti */}
       <AnimatePresence>
         {showBurst && (
           <motion.div
@@ -171,307 +162,412 @@ const OrderConfirmation = () => {
         )}
       </AnimatePresence>
 
-      <div className="oc-wrapper">
-        
-        {/* ══ 1. HERO HEADER ══ */}
-        <motion.div
-          className="oc-hero-card"
-          initial={{ opacity: 0, y: 25 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="oc-hero-pattern" />
-
-          {/* Success Ring Icon */}
-          <motion.div
-            className="oc-success-icon-box"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 15, delay: 0.1 }}
-          >
-            <FaCheckCircle className="oc-success-svg" />
-            <div className="oc-pulse-ring ring-1" />
-            <div className="oc-pulse-ring ring-2" />
-          </motion.div>
-
-          <span className="oc-hero-subtitle">Single-Origin Roast Experience</span>
-          <h1 className="oc-hero-title">Order Confirmed</h1>
-          <p className="oc-hero-description">
-            Thank you, <strong className="oc-customer-name">{shipping.firstName || 'Coffee Enthusiast'}</strong>! Your order is secured and entering our small-batch roast cycle.
-          </p>
-
-          {/* Order Meta Ribbon */}
-          <div className="oc-meta-ribbon">
-            <div className="oc-meta-chip">
-              <span className="chip-label">Order Signature</span>
-              <div className="chip-value-row">
-                <strong className="chip-code">#{order.orderNumber}</strong>
-                <button
-                  type="button"
-                  className="oc-copy-btn"
-                  onClick={copyOrderNumber}
-                  title="Copy Order Number"
-                >
-                  {copiedOrderNumber ? <FaCheck className="copy-done" /> : <FaCopy />}
-                </button>
-              </div>
-            </div>
-
-            <div className="oc-meta-divider" />
-
-            <div className="oc-meta-chip">
-              <span className="chip-label">Payment Status</span>
-              <span className={`oc-status-pill ${paymentBadge.className}`}>
-                {paymentBadge.text}
-              </span>
-            </div>
-
-            <div className="oc-meta-divider" />
-
-            <div className="oc-meta-chip">
-              <span className="chip-label">Estimated Delivery</span>
-              <strong className="chip-highlight"><FaCalendarAlt /> {getEstimatedDelivery()}</strong>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* ══ 2. INTERACTIVE ROAST & DISPATCH JOURNEY ══ */}
-        <motion.div
-          className="oc-journey-card"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="oc-journey-header">
-            <div>
-              <span className="oc-card-tag">Roastery to Cup</span>
-              <h2 className="oc-card-heading">Live Fulfillment Journey</h2>
-            </div>
-            <div className="oc-roast-badge">
-              <FaLeaf className="leaf-anim" /> 100% Volcanic Soil Arabica
-            </div>
+      {/* ══ SPLIT CONFIRMATION CARD (Target Mockup Replica) ══ */}
+      <motion.div
+        className="oc-clean-card"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: 'easeOut' }}
+      >
+        {/* ── LEFT PANE: BRAND & HERO COFFEE PACKAGING ── */}
+        <div className="oc-left-pane">
+          {/* Top Brand Mark - Huge Logo without redundant text line */}
+          <div className="oc-brand-header">
+            <img
+              src={store.logo || '/rerendet-logo.png'}
+              alt={store.name || 'Rerendet Coffee'}
+              className="oc-brand-logo-img"
+            />
           </div>
 
-          <div className="oc-stepper-grid">
-            {JOURNEY_STEPS.map((step, idx) => {
-              const Icon = step.icon;
-              const isCompleted = idx <= activeStep;
-              const isCurrent = idx === activeStep;
-
-              return (
-                <div
-                  key={step.id}
-                  className={`oc-step-node ${isCompleted ? 'completed' : ''} ${isCurrent ? 'active' : ''}`}
-                >
-                  <div className="oc-step-icon-shell">
-                    <Icon />
-                    {isCompleted && <div className="oc-check-dot"><FaCheck size={9} /></div>}
-                  </div>
-                  <div className="oc-step-details">
-                    <span className="oc-step-title">{step.label}</span>
-                    <span className="oc-step-desc">{step.desc}</span>
-                    <span className="oc-step-timing">{step.time}</span>
-                  </div>
-                  {idx < JOURNEY_STEPS.length - 1 && <div className="oc-step-track" />}
-                </div>
-              );
-            })}
+          {/* Center Product Image matching Hero section */}
+          <div className="oc-visual-center">
+            <img
+              src={heroProductImage}
+              alt="Rerendet Artisan Coffee Roast"
+              className="oc-visual-bag"
+              onError={(e) => {
+                e.target.src = '/hero-product.png';
+              }}
+            />
           </div>
-        </motion.div>
 
-        {/* ══ 3. TWO-COLUMN SPLIT: SUMMARY & LOGISTICS ══ */}
-        <div className="oc-grid-columns">
-          
-          {/* Left Column: Curated Items */}
-          <motion.div
-            className="oc-details-card"
-            initial={{ opacity: 0, x: -15 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="oc-details-head">
-              <h3 className="oc-subheading">Selected Harvest ({items.length})</h3>
-              <span className="oc-batch-tag">Direct Trade Certified</span>
-            </div>
-
-            <div className="oc-items-stack">
-              {items.map((item, idx) => (
-                <div key={idx} className="oc-product-row">
-                  <div className="oc-product-thumb">
-                    <img src={item.image || '/default-product.jpg'} alt={item.name} />
-                  </div>
-                  <div className="oc-product-content">
-                    <h4 className="oc-product-name">{item.name}</h4>
-                    <div className="oc-product-tags">
-                      <span className="badge-roast">{item.size || 'Standard 250g'}</span>
-                      <span className="badge-qty">Qty: {item.quantity}</span>
-                    </div>
-                  </div>
-                  <div className="oc-product-pricing">
-                    <span className="price-unit">KES {item.price?.toLocaleString()} each</span>
-                    <strong className="price-total">KES {(item.price * item.quantity).toLocaleString()}</strong>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Financial Ledger */}
-            <div className="oc-financial-ledger">
-              <div className="ledger-row">
-                <span>Subtotal</span>
-                <span>KES {order.subtotal?.toLocaleString()}</span>
-              </div>
-              <div className="ledger-row">
-                <span>Delivery & Logistics</span>
-                <span>{order.shippingCost > 0 ? `KES ${order.shippingCost.toLocaleString()}` : 'Free Shipping'}</span>
-              </div>
-              {order.discountAmount > 0 && (
-                <div className="ledger-row discount">
-                  <span>Special Promotion / Discount</span>
-                  <span>− KES {order.discountAmount.toLocaleString()}</span>
-                </div>
-              )}
-              {order.appliedStoreCredit > 0 && (
-                <div className="ledger-row discount">
-                  <span>Store Credit Applied</span>
-                  <span>− KES {order.appliedStoreCredit.toLocaleString()}</span>
-                </div>
-              )}
-              <div className="ledger-divider" />
-              <div className="ledger-row total">
-                <span>Total Amount Paid</span>
-                <span className="ledger-grand-total">KES {order.total?.toLocaleString()}</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Right Column: Destination & Logistics Info */}
-          <motion.div
-            className="oc-logistics-column"
-            initial={{ opacity: 0, x: 15 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.35 }}
-          >
-            {/* Delivery Destination Card */}
-            <div className="oc-info-tile">
-              <div className="oc-tile-icon-box blue">
-                <FaMapMarkerAlt />
-              </div>
-              <div className="oc-tile-content">
-                <h4>Delivery Address</h4>
-                <p className="oc-tile-text">
-                  <strong>{shipping.firstName} {shipping.lastName}</strong><br />
-                  {shipping.address}<br />
-                  {shipping.landmark && <span className="landmark-text">Near: {shipping.landmark}<br /></span>}
-                  {shipping.town ? `${shipping.town}, ` : ''}{shipping.city || shipping.county}<br />
-                  {shipping.country || 'Kenya'}
-                </p>
-                <div className="oc-contact-pill">
-                  <FaPhoneAlt size={11} /> {shipping.phone || 'Phone on file'}
-                </div>
-              </div>
-            </div>
-
-            {/* Payment & Security Card */}
-            <div className="oc-info-tile">
-              <div className="oc-tile-icon-box gold">
-                <FaCreditCard />
-              </div>
-              <div className="oc-tile-content">
-                <h4>Payment Method</h4>
-                <p className="oc-tile-text">
-                  <strong>{getPaymentLabel(order.paymentMethod)}</strong>
-                </p>
-                {order.transactionId && (
-                  <div className="oc-receipt-ref">
-                    <span>M-Pesa Receipt:</span>
-                    <code>{order.transactionId}</code>
-                  </div>
-                )}
-                <div className="oc-security-badge">
-                  <FaShieldAlt /> 256-Bit Encrypted & PCI-DSS Compliant
-                </div>
-              </div>
-            </div>
-
-            {/* Email Notification Card */}
-            <div className="oc-info-tile">
-              <div className="oc-tile-icon-box green">
-                <FaEnvelope />
-              </div>
-              <div className="oc-tile-content">
-                <h4>Order Receipt Dispatched</h4>
-                <p className="oc-tile-text">
-                  An itemized tax receipt and dispatch link were emailed to:<br />
-                  <strong className="email-highlight">{shipping.email || order.user?.email || 'Your email address'}</strong>
-                </p>
-              </div>
-            </div>
-
-          </motion.div>
+          {/* Bottom Single-Origin Pill */}
+          <div className="oc-feature-pill">
+            <FaLeaf className="oc-feature-icon" style={{ color: 'var(--oc-gold)' }} />
+            <span>100% shade-grown Arabica from the Great Rift Valley highlands.</span>
+          </div>
         </div>
 
-        {/* ══ 4. MODERN ACTION BUTTONS ══ */}
-        <motion.div
-          className="oc-cta-toolbar"
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-        >
+        {/* ── RIGHT PANE: CLEAN CONFIRMATION DETAILS ── */}
+        <div className="oc-right-pane">
+          {/* Top Right Close Button */}
           <button
             type="button"
-            className="oc-btn-main primary"
-            onClick={() => navigate(`/order-tracking/${id || order._id}`)}
+            className="oc-close-btn"
+            onClick={() => navigate('/')}
+            title="Back to shop"
+            aria-label="Close"
           >
-            <FaTruck /> Live Order Tracking
+            <FaTimes />
           </button>
 
-          <button
-            type="button"
-            className="oc-btn-main outline"
-            onClick={handlePrint}
+          {/* Green Check Circle */}
+          <div className="oc-check-wrap">
+            <div className="oc-check-circle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Headline & Subtitle */}
+          <div className="oc-heading-group">
+            <h1 className="oc-thank-title">
+              Thank you, {customerName}! 🎉
+            </h1>
+            <p className="oc-thank-sub">
+              Your order has been received and is being prepared with care.
+            </p>
+          </div>
+
+          {/* Order Mini Pill */}
+          <div className="oc-order-box">
+            <div className="oc-order-left">
+              <div className="oc-order-icon-shell">
+                <FaStore />
+              </div>
+              <div className="oc-order-info">
+                <span className="oc-order-num">Order #{order.orderNumber}</span>
+                <span className="oc-order-subtext">
+                  {itemCount} {itemCount === 1 ? 'item' : 'items'} · Delivery to {destination}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3-Step Vertical Timeline */}
+          <div className="oc-timeline">
+            {/* Step 1: Confirmed */}
+            <div className="oc-timeline-step">
+              <div className="oc-timeline-dot active" />
+              <div className="oc-step-content">
+                <span className="oc-step-name">Order confirmed</span>
+                <span className="oc-step-sub">{orderTime}</span>
+              </div>
+            </div>
+
+            {/* Step 2: Preparing */}
+            <div className="oc-timeline-step">
+              <div className="oc-timeline-dot pending" />
+              <div className="oc-step-content">
+                <span className="oc-step-name">Preparing your order</span>
+                <span className="oc-step-sub">We'll notify you soon</span>
+              </div>
+            </div>
+
+            {/* Step 3: Out for delivery */}
+            <div className="oc-timeline-step">
+              <div className="oc-timeline-dot pending" />
+              <div className="oc-step-content">
+                <span className="oc-step-name">Ready for delivery</span>
+                <span className="oc-step-sub">Estimated 2–3 business days</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notification Callout */}
+          <div className="oc-notify-callout">
+            <FaBell className="oc-notify-icon" />
+            <span>We'll send you a notification when your order is ready.</span>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="oc-actions-group">
+            <button
+              type="button"
+              className="btn-oc-track"
+              onClick={() => navigate('/account?tab=orders')}
+            >
+              Track order
+            </button>
+
+            <button
+              type="button"
+              className="btn-oc-receipt"
+              onClick={() => setShowReceiptModal(true)}
+            >
+              <FaReceipt /> View receipt
+            </button>
+
+            <Link to="/" className="btn-oc-back">
+              Back to shop
+            </Link>
+          </div>
+
+        </div>
+      </motion.div>
+
+      {/* ══ FLOATING RECEIPT POP-UP MODAL (Exact Liceria Editorial Invoice) ══ */}
+      <AnimatePresence>
+        {showReceiptModal && (
+          <div
+            className="oc-modal-backdrop"
+            onClick={() => setShowReceiptModal(false)}
           >
-            <FaPrint /> Print Official Receipt
-          </button>
+            <motion.div
+              className="oc-receipt-modal"
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Floating Toolbar */}
+              <div className="oc-modal-header no-print">
+                <div className="oc-modal-title-group">
+                  <FaReceipt className="oc-modal-title-icon" />
+                  <div>
+                    <h3 className="oc-modal-title">Official Invoice</h3>
+                    <p className="oc-modal-sub">Order #{order.orderNumber}</p>
+                  </div>
+                </div>
+                <div className="oc-modal-header-actions">
+                  <button
+                    type="button"
+                    className="oc-modal-print-btn"
+                    onClick={handlePrint}
+                    title="Print Receipt"
+                  >
+                    <FaPrint /> Print
+                  </button>
+                  <button
+                    type="button"
+                    className="oc-modal-close-btn"
+                    onClick={() => setShowReceiptModal(false)}
+                    aria-label="Close"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
 
-          <button
-            type="button"
-            className="oc-btn-main whatsapp"
-            onClick={handleWhatsAppShare}
-          >
-            <FaWhatsapp /> WhatsApp Support
-          </button>
+              {/* Modal Body: The Exact Editorial Document Sheet */}
+              <div className="oc-modal-body" style={{ padding: 0 }}>
+                <div className="or-sheet" style={{ maxWidth: '100%', boxShadow: 'none' }}>
+                  {/* Subtle decorative curves in upper corner */}
+                  <svg className="or-sheet-curves" viewBox="0 0 480 240" fill="none">
+                    <path
+                      d="M50 0C160 80 320 60 480 180"
+                      stroke="#D4AF37"
+                      strokeWidth="1"
+                      strokeDasharray="4 6"
+                      opacity="0.4"
+                    />
+                    <path
+                      d="M120 0C220 120 360 90 480 220"
+                      stroke="#171311"
+                      strokeWidth="0.8"
+                      opacity="0.25"
+                    />
+                    <circle cx="430" cy="50" r="140" stroke="#E2DDD5" strokeWidth="1" />
+                  </svg>
 
-          <Link to="/" className="oc-btn-main ghost">
-            <FaHome /> Continue Shopping
-          </Link>
-        </motion.div>
+                  {/* ══ Upper Body Grid ══ */}
+                  <div className="or-body-grid">
+                    {/* ── Left Column: Giant Vertical Title + Client Info ── */}
+                    <div className="or-left-col">
+                      <div className="or-title-wrapper">
+                        <h1 className="or-vertical-title">Invoice.</h1>
+                        <div className="or-vertical-accent-line">
+                          <div className="or-accent-dot" />
+                        </div>
+                      </div>
 
-        {/* ══ 5. RERENDET COFFEE QUALITY GUARANTEES ══ */}
-        <motion.div
-          className="oc-guarantee-grid"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.55 }}
-        >
-          <div className="oc-guarantee-box">
-            <div className="guarantee-icon"><FaLeaf /></div>
-            <h5>Single Origin Purity</h5>
-            <p>100% shade-grown Arabica from the high volcanic soils of the Great Rift Valley.</p>
+                      <div className="or-client-box">
+                        <span className="or-label-sm">Invoice To :</span>
+                        <h2 className="or-client-name">{clientName}</h2>
+                        <p className="or-client-text">{clientPhone}</p>
+                        <p className="or-client-text">{clientEmail}</p>
+                        <p className="or-client-text">{clientLocation}</p>
+
+                        <div className="or-three-dots">
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Right Column: Brand Capsule & Items Table ── */}
+                    <div className="or-right-col">
+                      {/* Header Meta */}
+                      <div className="or-header-meta">
+                        <div className="or-brand-capsule">
+                          <span className="or-capsule-name">
+                            {store.name || 'Rerendet Co.'}
+                          </span>
+                          <img
+                            src={store.logo || '/rerendet-emblem.png'}
+                            alt="Rerendet Emblem"
+                            className="or-capsule-emblem"
+                            onError={(e) => {
+                              e.target.src = '/rerendet-logo.png';
+                            }}
+                          />
+                        </div>
+
+                        <div className="or-meta-item">
+                          <span className="or-meta-title">Invoice No :</span>
+                          <span className="or-meta-val">No. {order.orderNumber}</span>
+                        </div>
+
+                        <div className="or-meta-item">
+                          <span className="or-meta-title">Invoice Date:</span>
+                          <span className="or-meta-val">{invoiceDate}</span>
+                        </div>
+
+                        <div className="or-three-dots" style={{ justifyContent: 'flex-end', marginTop: '4px' }}>
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                      </div>
+
+                      {/* Editorial Table */}
+                      <div className="or-table-container">
+                        <table className="or-table">
+                          <thead>
+                            <tr>
+                              <th className="col-no">No</th>
+                              <th className="col-desc">Description</th>
+                              <th className="col-amt">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item, idx) => (
+                              <tr key={idx}>
+                                <td className="col-no">{idx + 1}.</td>
+                                <td className="col-desc">
+                                  <div className="or-desc-name">{item.name}</div>
+                                  <div className="or-desc-meta">
+                                    {item.size || 'Standard 250g'} · Qty: {item.quantity}
+                                  </div>
+                                </td>
+                                <td className="col-amt">
+                                  KES {(item.price * item.quantity).toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+
+                            {/* Shipping Fee if applicable */}
+                            {order.shippingCost > 0 && (
+                              <tr>
+                                <td className="col-no">{items.length + 1}.</td>
+                                <td className="col-desc">
+                                  <div className="or-desc-name">Highland Express Delivery</div>
+                                  <div className="or-desc-meta">Courier Dispatch to {shipping.city || 'Destination'}</div>
+                                </td>
+                                <td className="col-amt">
+                                  KES {order.shippingCost.toLocaleString()}
+                                </td>
+                              </tr>
+                            )}
+
+                            {/* Discount row if applicable */}
+                            {order.discountAmount > 0 && (
+                              <tr>
+                                <td className="col-no">—</td>
+                                <td className="col-desc">
+                                  <div className="or-desc-name" style={{ color: '#10B981' }}>Special Promotion Applied</div>
+                                  <div className="or-desc-meta">Coupon / Seasonal Perk</div>
+                                </td>
+                                <td className="col-amt" style={{ color: '#10B981' }}>
+                                  − KES {order.discountAmount.toLocaleString()}
+                                </td>
+                              </tr>
+                            )}
+
+                            {/* Total Row */}
+                            <tr className="or-table-total-row">
+                              <td colSpan="2" style={{ fontWeight: 800 }}>Total</td>
+                              <td className="col-amt">
+                                KES {order.total?.toLocaleString()}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ══ Lower Dark Espresso Banner ══ */}
+                  <div className="or-dark-banner">
+                    {/* Gold dot matrices */}
+                    <DotGrid className="top-right" />
+                    <DotGrid className="bottom-left" />
+
+                    {/* Left: Signature Section */}
+                    <div className="or-signature-block">
+                      <div className="or-signature-area">
+                        {signatureUrl ? (
+                          <img
+                            src={signatureUrl}
+                            alt="Authorized Signature"
+                            className="or-signature-img"
+                          />
+                        ) : (
+                          <div className="or-signature-cursive">
+                            Rerendet
+                          </div>
+                        )}
+                      </div>
+                      <p className="or-signatory-name">{signatoryName}</p>
+                    </div>
+
+                    {/* Right: Payment Details & Notes */}
+                    <div className="or-details-block">
+                      <div>
+                        <h3 className="or-banner-section-title">Payment Details:</h3>
+                        <p className="or-banner-text">
+                          <strong>Method:</strong> {order.paymentMethod === 'mpesa' ? 'M-PESA Express' : 'Credit / Debit Card'}<br />
+                          <strong>Receipt Ref:</strong> {order.transactionId || 'M-PESA · Completed Transaction'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h3 className="or-banner-section-title">Notes:</h3>
+                        <p className="or-banner-text">
+                          Payment must be made immediately on receipt, either in the form of transfer or direct payment at our store. Enjoy your 100% shade-grown Arabica from the Great Rift Valley.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="oc-modal-footer no-print">
+                <button
+                  type="button"
+                  className="btn-modal-print"
+                  onClick={handlePrint}
+                >
+                  <FaPrint /> Print Official Invoice
+                </button>
+                <button
+                  type="button"
+                  className="btn-modal-close"
+                  onClick={() => setShowReceiptModal(false)}
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
           </div>
-          <div className="oc-guarantee-box">
-            <div className="guarantee-icon"><FaCoffee /></div>
-            <h5>Roast-to-Order Freshness</h5>
-            <p>Sealed in one-way degassing valves to lock in aromatic profiles and sweet tasting notes.</p>
-          </div>
-          <div className="oc-guarantee-box">
-            <div className="guarantee-icon"><FaStar /></div>
-            <h5>Member Coffee Rewards</h5>
-            <p>Every purchase accrues loyalty points redeemable for exclusive single-lot releases.</p>
-          </div>
-        </motion.div>
-
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

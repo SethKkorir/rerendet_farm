@@ -28,6 +28,7 @@ import {
   updateContactStatus,
   replyContact,
   deleteContact,
+  toggleCustomerPasswordUnlock,
   getSettings,
   updateSettings,
   getSalesAnalytics,
@@ -36,6 +37,7 @@ import {
   toggleUserStatus,
   deleteUser,
   resetUserSecurity,
+  generateUserPasswordReset,
   testEmailConfig,
   checkNewOrders,
   getAdminOverview,
@@ -108,11 +110,14 @@ router.put('/users/:id/role', adminAuth(['users:manage']), updateUserRole);
 router.put('/users/:id/status', adminAuth(['users:manage']), toggleUserStatus);
 router.delete('/users/:id', adminAuth(['users:manage']), deleteUser);
 router.patch('/users/:id/security-reset', adminAuth(['users:manage']), resetUserSecurity);
+router.post('/users/:id/generate-password-reset', adminAuth(['users:manage']), generateUserPasswordReset);
+router.put('/users/:id/unlock-password', adminAuth(['users:manage']), toggleCustomerPasswordUnlock);
 
 // ==================== CONTACT MANAGEMENT ====================
 router.get('/contacts', adminAuth(['contacts:manage']), getContacts);
 router.put('/contacts/:id/status', adminAuth(['contacts:manage']), updateContactStatus);
 router.post('/contacts/:id/reply', adminAuth(['contacts:manage']), replyContact);
+router.put('/contacts/:id/unlock-password', adminAuth(['contacts:manage']), toggleCustomerPasswordUnlock);
 router.delete('/contacts/:id', adminAuth(['contacts:manage']), deleteContact);
 
 // ==================== SETTINGS MANAGEMENT ====================
@@ -223,5 +228,19 @@ router.get('/documentation/:filename', adminAuth(['settings:manage']), asyncHand
   
   res.json({ success: true, filename: safeFilename, content: fileContent });
 }));
+
+// Emergency Super Gate Endpoints (SuperAdmin Only)
+import {
+  generateEmergencyLink,
+  getEmergencyLinks,
+  revokeEmergencyLink
+} from '../controllers/emergencyAccessController.js';
+
+router.post('/maintenance/emergency-link', protect, generateEmergencyLink);
+router.get('/maintenance/emergency-links', protect, getEmergencyLinks);
+router.post('/maintenance/emergency-link/revoke', protect, revokeEmergencyLink);
+
+// Also alias under settings for seamless integration
+router.post('/settings/magic-link', protect, generateEmergencyLink);
 
 export default router;

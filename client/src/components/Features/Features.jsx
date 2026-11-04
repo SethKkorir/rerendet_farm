@@ -1,29 +1,40 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FaMugHot, FaLeaf, FaMountain, FaStar } from 'react-icons/fa';
+import {
+  FaMugHot,
+  FaMountain,
+  FaHandshake,
+  FaStar,
+  FaLeaf,
+  FaAward
+} from 'react-icons/fa';
 import './Features.css';
 
 const Features = () => {
   const features = [
     {
+      num: '01',
       icon: <FaMugHot />,
       title: "Year-Round Excellence",
-      description: "Our coffee is consistently fresh and flavorful throughout the seasons."
+      description: "Our coffee is consistently fresh and flavorful throughout the seasons, roasted in artisanal micro-batches."
     },
     {
-      icon: <FaLeaf />,
-      title: "Rich Volcanic Soils",
-      description: "Grown in nutrient-rich volcanic soil, boasting a deep, complex taste profile."
-    },
-    {
+      num: '02',
       icon: <FaMountain />,
-      title: "Ethically Sourced",
-      description: "We partner with local farmers to ensure sustainable practices and fair compensation."
+      title: "Rich Volcanic Soils",
+      description: "Grown at 1,800m in nutrient-dense volcanic soil, allowing complex floral and berry flavors to develop slowly."
     },
     {
+      num: '03',
+      icon: <FaHandshake />,
+      title: "Ethically Sourced",
+      description: "We partner directly with local Kenyan highland farmers to ensure regenerative practices and fair compensation."
+    },
+    {
+      num: '04',
       icon: <FaStar />,
       title: "Unique Flavor Profile",
-      description: "A zesty, rich brew with chocolate undertones and a bold, unforgettable finish."
+      description: "A zesty, rich brew with chocolate undertones, sparkling blackcurrant notes, and a bold, unforgettable finish."
     }
   ];
 
@@ -32,53 +43,62 @@ const Features = () => {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.2
+        staggerChildren: 0.12
       }
     }
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
+    hidden: { opacity: 0, y: 24 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" }
+      transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] }
     }
   };
 
   return (
-    <section id="features" className="features">
-      <div className="container">
+    <section id="features" className="features-section">
+      <div className="features-container">
+        {/* Header */}
         <motion.div
           className="features-header"
           initial={{ opacity: 0, y: -20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2 className="section-title">Why Choose Our Coffee</h2>
-          <p className="section-subtitle">Exceptional quality from seed to cup</p>
+          <span className="features-tag">THE HIGHLAND STANDARD</span>
+          <h2 className="features-title">
+            Why Choose Our <span className="features-title-gold">Coffee</span>
+          </h2>
+          <p className="features-subtitle">
+            Exceptional quality from high-altitude volcanic seed to your morning cup.
+          </p>
         </motion.div>
 
+        {/* 4 Pillars Grid */}
         <motion.div
           className="features-grid"
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, margin: "-100px" }}
+          viewport={{ once: true, margin: "-60px" }}
         >
           {features.map((feature, index) => (
             <motion.div
               key={index}
               className="feature-card"
               variants={itemVariants}
-              whileHover={{ y: -10, transition: { duration: 0.2 } }}
             >
-              <div className="icon-wrapper">
-                <div className="icon">{feature.icon}</div>
+              <div className="feature-card-top">
+                <div className="feature-icon-wrapper">
+                  <div className="feature-icon">{feature.icon}</div>
+                </div>
+                <span className="feature-num">{feature.num}</span>
               </div>
-              <h3>{feature.title}</h3>
-              <p>{feature.description}</p>
+              <h3 className="feature-card-title">{feature.title}</h3>
+              <p className="feature-card-desc">{feature.description}</p>
             </motion.div>
           ))}
         </motion.div>

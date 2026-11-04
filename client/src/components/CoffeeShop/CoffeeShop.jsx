@@ -2,541 +2,804 @@ import React, { useContext, useState, useEffect, useCallback, useMemo } from 're
 import { Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import {
-  FaEye, FaTimes, FaPlus, FaMinus, FaLeaf, FaShoppingBag,
-  FaTag, FaBoxOpen, FaGlobe, FaFire, FaSearch,
-  FaStar, FaShieldAlt, FaArrowRight, FaCheck, FaWhatsapp,
-  FaCoffee, FaFilter, FaChevronDown, FaChevronUp, FaInfoCircle
+  FaTimes, FaMinus, FaPlus, FaSearch, FaCheck, FaWhatsapp,
+  FaArrowRight, FaEye, FaLeaf, FaFire, FaCoffee
 } from 'react-icons/fa';
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import FloatingBeans from '../UI/FloatingBeans';
-import AdPlacement from '../AdPlacement/AdPlacement';
-import { isFreshlyRoasted } from '../../utils/productHelpers';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getWhatsAppLink } from '../../utils/whatsappHelper';
+import { isProductOutOfStock } from '../../utils/stockValidator';
 import './CoffeeShop.css';
 
-/* ☕ Helpers & Icons ☕ */
-const getSvgPlaceholder = (text) => {
-  const cleanText = text || 'Rerendet Coffee';
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><rect width="100%" height="100%" fill="%231a1714"/><defs><radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="%23d4af37" stop-opacity="0.2"/><stop offset="100%" stop-color="%231a1714" stop-opacity="0"/></radialGradient></defs><rect width="100%" height="100%" fill="url(%23glow)"/><g transform="translate(300, 260)"><path d="M-40,-30 L40,-30 Q60,-30 60,-10 L60,10 Q60,30 40,30 L-40,30 Q-60,30 -60,10 L-60,-10 Q-60,-30 -40,-30 Z" fill="none" stroke="%23d4af37" stroke-width="4"/><path d="M40,-15 Q55,-15 55,0 Q55,15 40,15" fill="none" stroke="%23d4af37" stroke-width="4"/><path d="M-60,30 Q0,45 60,30" fill="none" stroke="%23d4af37" stroke-width="4"/><path d="M-20,-45 Q-15,-60 -20,-75" fill="none" stroke="%23d4af37" stroke-width="3" stroke-linecap="round" opacity="0.7"/><path d="M0,-45 Q5,-65 0,-85" fill="none" stroke="%23d4af37" stroke-width="3" stroke-linecap="round" opacity="0.8"/><path d="M20,-45 Q25,-60 20,-75" fill="none" stroke="%23d4af37" stroke-width="3" stroke-linecap="round" opacity="0.7"/></g><text x="300" y="440" fill="%23d4af37" font-family="Playfair Display, serif" font-size="28" font-weight="600" text-anchor="middle" letter-spacing="1.5">${encodeURIComponent(cleanText)}</text><text x="300" y="480" fill="%23c5a038" font-family="Outfit, sans-serif" font-size="14" font-weight="500" text-anchor="middle" letter-spacing="4">RERENDET HIGHLANDS</text></svg>`;
-};
-
-const getProductImage = (product) => {
-  if (product?.images?.length > 0 && product.images[0].url) return product.images[0].url;
-  if (product?.image) return product.image;
-  return getSvgPlaceholder(product?.name || 'Coffee');
-};
-
-const isInStock = (product) => {
-  if (product?.inventory?.physicalStock !== undefined) {
-    return product.inventory.physicalStock > 0;
+/* ══════════════════════════════════════════════════════════
+   ☕ SPECIALTY COFFEE BAG PALETTES
+   Rich, luxury Scandinavian coffee packaging tones
+══════════════════════════════════════════════════════════ */
+const BAG_PALETTES = [
+  // 1. Warm Crimson / Ruby Espresso
+  {
+    body: '#8F1E24',
+    bodyShade: '#6E1419',
+    highlight: '#A8272F',
+    topFold: '#7A181D',
+    sideGusset: '#540D12',
+    accent: '#D4AF37',
+    text: '#F5E6CC',
+    subText: '#D4AF37',
+    barcodeColor: '#FFFFFF',
+    tag: 'Espresso Roast'
+  },
+  // 2. Kraft Warm Almond / Linen
+  {
+    body: '#ECE5D8',
+    bodyShade: '#DDD4C3',
+    highlight: '#F5EFE4',
+    topFold: '#D5CBB8',
+    sideGusset: '#BFB4A0',
+    accent: '#1C1917',
+    text: '#1C1917',
+    subText: '#574235',
+    barcodeColor: '#1C1917',
+    tag: 'Filter Roast'
+  },
+  // 3. Cobalt Highland Blue
+  {
+    body: '#1B357A',
+    bodyShade: '#122353',
+    highlight: '#24459C',
+    topFold: '#172B66',
+    sideGusset: '#0C1838',
+    accent: '#D4AF37',
+    text: '#F8FAFC',
+    subText: '#F5BE48',
+    barcodeColor: '#FFFFFF',
+    tag: 'Single Origin Filter'
+  },
+  // 4. Forest Emerald Green
+  {
+    body: '#124827',
+    bodyShade: '#0B3019',
+    highlight: '#195E33',
+    topFold: '#0E3B1F',
+    sideGusset: '#061D0F',
+    accent: '#D4AF37',
+    text: '#F0FDF4',
+    subText: '#D4AF37',
+    barcodeColor: '#FFFFFF',
+    tag: 'Highland Roast'
+  },
+  // 5. Deep Roasted Charcoal
+  {
+    body: '#221D1A',
+    bodyShade: '#15110E',
+    highlight: '#352D28',
+    topFold: '#1C1714',
+    sideGusset: '#0D0A08',
+    accent: '#D4AF37',
+    text: '#FAFAFA',
+    subText: '#E5A93C',
+    barcodeColor: '#FFFFFF',
+    tag: 'Dark Roast'
   }
-  if (product?.inventory?.stock !== undefined) {
-    return product.inventory.stock > 0;
+];
+
+export const getBagPalette = (product, index = 0) => {
+  const roast = (product?.roastLevel || '').toLowerCase();
+  const name = (product?.name || '').toLowerCase();
+
+  if (roast.includes('filter') || name.includes('filter') || name.includes('colombia')) {
+    return BAG_PALETTES[2]; // Cobalt Blue
   }
-  return product?.inStock !== false;
-};
+  if (name.includes('bomet') || name.includes('caramel') || name.includes('cream') || name.includes('light')) {
+    return BAG_PALETTES[1]; // Warm Kraft Cream
+  }
+  if (name.includes('espresso') || roast.includes('espresso') || name.includes('dark')) {
+    return BAG_PALETTES[0]; // Crimson Red
+  }
 
-const CAT_META = {
-  'coffee-beans': { icon: '☕', label: 'Coffee Beans', color: '#D4AF37', accent: '#b8932a', cardType: 'coffee' },
-  'single-origin': { icon: '🌱', label: 'Single Origin', color: '#10b981', accent: '#059669', cardType: 'coffee' },
-  'espresso-blends': { icon: '🔥', label: 'Espresso Blends', color: '#f59e0b', accent: '#d97706', cardType: 'coffee' },
-  'brewing-equipment': { icon: '⚙️', label: 'Brewing Equipment', color: '#60a5fa', accent: '#3b82f6', cardType: 'equipment' },
-  'accessories': { icon: '🔌', label: 'Accessories', color: '#a78bfa', accent: '#8b5cf6', cardType: 'generic' },
-  'merchandise': { icon: '👕', label: 'Merchandise', color: '#34d399', accent: '#10b981', cardType: 'generic' },
-};
-const getCatMeta = (cat) => CAT_META[cat] || { icon: '☕', label: cat || 'Specialty Coffee', color: '#D4AF37', accent: '#b8932a', cardType: 'generic' };
-
-const ROAST_SCALES = {
-  'light': { label: 'Light Roast', dots: 1, desc: 'Bright, citrusy & vibrant' },
-  'medium-light': { label: 'Medium-Light', dots: 2, desc: 'Floral with balanced fruit' },
-  'medium': { label: 'Medium Roast', dots: 3, desc: 'Smooth, caramel sweetness' },
-  'medium-dark': { label: 'Medium-Dark', dots: 4, desc: 'Rich chocolate & toasted nuts' },
-  'dark': { label: 'Dark Roast', dots: 5, desc: 'Bold, smoky & intense cocoa' },
-  'espresso': { label: 'Espresso Roast', dots: 5, desc: 'Dense crema, velvety body' }
-};
-
-/* ☕ 3D Tilt Card Hook ☕ */
-const useTilt = () => {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const mx = useSpring(x, { stiffness: 180, damping: 22 });
-  const my = useSpring(y, { stiffness: 180, damping: 22 });
-  const rotateX = useTransform(my, [-0.5, 0.5], ['6deg', '-6deg']);
-  const rotateY = useTransform(mx, [-0.5, 0.5], ['-6deg', '6deg']);
-  const onMove = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    x.set((e.clientX - r.left) / r.width - 0.5);
-    y.set((e.clientY - r.top) / r.height - 0.5);
-  };
-  const onLeave = () => { x.set(0); y.set(0); };
-  return { rotateX, rotateY, onMove, onLeave };
+  return BAG_PALETTES[index % BAG_PALETTES.length];
 };
 
 /* ══════════════════════════════════════════════════════════
-   ☕ REDESIGNED PRODUCT CARD (Clear Description & Rich Meta) ☕
+   ☕ PRODUCT SIZES & PRICING
+   Uses strictly the sizes configured by the admin.
+   If only a single size or price is set, no fake tiers are added.
 ══════════════════════════════════════════════════════════ */
-const ProductCard = React.forwardRef(({ product, index, handleAddToCart, addingToCart, setSelectedProduct }, ref) => {
-  const { rotateX, rotateY, onMove, onLeave } = useTilt();
-  const [hovered, setHovered] = useState(false);
-  const [showFullDesc, setShowFullDesc] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const { showAlert, publicSettings } = useContext(AppContext);
+export const getProductSizes = (product) => {
+  if (Array.isArray(product?.sizes) && product.sizes.length > 0) {
+    const valid = product.sizes.filter((s) => s && s.size && Number(s.price) >= 0);
+    if (valid.length > 0) {
+      return valid.map((s) => ({
+        size: s.size,
+        price: Number(s.price)
+      }));
+    }
+  }
 
-  // Size selection handling
-  const availableSizes = product.sizes && product.sizes.length > 0
-    ? product.sizes
-    : [{ size: product.size || 'Standard', price: product.price || 0 }];
-  
+  const singlePrice = Number(product?.price) || 0;
+  return [
+    { size: product?.size || 'Standard', price: singlePrice }
+  ];
+};
+
+export const GRIND_OPTIONS = [
+  'Whole Beans',
+  'French Press',
+  'Pour-Over',
+  'AeroPress',
+  'Espresso'
+];
+
+export const generateSpecialtyBagSvg = (product, palette, weight = '250G') => {
+  const brand = 'RERENDET';
+  const cleanWeight = (weight || '250G').toUpperCase();
+
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" width="100%" height="100%">
+    <defs>
+      <!-- Ground Drop Shadow -->
+      <radialGradient id="floorShadow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="%23000000" stop-opacity="0.22" />
+        <stop offset="60%" stop-color="%23000000" stop-opacity="0.08" />
+        <stop offset="100%" stop-color="%23000000" stop-opacity="0" />
+      </radialGradient>
+      <!-- Bag Body Gradients -->
+      <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${encodeURIComponent(palette.bodyShade)}" />
+        <stop offset="25%" stop-color="${encodeURIComponent(palette.body)}" />
+        <stop offset="70%" stop-color="${encodeURIComponent(palette.highlight)}" />
+        <stop offset="100%" stop-color="${encodeURIComponent(palette.bodyShade)}" />
+      </linearGradient>
+      <linearGradient id="gussetGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${encodeURIComponent(palette.sideGusset)}" />
+        <stop offset="100%" stop-color="${encodeURIComponent(palette.bodyShade)}" />
+      </linearGradient>
+      <linearGradient id="topSealGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="${encodeURIComponent(palette.topFold)}" />
+        <stop offset="100%" stop-color="${encodeURIComponent(palette.bodyShade)}" />
+      </linearGradient>
+    </defs>
+
+    <!-- Natural Ground Floor Shadow -->
+    <ellipse cx="200" cy="465" rx="110" ry="16" fill="url(%23floorShadow)" />
+
+    <!-- Group: 3D Coffee Pouch Standing Upright -->
+    <g transform="translate(0, 10)">
+      <!-- Left Gusset (Depth Shadow) -->
+      <polygon points="120,445 138,452 144,120 128,110" fill="url(%23gussetGrad)" opacity="0.95" />
+
+      <!-- Main Front Face of Bag -->
+      <polygon points="138,452 262,452 272,120 144,120" fill="url(%23bodyGrad)" />
+
+      <!-- Right Gusset Fold -->
+      <polygon points="262,452 278,445 284,112 272,120" fill="url(%23gussetGrad)" opacity="0.85" />
+
+      <!-- Top Fold & Crimp Seal -->
+      <polygon points="144,120 272,120 258,68 156,68" fill="url(%23topSealGrad)" />
+      <!-- Crimp Lines -->
+      <line x1="160" y1="74" x2="254" y2="74" stroke="${encodeURIComponent(palette.sideGusset)}" stroke-width="1.5" opacity="0.6" />
+      <line x1="162" y1="80" x2="252" y2="80" stroke="${encodeURIComponent(palette.sideGusset)}" stroke-width="1.5" opacity="0.6" />
+
+      <!-- Brand Micro Header -->
+      <text x="206" y="98" fill="${encodeURIComponent(palette.text)}" font-family="'Outfit', -apple-system, sans-serif" font-size="8" font-weight="700" letter-spacing="3" text-anchor="middle" opacity="0.85">RERENDET HIGHLANDS</text>
+
+      <!-- Iconic Circle Emblem Logo with Gold Foil Ring -->
+      <circle cx="206" cy="182" r="16" fill="none" stroke="${encodeURIComponent(palette.accent)}" stroke-width="6" />
+      <circle cx="206" cy="182" r="6" fill="${encodeURIComponent(palette.accent)}" opacity="0.9" />
+
+      <!-- Main Bag Typography -->
+      <text x="206" y="235" fill="${encodeURIComponent(palette.text)}" font-family="'Outfit', -apple-system, sans-serif" font-size="14" font-weight="900" letter-spacing="2" text-anchor="middle">${brand}</text>
+      <text x="206" y="254" fill="${encodeURIComponent(palette.subText)}" font-family="'Outfit', -apple-system, sans-serif" font-size="8.5" font-weight="800" letter-spacing="1.5" text-anchor="middle">SINGLE ORIGIN · 1,800 MASL</text>
+
+      <!-- Clean Specification Lines on Left Flank -->
+      <g opacity="0.75" transform="translate(154, 275)">
+        <line x1="0" y1="0" x2="95" y2="0" stroke="${encodeURIComponent(palette.text)}" stroke-width="0.8" opacity="0.4" />
+        <rect x="0" y="8" width="60" height="2" fill="${encodeURIComponent(palette.text)}" opacity="0.5" />
+        <rect x="0" y="14" width="85" height="2" fill="${encodeURIComponent(palette.text)}" opacity="0.4" />
+        <rect x="0" y="20" width="75" height="2" fill="${encodeURIComponent(palette.text)}" opacity="0.4" />
+        <rect x="0" y="26" width="50" height="2" fill="${encodeURIComponent(palette.text)}" opacity="0.4" />
+      </g>
+
+      <!-- Bottom Flank: Barcode & Net Weight -->
+      <g transform="translate(154, 395)" opacity="0.85">
+        <rect x="0" y="0" width="2" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="4" y="0" width="1" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="7" y="0" width="3" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="12" y="0" width="1.5" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="15" y="0" width="2.5" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="20" y="0" width="1" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+        <rect x="23" y="0" width="3" height="28" fill="${encodeURIComponent(palette.barcodeColor)}" />
+
+        <!-- Net Weight Label -->
+        <text x="96" y="22" fill="${encodeURIComponent(palette.text)}" font-family="'Outfit', sans-serif" font-size="7.5" font-weight="700" letter-spacing="0.5" text-anchor="end" opacity="0.8">NET WT ${cleanWeight}</text>
+      </g>
+    </g>
+  </svg>`;
+};
+
+export const generateEquipmentSvg = (product) => {
+  const brand = 'RERENDET';
+  const name = (product?.name || 'Brew Gear').toUpperCase().slice(0, 22);
+
+  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480" width="100%" height="100%">
+    <defs>
+      <radialGradient id="eqShadow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="%23000000" stop-opacity="0.18" />
+        <stop offset="60%" stop-color="%23000000" stop-opacity="0.06" />
+        <stop offset="100%" stop-color="%23000000" stop-opacity="0" />
+      </radialGradient>
+      <linearGradient id="eqBodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="%232D241E" />
+        <stop offset="50%" stop-color="%231E1712" />
+        <stop offset="100%" stop-color="%23140F0B" />
+      </linearGradient>
+      <linearGradient id="eqGoldAcc" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="%23E5BE48" />
+        <stop offset="100%" stop-color="%23B28325" />
+      </linearGradient>
+    </defs>
+
+    <ellipse cx="200" cy="430" rx="120" ry="16" fill="url(%23eqShadow)" />
+
+    <g transform="translate(0, 10)">
+      <rect x="110" y="110" width="180" height="280" rx="20" fill="url(%23eqBodyGrad)" stroke="%233A2E26" stroke-width="2" />
+      <path d="M140 110 L155 70 L245 70 L260 110 Z" fill="%23231A14" stroke="%233A2E26" stroke-width="1.5" />
+      <rect x="170" y="52" width="60" height="18" rx="5" fill="url(%23eqGoldAcc)" />
+
+      <circle cx="200" cy="180" r="32" fill="%23140F0B" stroke="url(%23eqGoldAcc)" stroke-width="2.5" />
+      <circle cx="200" cy="180" r="26" fill="%231E1712" />
+      <line x1="200" y1="180" x2="214" y2="168" stroke="%23E5BE48" stroke-width="2" stroke-linecap="round" />
+      <circle cx="200" cy="180" r="3.5" fill="%23E5BE48" />
+
+      <line x1="140" y1="245" x2="260" y2="245" stroke="%233A2E26" stroke-width="1.5" />
+      <circle cx="160" cy="275" r="6" fill="url(%23eqGoldAcc)" />
+      <circle cx="200" cy="275" r="6" fill="url(%23eqGoldAcc)" />
+      <circle cx="240" cy="275" r="6" fill="url(%23eqGoldAcc)" />
+
+      <rect x="130" y="340" width="140" height="35" rx="6" fill="%2317110D" stroke="%233A2E26" stroke-width="1" />
+      <line x1="145" y1="352" x2="255" y2="352" stroke="%234A3C32" stroke-width="1.5" stroke-dasharray="4,4" />
+      <line x1="145" y1="362" x2="255" y2="362" stroke="%234A3C32" stroke-width="1.5" stroke-dasharray="4,4" />
+
+      <text x="200" y="320" font-family="'Cinzel', Georgia, serif" font-size="11" font-weight="700" letter-spacing="3" fill="%23D4AF37" text-anchor="middle">${brand}</text>
+      <text x="200" y="333" font-family="sans-serif" font-size="6.5" font-weight="600" letter-spacing="1" fill="%23A1A1AA" text-anchor="middle">${encodeURIComponent(name)}</text>
+    </g>
+  </svg>`;
+};
+
+/* ══════════════════════════════════════════════════════════
+   ☕ PRODUCT CARD COMPONENT
+══════════════════════════════════════════════════════════ */
+const ProductCard = ({ product, index, handleAddToCart, addingToCart, setSelectedProduct }) => {
+  const { publicSettings } = useContext(AppContext);
+  const [isAdded, setIsAdded] = useState(false);
+  const palette = useMemo(() => getBagPalette(product, index), [product, index]);
+
+  // Calibrated size tiers
+  const availableSizes = useMemo(() => getProductSizes(product), [product]);
   const [selectedSizeObj, setSelectedSizeObj] = useState(availableSizes[0]);
-  const [selectedGrind, setSelectedGrind] = useState('Whole Beans');
+  const currentPrice = selectedSizeObj?.price ?? 850;
 
-  const currentPrice = selectedSizeObj?.price ?? product.price ?? 0;
-  const productInStock = isInStock(product);
-  const fresh = (product.category === 'coffee-beans' || !product.category) && isFreshlyRoasted(product.roastDate);
-  const meta = getCatMeta(product.category);
+  // Strict In Stock check
+  const inStock = useMemo(() => {
+    return !isProductOutOfStock(product);
+  }, [product]);
+
   const variationKey = `${product._id}-${selectedSizeObj.size}`;
-  const adding = addingToCart === variationKey;
-  const roastInfo = ROAST_SCALES[product.roastLevel?.toLowerCase()] || null;
+  const isAdding = addingToCart === variationKey;
 
-  const onAddClick = (e) => {
+  const isCoffee = useMemo(() => {
+    if (!product) return false;
+    if (product.roastLevel) return true;
+    if (Array.isArray(product.flavorNotes) && product.flavorNotes.length > 0) return true;
+    const cat = (product.categoryId?.name || product.categoryId?.slug || product.category || '').toLowerCase();
+    if (cat.includes('coffee') || cat.includes('bean')) return true;
+    const name = (product.name || '').toLowerCase();
+    if (name.includes('coffee') || name.includes('bean') || name.includes('roast') || name.includes('arabica')) return true;
+    return false;
+  }, [product]);
+
+  const roastTag = useMemo(() => {
+    if (product?.roastLevel) {
+      const rl = product.roastLevel.toLowerCase();
+      if (rl.includes('espresso')) return 'Espresso Roast';
+      if (rl.includes('light')) return 'Light Roast';
+      if (rl.includes('medium')) return 'Medium Roast';
+      if (rl.includes('dark')) return 'Dark Roast';
+      return `${product.roastLevel} Roast`;
+    }
+    return null;
+  }, [product]);
+
+  const badgeText = useMemo(() => {
+    if (product?.badge) return product.badge;
+    if (product?.isFeatured) return 'Featured';
+    return null;
+  }, [product]);
+
+  const displayTitle = useMemo(() => {
+    return product?.name || 'Specialty Coffee';
+  }, [product]);
+
+  const flavorPills = useMemo(() => {
+    if (Array.isArray(product?.flavorNotes) && product.flavorNotes.length > 0) {
+      return product.flavorNotes.filter(Boolean).slice(0, 3);
+    }
+    return [];
+  }, [product]);
+
+  const originLine = useMemo(() => {
+    return product?.origin?.trim() || null;
+  }, [product]);
+
+  const currencySymbol = publicSettings?.payment?.currencySymbol || 'KSh';
+  const formattedPrice = `${currencySymbol} ${Number(currentPrice).toLocaleString()}`;
+
+  const hasRealPhoto = Boolean(
+    (product.images && product.images.length > 0 && product.images[0]?.url) || product.image
+  );
+
+  const fallbackSvg = useMemo(() => {
+    if (isCoffee) {
+      return generateSpecialtyBagSvg(product, palette, selectedSizeObj.size);
+    }
+    return generateEquipmentSvg(product);
+  }, [product, palette, selectedSizeObj.size, isCoffee]);
+
+  const productImage = (product.images && product.images[0]?.url) || product.image || fallbackSvg;
+
+  const onAddClick = async (e) => {
     e.stopPropagation();
-    if (!productInStock) return;
-    const adminGrind = product.grind || product.categoryAttributes?.grind || 'Whole Beans';
-    handleAddToCart(product, selectedSizeObj.size, currentPrice, quantity, adminGrind);
+    if (!inStock) {
+      import('../../api/api').then(m => m.reportOutOfStock(product._id)).catch(() => {});
+      return;
+    }
+    if (isAdding) return;
+
+    await handleAddToCart(product, selectedSizeObj.size, currentPrice, 1, isCoffee ? 'Whole Beans' : undefined);
+    setIsAdded(true);
+    setTimeout(() => {
+      setIsAdded(false);
+    }, 2200);
   };
 
-  const onWhatsAppEnquire = (e) => {
+  const onWhatsAppClick = (e) => {
     e.stopPropagation();
-    const message = `Hi Rerendet Coffee! I am interested in purchasing ${product.name} (${selectedSizeObj.size} - KES ${currentPrice.toLocaleString()}). Can I get more details?`;
-    const url = getWhatsAppLink(publicSettings, message);
-    window.open(url, '_blank', 'noopener,noreferrer');
+    const phone = (publicSettings?.support?.whatsapp || '+254700000000').replace(/[^0-9]/g, '');
+    const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const itemUrl = `${originUrl}/product/${product.slug || product._id}`;
+    const sizeText = selectedSizeObj?.size && selectedSizeObj.size !== 'Standard' ? ` (${selectedSizeObj.size})` : '';
+    const stockNote = !inStock ? ' (currently marked sold out — inquiring for restocking)' : '';
+    const msg = `Hi Rerendet Farm! I would like to order *${product.name}*${sizeText} for *${formattedPrice}*${stockNote}.\n${itemUrl}`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
-    <motion.div
-      ref={ref}
-      className="cs-card-outer"
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-40px' }}
-      transition={{ delay: Math.min(index * 0.05, 0.4), duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-    >
-      <motion.article
-        className={`cs-card cs-card--${meta.cardType}${!productInStock ? ' cs-card--oos' : ''}`}
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
-        onHoverStart={() => setHovered(true)}
-        onHoverEnd={() => setHovered(false)}
-        style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+    <article className="scand-card">
+      {/* ── Top Media Area ── */}
+      <div
+        className="scand-media"
+        onClick={() => setSelectedProduct({ ...product, initialSize: selectedSizeObj.size })}
+        title={`View details for ${product.name}`}
       >
-        {/* Glowing aura layer */}
-        <div className="cs-card-glow" style={{ '--glow': meta.color }} />
+        {roastTag && <span className="scand-badge-roast">{roastTag}</span>}
+        {badgeText && <span className="scand-badge-new">{badgeText}</span>}
+        {!inStock && <span className="scand-badge-soldout">Sold Out</span>}
 
-        {/* ── Image & Badges Zone ── */}
-        <div className="cs-img-zone">
-          <Link to={`/product/${product.seo?.slug || product._id}`} className="cs-img-link" title={`View ${product.name} Details`}>
-            <motion.img
-              src={getProductImage(product)}
-              alt={product.name}
-              className="cs-img"
-              loading="lazy"
-              animate={{ scale: hovered ? 1.06 : 1, y: hovered ? -4 : 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              onError={(e) => { e.target.src = getSvgPlaceholder(product.name); }}
-            />
-          </Link>
-
-          {/* Category pill */}
-          <div className="cs-cat-pill" style={{ '--c': meta.color }}>
-            <span className="cs-cat-icon">{meta.icon}</span>
-            <span>{meta.label}</span>
-          </div>
-
-          {/* Quick view button */}
-          <button
-            type="button"
-            className="cs-quickview-btn"
-            onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
-            aria-label={`Quick view ${product.name}`}
-          >
-            <FaEye /> <span>Quick View</span>
-          </button>
-
-          {/* Badges */}
-          {fresh && (
-            <div className="cs-fresh-badge">
-              <FaLeaf /> Freshly Roasted
-            </div>
-          )}
-          {product.badge && (
-            <div className="cs-badge" style={{ '--c': meta.accent }}>
-              {product.badge}
-            </div>
-          )}
-          {!productInStock && <div className="cs-oos-overlay">Sold Out</div>}
-
-          {/* Stock Status Badge */}
-          {productInStock && (
-            <div className="cs-stock-tag in-stock">
-              <span className="stock-pulse" /> Fresh in Stock
-            </div>
-          )}
+        <div className={`scand-img-wrapper ${hasRealPhoto ? 'scand-img-wrapper--photo' : ''}`}>
+          <img
+            src={productImage}
+            alt={product.name}
+            className={`scand-bag-img ${hasRealPhoto ? 'scand-bag-img--photo' : ''}`}
+            loading="lazy"
+            onError={(e) => {
+              if (e.target.src !== fallbackSvg) {
+                e.target.src = fallbackSvg;
+              }
+            }}
+          />
         </div>
 
-        {/* ── Rich Info & Detailed Description Zone ── */}
-        <div className="cs-info">
-          
-          {/* Origin & Roast Tag */}
-          <div className="cs-origin-row">
-            <span className="cs-origin-text">
-              <FaGlobe className="cs-micro-icon" />
-              {product.origin || 'Rerendet Estate, Kenya (1,850m ASL)'}
-            </span>
-            {roastInfo && (
-              <span className="cs-roast-badge" title={roastInfo.desc}>
-                <FaFire className="cs-roast-icon" /> {roastInfo.label}
-              </span>
+        <button
+          type="button"
+          className="scand-quickview-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedProduct({ ...product, initialSize: selectedSizeObj.size });
+          }}
+          aria-label={`Quick view ${product.name}`}
+        >
+          <FaEye size={12} />
+          <span>Quick View</span>
+        </button>
+      </div>
+
+      {/* ── Bottom Content Area ── */}
+      <div className="scand-body">
+        {(originLine || product.process) && (
+          <div className="scand-origin-meta">
+            {originLine && <span className="scand-origin-text">{originLine}</span>}
+            {product.process && (
+              <span className="scand-process-tag">{product.process}</span>
+            )}
+          </div>
+        )}
+
+        <h3
+          className="scand-title"
+          onClick={() => setSelectedProduct({ ...product, initialSize: selectedSizeObj.size })}
+          title={product.name}
+        >
+          {displayTitle}
+        </h3>
+
+        {/* Sensory Flavor Tags */}
+        {flavorPills.length > 0 && (
+          <div className="scand-flavor-tags">
+            {flavorPills.map((note, i) => (
+              <span key={i} className="scand-flavor-tag">{note}</span>
+            ))}
+          </div>
+        )}
+
+        {/* Live Weight Selector — only if multiple sizes set by admin */}
+        {availableSizes.length > 1 && (
+          <div className="scand-card-sizes" onClick={(e) => e.stopPropagation()}>
+            {availableSizes.map((s) => (
+              <button
+                key={s.size}
+                type="button"
+                className={`scand-size-chip ${selectedSizeObj.size === s.size ? 'active' : ''}`}
+                onClick={() => setSelectedSizeObj(s)}
+              >
+                <span>{s.size}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Footer: Price & Premium Action Group */}
+        <div className="scand-footer">
+          <div className="scand-price-group">
+            <span className="scand-price">{formattedPrice}</span>
+            {selectedSizeObj?.size && selectedSizeObj.size !== 'Standard' && (
+              <span className="scand-unit-label">/ {selectedSizeObj.size}</span>
             )}
           </div>
 
-          {/* Product Title & Price Header */}
-          <div className="cs-title-row">
-            <h3 className="cs-title">
-              <Link to={`/product/${product.seo?.slug || product._id}`}>
-                {product.name}
-              </Link>
-            </h3>
-            <div className="cs-price-box">
-              <span className="cs-price-currency">KES</span>
-              <span className="cs-price-amount">{currentPrice.toLocaleString()}</span>
-            </div>
-          </div>
-
-          {/* ⭐ Clean Description with Direct Full Notes in Quick View ⭐ */}
-          <div className="cs-desc-container">
-            <p className="cs-desc">
-              {product.description || 'Specialty Arabica coffee grown in volcanic highland soils, hand-harvested and crafted to perfection with intense aromas and balanced acidity.'}
-            </p>
+          <div className="scand-actions-group" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              className="cs-desc-toggle"
-              onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); }}
+              className="scand-wa-btn"
+              onClick={onWhatsAppClick}
+              title="Order or inquire on WhatsApp"
+              aria-label={`Order ${product.name} on WhatsApp`}
             >
-              Read Full Story & Notes in Quick View <FaEye style={{ marginLeft: '4px' }} />
+              <FaWhatsapp size={15} />
             </button>
-          </div>
 
-          {/* Flavor Notes Tasting Tags */}
-          {product.flavorNotes && product.flavorNotes.length > 0 && (
-            <div className="cs-flavor-section">
-              <span className="cs-flavor-label">Tasting Notes:</span>
-              <div className="cs-flavor-pills">
-                {product.flavorNotes.slice(0, 4).map((note, i) => (
-                  <span key={i} className="cs-flavor-pill">
-                    {note}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Admin Grind Profile Tag (Informational Only - No Dropdown) */}
-          {(product.category === 'coffee-beans' || !product.category) && (
-            <div className="cs-spec-row">
-              <span className="cs-spec-label">Roast Form:</span>
-              <span className="cs-spec-val">
-                <FaCoffee className="cs-micro-icon" /> {product.grind || product.categoryAttributes?.grind || 'Whole Beans (Aroma-Locked)'}
-              </span>
-            </div>
-          )}
-
-          {/* Dynamic Size / Weight Selector */}
-          {availableSizes.length > 1 && (
-            <div className="cs-size-selector-block">
-              <span className="cs-size-label">Select Package Size:</span>
-              <div className="cs-size-buttons">
-                {availableSizes.map((s) => {
-                  const isSelected = selectedSizeObj.size === s.size;
-                  return (
-                    <button
-                      key={s.size}
-                      type="button"
-                      className={`cs-size-btn ${isSelected ? 'active' : ''}`}
-                      onClick={() => setSelectedSizeObj(s)}
-                    >
-                      <span className="size-name">{s.size}</span>
-                      <span className="size-price">KES {s.price?.toLocaleString()}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── Bottom Action Controls ── */}
-          <div className="cs-card-footer">
-            
-            {/* Quantity Stepper */}
-            {productInStock && (
-              <div className="cs-qty-stepper">
-                <button
-                  type="button"
-                  className="cs-qty-btn"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  disabled={quantity <= 1}
-                  aria-label="Decrease quantity"
-                >
-                  <FaMinus />
-                </button>
-                <span className="cs-qty-val">{quantity}</span>
-                <button
-                  type="button"
-                  className="cs-qty-btn"
-                  onClick={() => setQuantity(quantity + 1)}
-                  aria-label="Increase quantity"
-                >
-                  <FaPlus />
-                </button>
-              </div>
-            )}
-
-            {/* Add to Cart CTA */}
-            <motion.button
-              className={`cs-cta-btn ${!productInStock ? 'cs-cta-btn--oos' : ''}`}
+            <button
+              type="button"
+              className={`scand-btn ${isAdded ? 'scand-btn--added' : ''} ${!inStock ? 'scand-btn--soldout' : ''}`}
               onClick={onAddClick}
-              disabled={!productInStock || adding}
-              whileHover={productInStock && !adding ? { scale: 1.02 } : {}}
-              whileTap={productInStock && !adding ? { scale: 0.98 } : {}}
+              disabled={!inStock || isAdding}
+              aria-label={`Add ${product.name} to cart`}
             >
-              {adding ? (
+              {isAdded ? (
                 <>
-                  <span className="cs-spinner" />
-                  <span>Adding...</span>
+                  <FaCheck size={11} />
+                  <span>Added</span>
                 </>
-              ) : !productInStock ? (
+              ) : isAdding ? (
+                <span>Adding...</span>
+              ) : !inStock ? (
                 <span>Sold Out</span>
               ) : (
                 <>
-                  <FaShoppingBag className="cs-cta-icon" />
+                  <FaPlus size={11} />
                   <span>Add to Cart</span>
                 </>
               )}
-            </motion.button>
-
-            {/* Roaster WhatsApp Enquiry */}
-            {productInStock && (
-              <button
-                type="button"
-                className="cs-whatsapp-icon-btn"
-                onClick={onWhatsAppEnquire}
-                title="Chat with our Head Roaster on WhatsApp"
-                aria-label="Enquire via WhatsApp"
-              >
-                <FaWhatsapp />
-              </button>
-            )}
+            </button>
           </div>
-
         </div>
-      </motion.article>
-    </motion.div>
+      </div>
+    </article>
   );
-});
+};
 
 /* ══════════════════════════════════════════════════════════
-   ☕ REDESIGNED QUICK VIEW MODAL (Rich Sensory Experience) ☕
+   ☕ ULTRA-PREMIUM QUICK VIEW ROASTERY MODAL
+   Designed to captivate customers and turn visitors into collectors
 ══════════════════════════════════════════════════════════ */
 const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
-  const meta = getCatMeta(product.category);
-  const isCoffee = product.category === 'coffee-beans' || !product.category;
-  const productInStock = isInStock(product);
   const { publicSettings } = useContext(AppContext);
-  const [selectedSize, setSelectedSize] = useState(
-    product.sizes?.length > 0 ? product.sizes[0] : { size: product.size || '250g', price: product.price || 0 }
-  );
+  const palette = useMemo(() => getBagPalette(product, 0), [product]);
+  const availableSizes = useMemo(() => getProductSizes(product), [product]);
+
+  // Initial size check
+  const initialSizeObj = useMemo(() => {
+    if (product.initialSize) {
+      const match = availableSizes.find(s => s.size === product.initialSize);
+      if (match) return match;
+    }
+    return availableSizes[0] || { size: 'Standard', price: 0 };
+  }, [product, availableSizes]);
+
+  const [selectedSize, setSelectedSize] = useState(initialSizeObj);
+  const [selectedGrind, setSelectedGrind] = useState('Whole Beans');
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
-  const currentPrice = selectedSize.price || product.price || 0;
+
+  const currentPrice = selectedSize.price || 0;
+
+  const inStock = useMemo(() => {
+    return !isProductOutOfStock(product);
+  }, [product]);
+
+  const isCoffee = useMemo(() => {
+    if (!product) return false;
+    if (product.roastLevel) return true;
+    if (Array.isArray(product.flavorNotes) && product.flavorNotes.length > 0) return true;
+    const cat = (product.categoryId?.name || product.categoryId?.slug || product.category || '').toLowerCase();
+    if (cat.includes('coffee') || cat.includes('bean')) return true;
+    const name = (product.name || '').toLowerCase();
+    if (name.includes('coffee') || name.includes('roast') || name.includes('bean') || name.includes('arabica')) return true;
+    return false;
+  }, [product]);
+
   const variationKey = `${product._id}-${selectedSize.size}`;
-  const adding = addingToCart === variationKey;
-  const adminGrind = product.grind || product.categoryAttributes?.grind || 'Whole Beans';
+  const isAdding = addingToCart === variationKey;
+
+  const hasRealPhoto = Boolean(
+    (product.images && product.images.length > 0 && product.images[0]?.url) || product.image
+  );
+
+  const fallbackSvg = useMemo(() => {
+    if (isCoffee) {
+      return generateSpecialtyBagSvg(product, palette, selectedSize.size);
+    }
+    return generateEquipmentSvg(product);
+  }, [product, palette, selectedSize.size, isCoffee]);
+
+  const productImage = (product.images && product.images[0]?.url) || product.image || fallbackSvg;
+
+  const currencySymbol = publicSettings?.payment?.currencySymbol || 'KSh';
+  const totalAmount = currentPrice * quantity;
+  const formattedTotal = `${currencySymbol} ${Number(totalAmount).toLocaleString()}`;
+  const formattedUnitPrice = `${currencySymbol} ${Number(currentPrice).toLocaleString()}`;
 
   const handleAdd = async () => {
-    await onAddToCart(product, selectedSize.size, currentPrice, quantity, adminGrind);
+    if (!inStock) {
+      import('../../api/api').then(m => m.reportOutOfStock(product._id)).catch(() => {});
+      return;
+    }
+    await onAddToCart(product, selectedSize.size, currentPrice, quantity, isCoffee ? selectedGrind : undefined);
     setAdded(true);
-    setTimeout(() => setAdded(false), 2200);
+    setTimeout(() => setAdded(false), 2400);
   };
 
   const handleWhatsApp = () => {
-    const msg = `Hello Rerendet Coffee! I am looking at ${product.name} (${selectedSize.size}) on your store and have a question.`;
+    let msg = `Hi Rerendet Farm! I would like to order *${product.name}*\n• Price: ${formattedUnitPrice}\n• Quantity: ${quantity}\n• Total: ${formattedTotal}`;
+    if (availableSizes.length > 1) {
+      msg += `\n• Size: ${selectedSize.size}`;
+    }
+    if (isCoffee) {
+      msg += `\n• Grind: ${selectedGrind}`;
+    }
+    msg += `\n\nPlease advise on dispatch!`;
     const url = getWhatsAppLink(publicSettings, msg);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  const hasTopBadges = Boolean(product.roastLevel || product.badge);
+
   return (
     <motion.div
-      className="qv-overlay"
+      className="scand-modal-overlay"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={onClose}
     >
       <motion.div
-        className="qv-panel"
-        initial={{ opacity: 0, y: 40, scale: 0.95 }}
+        className="scand-modal-box luxury-roastery-modal"
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 30, scale: 0.96 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        exit={{ opacity: 0, y: 20, scale: 0.98 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="qv-accent-bar" style={{ background: `linear-gradient(90deg, ${meta.color}, #e5c365)` }} />
-
-        <button className="qv-close-btn" onClick={onClose} aria-label="Close modal">
+        <button className="scand-modal-close" onClick={onClose} aria-label="Close modal">
           <FaTimes />
         </button>
 
-        <div className="qv-grid">
-          {/* Left Column: Image & Badges */}
-          <div className="qv-img-pane">
-            <div className="qv-img-container">
-              <img
-                src={getProductImage(product)}
-                alt={product.name}
-                className="qv-main-img"
-                onError={(e) => { e.target.src = getSvgPlaceholder(product.name); }}
-              />
-              {product.badge && <span className="qv-badge">{product.badge}</span>}
-              {productInStock && <span className="qv-stock-badge">🌿 In Stock & Freshly Roasted</span>}
-            </div>
+        <div className="scand-modal-content">
+          {/* ── Left Column: Showcase ── */}
+          <div className="scand-modal-media">
+            <div className="scand-modal-showcase">
+              {hasTopBadges && (
+                <div className="scand-modal-badges-top">
+                  {product.roastLevel && (
+                    <span className="roastery-chip roast">
+                      <FaFire className="roastery-chip-icon" />
+                      {product.roastLevel} Roast
+                    </span>
+                  )}
+                  {product.badge && (
+                    <span className="roastery-chip badge">
+                      {product.badge}
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {/* Coffee Origin Metadata Box */}
-            <div className="qv-origin-box">
-              <div className="qv-origin-item">
-                <span className="label">Origin</span>
-                <span className="val">{product.origin || 'Rerendet Highlands, Kenya'}</span>
-              </div>
-              <div className="qv-origin-item">
-                <span className="label">Elevation</span>
-                <span className="val">1,850 – 2,100m ASL</span>
-              </div>
-              <div className="qv-origin-item">
-                <span className="label">Process</span>
-                <span className="val">Washed & Sun-Dried</span>
+              <div className="scand-modal-bag-pedestal">
+                <img
+                  src={productImage}
+                  alt={product.name}
+                  className="scand-modal-bag"
+                  onError={(e) => {
+                    if (e.target.src !== fallbackSvg) e.target.src = fallbackSvg;
+                  }}
+                />
               </div>
             </div>
           </div>
 
-          {/* Right Column: In-depth Description & Ordering */}
-          <div className="qv-details-pane">
-            
-            <div className="qv-header">
-              <span className="qv-cat-label" style={{ color: meta.color }}>
-                {meta.icon} {meta.label} {product.roastLevel && `• ${product.roastLevel} Roast`}
-              </span>
-              <h2 className="qv-title">{product.name}</h2>
-              <div className="qv-price-display">
-                <span className="qv-currency">KES</span>
-                <span className="qv-amount">{currentPrice.toLocaleString()}</span>
-              </div>
+          {/* ── Right Column: Roastery Info & Selection ── */}
+          <div className="scand-modal-details">
+            <div className="roastery-meta-header">
+              {selectedSize?.size && (
+                <span className="roastery-weight-pill">
+                  {selectedSize.size}
+                </span>
+              )}
+              {product.origin && (
+                <span className="roastery-origin-pill">
+                  <FaLeaf style={{ color: '#D4AF37' }} />
+                  {product.origin}
+                </span>
+              )}
+              {product.process && (
+                <span className="roastery-process-pill">
+                  {product.process}
+                </span>
+              )}
             </div>
 
-            {/* Prominent Narrative Product Description */}
-            <div className="qv-desc-section">
-              <h4 className="qv-section-title">
-                <FaInfoCircle /> Coffee Profile & Story
-              </h4>
-              <p className="qv-full-desc">
-                {product.description || 'Grown on the mist-covered slopes of Rerendet Farm, our coffees are hand-sorted and roasted to unlock sublime sweetness, delicate floral aroma, and full-bodied chocolate notes.'}
-              </p>
-            </div>
+            <h2 className="scand-modal-title">{product.name}</h2>
 
-            {/* Flavor Notes Pill Tags */}
-            {product.flavorNotes && product.flavorNotes.length > 0 && (
-              <div className="qv-sensory-section">
-                <h4 className="qv-section-title">Sensory Flavor Notes</h4>
-                <div className="qv-flavor-tags">
-                  {product.flavorNotes.map((note, idx) => (
-                    <span key={idx} className="qv-tag">
-                      ✨ {note}
-                    </span>
-                  ))}
-                </div>
+            {/* Flavor Notes — only if set by admin */}
+            {Array.isArray(product.flavorNotes) && product.flavorNotes.filter(Boolean).length > 0 && (
+              <div className="roastery-flavors-row">
+                <span className="roastery-flavor-lead">Tasting Notes:</span>
+                {product.flavorNotes.filter(Boolean).map((note, i) => (
+                  <span key={i} className="roastery-flavor-badge">{note}</span>
+                ))}
               </div>
             )}
 
-            {/* Size Selector */}
-            {product.sizes && product.sizes.length > 1 && (
-              <div className="qv-selector-section">
-                <label className="qv-field-label">Package Size:</label>
-                <div className="qv-size-grid">
-                  {product.sizes.map((s) => (
+            {product.description && (
+              <p className="scand-modal-desc">{product.description}</p>
+            )}
+
+            {/* Size Selector — only if multiple sizes configured by admin */}
+            {availableSizes.length > 1 && (
+              <div className="roastery-selector-section">
+                <div className="selector-head">
+                  <span className="selector-title">Size</span>
+                </div>
+                <div className="roastery-sizes-grid">
+                  {availableSizes.map((s) => (
                     <button
                       key={s.size}
                       type="button"
-                      className={`qv-size-btn ${selectedSize.size === s.size ? 'active' : ''}`}
+                      className={`roastery-size-btn ${selectedSize.size === s.size ? 'active' : ''}`}
                       onClick={() => setSelectedSize(s)}
                     >
-                      <span className="s-name">{s.size}</span>
-                      <span className="s-price">KES {s.price.toLocaleString()}</span>
+                      {s.size}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Admin Roast & Form Specification (Informational) */}
+            {/* Grind Type Selector — only if coffee product */}
             {isCoffee && (
-              <div className="qv-spec-box">
-                <div className="qv-spec-item">
-                  <span className="label">Roast Level:</span>
-                  <span className="val">{product.roastLevel ? `${product.roastLevel} Roast` : 'Medium-Dark'}</span>
+              <div className="roastery-selector-section">
+                <div className="selector-head">
+                  <span className="selector-title">Grind</span>
                 </div>
-                <div className="qv-spec-item">
-                  <span className="label">Package Form:</span>
-                  <span className="val">{adminGrind}</span>
+                <div className="roastery-grind-grid">
+                  {GRIND_OPTIONS.map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className={`roastery-grind-btn ${selectedGrind === g ? 'active' : ''}`}
+                      onClick={() => setSelectedGrind(g)}
+                    >
+                      {g}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Actions Bar */}
-            <div className="qv-actions-bar">
-              {productInStock && (
-                <div className="qv-qty-box">
-                  <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1}>
-                    <FaMinus />
+            {/* Final Action & Quantity Strip */}
+            <div className="roastery-checkout-bar">
+              <div className="roastery-checkout-top">
+                <div className="roastery-stepper-wrap">
+                  <button
+                    type="button"
+                    className="roastery-step-btn"
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity <= 1}
+                    aria-label="Decrease quantity"
+                  >
+                    <FaMinus size={11} />
                   </button>
-                  <span>{quantity}</span>
-                  <button type="button" onClick={() => setQuantity(quantity + 1)}>
-                    <FaPlus />
+                  <span className="roastery-step-val">{quantity}</span>
+                  <button
+                    type="button"
+                    className="roastery-step-btn"
+                    onClick={() => setQuantity(quantity + 1)}
+                    aria-label="Increase quantity"
+                  >
+                    <FaPlus size={11} />
                   </button>
                 </div>
-              )}
 
-              <button
-                type="button"
-                className={`qv-submit-btn ${added ? 'added' : ''}`}
-                onClick={handleAdd}
-                disabled={!productInStock || adding}
-              >
-                {added ? (
-                  <><FaCheck /> Added to Cart!</>
-                ) : adding ? (
-                  <><span className="cs-spinner" /> Adding...</>
-                ) : !productInStock ? (
-                  'Sold Out'
-                ) : (
-                  <><FaShoppingBag /> Add to Cart — KES {(currentPrice * quantity).toLocaleString()}</>
-                )}
-              </button>
+                <div className="roastery-price-block">
+                  <span className="roastery-price-total">{formattedTotal}</span>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                className="qv-whatsapp-action"
-                onClick={handleWhatsApp}
-                title="Chat on WhatsApp"
-              >
-                <FaWhatsapp /> Roaster Chat
-              </button>
+              {/* Action Buttons Down Below */}
+              <div className="roastery-checkout-actions">
+                <button
+                  type="button"
+                  className={`roastery-add-btn ${added ? 'added' : ''}`}
+                  onClick={handleAdd}
+                  disabled={!inStock || isAdding}
+                >
+                  {added ? (
+                    <>
+                      <FaCheck /> Added to Cart
+                    </>
+                  ) : isAdding ? (
+                    'Adding...'
+                  ) : !inStock ? (
+                    'Sold Out'
+                  ) : (
+                    <>
+                      <span>Add to Cart</span>
+                      <FaArrowRight size={13} />
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  className="roastery-wa-btn"
+                  onClick={handleWhatsApp}
+                  title="Order directly via WhatsApp Concierge"
+                  aria-label="Order on WhatsApp"
+                >
+                  <FaWhatsapp size={18} />
+                  <span className="roastery-wa-text">WhatsApp</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -547,7 +810,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
 };
 
 /* ══════════════════════════════════════════════════════════
-   ☕ MAIN COFFEE SHOP COMPONENT (Redesigned Search & Grid) ☕
+   ☕ MAIN COFFEE SHOP COMPONENT
 ══════════════════════════════════════════════════════════ */
 const CoffeeShop = () => {
   const { addToCart, showAlert } = useContext(AppContext);
@@ -555,7 +818,6 @@ const CoffeeShop = () => {
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [showBeans, setShowBeans] = useState(false);
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -571,7 +833,6 @@ const CoffeeShop = () => {
       const result = await response.json();
 
       if (result.success && Array.isArray(result.data?.products)) {
-        // Keep 1 distinct product record per coffee blend (no size duplication!)
         setProducts(result.data.products);
       } else {
         setProducts([]);
@@ -589,8 +850,8 @@ const CoffeeShop = () => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Derived Category Lists
-  const categoriesInUse = useMemo(() => {
+  // Clean categories list
+  const categoriesList = useMemo(() => {
     const raw = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
     return ['all', ...raw];
   }, [products]);
@@ -599,17 +860,14 @@ const CoffeeShop = () => {
   const filteredProducts = useMemo(() => {
     let list = [...products];
 
-    // Category Filter
     if (activeCategory !== 'all') {
       list = list.filter(p => p.category === activeCategory);
     }
 
-    // Roast Filter
     if (roastFilter !== 'all') {
       list = list.filter(p => p.roastLevel?.toLowerCase() === roastFilter.toLowerCase());
     }
 
-    // Search Query (Searches Name, Description, Origin, and Flavor Notes!)
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       list = list.filter(p => (
@@ -620,7 +878,6 @@ const CoffeeShop = () => {
       ));
     }
 
-    // Sorting
     if (sortBy === 'price-low') {
       list.sort((a, b) => (a.price || a.sizes?.[0]?.price || 0) - (b.price || b.sizes?.[0]?.price || 0));
     } else if (sortBy === 'price-high') {
@@ -632,13 +889,12 @@ const CoffeeShop = () => {
     return list;
   }, [products, activeCategory, roastFilter, searchTerm, sortBy]);
 
-  // Add to Cart handler
+  // Add to cart handler with full size & grind fidelity
   const handleAddToCart = async (product, size, price, qty = 1, grind = 'Whole Beans') => {
-    if (!isInStock(product)) return;
     const variationKey = `${product._id}-${size}`;
     setAddingToCart(variationKey);
-    setShowBeans(true);
-    setTimeout(() => setShowBeans(false), 2000);
+
+    const availableSizes = getProductSizes(product);
 
     try {
       await addToCart({
@@ -653,7 +909,10 @@ const CoffeeShop = () => {
         origin: product.origin,
         flavorNotes: product.flavorNotes,
         badge: product.badge,
-        sizes: product.sizes || []
+        sizes: availableSizes,
+        inStock: product.inStock,
+        availableStock: product.availableStock,
+        inventory: product.inventory
       }, qty, size, grind);
     } catch (err) {
       console.error(err);
@@ -663,168 +922,103 @@ const CoffeeShop = () => {
     }
   };
 
-  /* ☕ Loading State ☕ */
-  if (loading) {
-    return (
-      <section id="coffee-shop" className="cs-section">
-        <div className="cs-loading-box">
-          <div className="cs-loading-spinner" />
-          <p className="cs-loading-title">Brewing Specialty Coffee Collection...</p>
-          <span className="cs-loading-sub">Sourcing direct from Rerendet Farm Highlands</span>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section id="coffee-shop" className="cs-section">
-      <FloatingBeans isVisible={showBeans} />
-
-      {/* Atmospheric Background Lights */}
-      <div className="cs-bg-texture" aria-hidden="true">
-        <div className="cs-bg-orb cs-bg-orb--gold" />
-        <div className="cs-bg-orb cs-bg-orb--warm" />
-        <div className="cs-bg-grid-pattern" />
-      </div>
-
-      <div className="cs-container">
+    <section id="coffee-shop" className="scand-shop-section">
+      <div className="scand-container">
         
-        {/* Ad Placement */}
-        <AdPlacement zone="homepage" />
-
-        {/* ── Section Header ── */}
-        <div className="cs-header-wrapper">
-          <div className="cs-header-badge">
-            <FaCoffee /> 100% Kenyan Specialty Arabica
-          </div>
-          <h2 className="cs-main-title">
-            Our Specialty <span className="gold-italic">Coffee Collection</span>
-          </h2>
-          <p className="cs-main-subtitle">
-            Grown in high-altitude volcanic soils, hand-picked, and medium-roasted to order. Discover full descriptions, origin profiles, and bespoke flavor notes below.
+        {/* ── Minimalist Section Header ── */}
+        <div className="scand-header">
+          <span className="scand-header-tag">HIGHLAND SPECIALTY HARVEST</span>
+          <h2 className="scand-header-title">Our Coffee Shop</h2>
+          <p className="scand-header-sub">
+            Single-origin Arabica cultivated at 1,800m elevation on the volcanic slopes of Kenya. Freshly roasted in micro-batches.
           </p>
         </div>
 
-        {/* ── Search & Filter Control Bar ── */}
-        <div className="cs-controls-bar">
-          
-          {/* Live Search Input */}
-          <div className="cs-search-box">
-            <FaSearch className="cs-search-icon" />
-            <input
-              type="text"
-              className="cs-search-input"
-              placeholder="Search by coffee name, origin, or flavor note (e.g. Berry, Chocolate)..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <button className="cs-search-clear" onClick={() => setSearchTerm('')}>
-                <FaTimes />
-              </button>
-            )}
+        {/* ── Clean Filter Navigation ── */}
+        <div className="scand-filters-bar">
+          <div className="scand-pills-row">
+            {categoriesList.map((cat) => {
+              const label = cat === 'all'
+                ? 'All Coffees'
+                : cat.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+              const isActive = activeCategory === cat;
+
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`scand-filter-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(cat)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            <span className="scand-count-badge">
+              {filteredProducts.length} {filteredProducts.length === 1 ? 'roast' : 'roasts'}
+            </span>
           </div>
 
-          {/* Roast & Sort Dropdowns */}
-          <div className="cs-filter-group">
-            <div className="cs-select-wrap">
-              <label htmlFor="cs-roast-select" className="cs-select-label">Roast:</label>
-              <select
-                id="cs-roast-select"
-                className="cs-dropdown"
-                value={roastFilter}
-                onChange={(e) => setRoastFilter(e.target.value)}
-              >
-                <option value="all">All Roasts</option>
-                <option value="light">Light Roast</option>
-                <option value="medium-light">Medium-Light</option>
-                <option value="medium">Medium Roast</option>
-                <option value="medium-dark">Medium-Dark</option>
-                <option value="dark">Dark Roast</option>
-                <option value="espresso">Espresso</option>
-              </select>
+          {/* Minimal Live Search & Roast Selector */}
+          <div className="scand-search-group">
+            <div className="scand-search-input-wrap">
+              <FaSearch className="search-icon" />
+              <input
+                type="text"
+                placeholder="Search coffee or flavor notes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="scand-search-input"
+              />
+              {searchTerm && (
+                <button className="search-clear-btn" onClick={() => setSearchTerm('')}>
+                  <FaTimes size={12} />
+                </button>
+              )}
             </div>
 
-            <div className="cs-select-wrap">
-              <label htmlFor="cs-sort-select" className="cs-select-label">Sort:</label>
-              <select
-                id="cs-sort-select"
-                className="cs-dropdown"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="featured">Featured Roasts</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-                <option value="name">Alphabetical (A–Z)</option>
-              </select>
-            </div>
+            <select
+              value={roastFilter}
+              onChange={(e) => setRoastFilter(e.target.value)}
+              className="scand-select"
+              aria-label="Filter by roast profile"
+            >
+              <option value="all">All Roasts</option>
+              <option value="espresso">Espresso Roast</option>
+              <option value="filter">Filter Roast</option>
+              <option value="medium">Medium Roast</option>
+              <option value="dark">Dark Roast</option>
+            </select>
           </div>
-
         </div>
 
-        {/* ── Category Filter Tabs ── */}
-        <div className="cs-tabs-row">
-          {categoriesInUse.map((cat) => {
-            const meta = cat === 'all' ? { icon: '☕', label: 'All Coffees & Gear', color: '#D4AF37' } : getCatMeta(cat);
-            const count = cat === 'all' ? products.length : products.filter(p => p.category === cat).length;
-            const isActive = activeCategory === cat;
-
-            return (
-              <button
-                key={cat}
-                type="button"
-                className={`cs-filter-tab ${isActive ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                <span className="tab-icon">{meta.icon}</span>
-                <span className="tab-label">{meta.label}</span>
-                <span className="tab-count">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ── Meta Results Bar ── */}
-        <div className="cs-results-bar">
-          <span className="cs-results-text">
-            Showing <strong>{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'specialty item' : 'specialty items'}
-            {searchTerm && <span> matching <em>"{searchTerm}"</em></span>}
-          </span>
-          {(searchTerm || activeCategory !== 'all' || roastFilter !== 'all') && (
+        {/* ── Main Products Grid ── */}
+        {loading ? (
+          <div className="scand-loading-state">
+            <div className="scand-spinner" />
+            <p>Sourcing specialty highland harvest...</p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="scand-empty-state">
+            <h3>No coffees found</h3>
+            <p>Try resetting your search or filter options.</p>
             <button
-              type="button"
-              className="cs-reset-btn"
+              className="scand-btn"
               onClick={() => {
                 setSearchTerm('');
                 setActiveCategory('all');
                 setRoastFilter('all');
-                setSortBy('featured');
               }}
             >
-              Reset Filters
-            </button>
-          )}
-        </div>
-
-        {/* ── Main Product Cards Grid ── */}
-        {filteredProducts.length === 0 ? (
-          <div className="cs-no-results">
-            <div className="cs-no-results-icon">☕</div>
-            <h3>No Coffees Match Your Criteria</h3>
-            <p>Try searching for a different flavor profile, origin, or clear your search filters.</p>
-            <button
-              className="cs-clear-filters-btn"
-              onClick={() => { setSearchTerm(''); setActiveCategory('all'); setRoastFilter('all'); }}
-            >
-              View All Specialty Coffees
+              Show all coffees
             </button>
           </div>
         ) : (
-          <div className="cs-products-grid">
+          <div className="scand-grid">
             {filteredProducts.map((product, idx) => (
               <ProductCard
-                key={product._id}
+                key={product._id || idx}
                 product={product}
                 index={idx}
                 handleAddToCart={handleAddToCart}
@@ -837,7 +1031,7 @@ const CoffeeShop = () => {
 
       </div>
 
-      {/* ── Quick View Interactive Modal ── */}
+      {/* ── Luxury Quick View Modal ── */}
       <AnimatePresence>
         {selectedProduct && (
           <QuickViewModal

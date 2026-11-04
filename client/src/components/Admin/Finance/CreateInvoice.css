@@ -1,0 +1,954 @@
+/* client/src/components/Admin/Finance/CreateInvoice.css — Prestige Invoice Creator with Live Preview */
+
+.create-invoice-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  color: var(--text-main);
+  animation: ciFadeIn 0.3s ease-out;
+}
+
+@keyframes ciFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── TOPBAR ─── */
+.ci-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.ci-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.ci-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-back:hover {
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-color: var(--border-main);
+}
+
+.ci-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ci-title-group h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.ci-badge-draft {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  background: rgba(212, 175, 55, 0.12);
+  color: var(--color-primary);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.ci-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ci-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  color: var(--text-main);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-secondary:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-main);
+}
+
+.ci-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  color: #1a0f05;
+  padding: 0.55rem 1.2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.2);
+}
+
+.ci-btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-dark, #b5952f);
+  transform: translateY(-1px);
+}
+
+.ci-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── SPLIT VIEW LAYOUT ─── */
+.ci-split-layout {
+  display: grid;
+  grid-template-columns: 1.15fr 0.95fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .ci-split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── FORM BUILDER PANE ─── */
+.ci-form-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.ci-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 1.35rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ci-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-glass);
+  margin-bottom: 1.15rem;
+}
+
+.ci-card-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.ci-card-header-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-glass);
+  margin-bottom: 1rem;
+}
+
+.ci-card-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin: 0.25rem 0 0 0;
+  font-weight: 500;
+}
+
+.ci-accordion-toggle {
+  margin-top: 0.85rem;
+}
+
+.ci-btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  transition: opacity var(--transition-fast);
+}
+
+.ci-btn-text:hover {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+
+.ci-extra-fields {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--border-glass);
+  animation: ciFadeIn 0.2s ease-out;
+}
+
+.ci-card-header-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.ci-card-header-inline h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.ci-card-icon {
+  color: var(--color-primary);
+}
+
+.ci-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.ci-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .ci-grid-2,
+  .ci-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ci-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ci-field.full-col {
+  grid-column: 1 / -1;
+}
+
+.ci-field label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ci-field input,
+.ci-field select,
+.ci-field textarea {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  color: var(--text-main);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  outline: none;
+  transition: var(--transition-fast);
+}
+
+.ci-field input:focus,
+.ci-field select:focus,
+.ci-field textarea:focus {
+  border-color: var(--color-primary);
+  background: var(--bg-card);
+}
+
+.ci-input-with-action {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.ci-input-with-action input {
+  flex: 1;
+}
+
+.ci-input-with-action button {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  color: var(--text-dim);
+  padding: 0 0.65rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.ci-input-with-action button:hover {
+  color: var(--color-primary);
+  border-color: var(--border-main);
+}
+
+/* Quick Presets Bar */
+.ci-presets-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.ci-pb-label {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.ci-pb-chips {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ci-chip {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-glass);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: rgba(212, 175, 55, 0.08);
+}
+
+.ci-btn-add-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: var(--color-primary);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-add-item:hover {
+  background: var(--color-primary);
+  color: #1a0f05;
+}
+
+/* Items Table inside Form */
+.ci-items-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ci-it-head {
+  display: grid;
+  grid-template-columns: 2.5fr 0.8fr 1fr 1fr 0.4fr;
+  gap: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.25rem 0.25rem 0.5rem 0.25rem;
+  border-bottom: 1px dashed var(--border-glass);
+}
+
+.ci-it-row {
+  display: grid;
+  grid-template-columns: 2.5fr 0.8fr 1fr 1fr 0.4fr;
+  gap: 0.6rem;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+}
+
+.ci-it-desc-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.ci-input-title {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 0.85rem !important;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.ci-input-sub {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  font-size: 0.74rem !important;
+  color: var(--text-muted);
+}
+
+.ci-it-qty-col input,
+.ci-it-price-col input {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--text-main);
+  text-align: right;
+}
+
+.ci-it-total-col {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-main);
+  text-align: right;
+}
+
+.ci-btn-del {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ─── RIGHT PANE: LIVE INVOICE PREVIEW ─── */
+.ci-preview-pane {
+  position: relative;
+}
+
+.ci-preview-sticky {
+  position: sticky;
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ci-preview-head-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.ci-ph-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-main);
+}
+
+.ci-sparkle {
+  color: var(--color-primary);
+}
+
+.ci-ph-pill {
+  font-size: 0.68rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+/* ─── PRINTABLE LUXURY COFFEEHOUSE INVOICE SHEET ─── */
+.ci-invoice-sheet {
+  background: #ffffff;
+  color: #1a1512;
+  border: 1px solid #e5dec9;
+  border-radius: 12px;
+  padding: 2.25rem 2rem;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.08);
+  font-family: -apple-system, BlinkMacSystemFont, "Outfit", sans-serif;
+  line-height: 1.45;
+}
+
+[data-theme='dark'] .ci-invoice-sheet {
+  background: #fbf9f5;
+  color: #1a1512;
+  border-color: #d6cab8;
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #201104;
+  gap: 1.5rem;
+}
+
+.sheet-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.sheet-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+}
+
+.sheet-company-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0;
+  color: #201104;
+  letter-spacing: -0.02em;
+}
+
+.sheet-company-sub {
+  font-size: 0.74rem;
+  color: #615045;
+  margin: 0;
+  font-weight: 500;
+}
+
+.sheet-meta-farm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+  color: #786658;
+}
+
+.sheet-invoice-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+  text-align: right;
+}
+
+.sheet-doc-type {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #b5952f;
+}
+
+.sheet-doc-number {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #201104;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.4rem;
+}
+
+.sheet-meta-row {
+  font-size: 0.74rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sheet-meta-row .sm-lbl {
+  color: #786658;
+}
+
+.sheet-meta-row .sm-val {
+  font-weight: 600;
+  color: #201104;
+}
+
+/* Bill to Strip */
+.sheet-bill-to-strip {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid #ece4d8;
+  font-size: 0.78rem;
+}
+
+.sheet-strip-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #b5952f;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+  display: block;
+}
+
+.sheet-bill-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sheet-client-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #201104;
+}
+
+.sheet-client-co {
+  font-weight: 600;
+  color: #4a3b32;
+}
+
+.sheet-pin {
+  font-weight: 700;
+  color: #201104;
+  margin-top: 0.2rem;
+}
+
+.sheet-payment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  background: #f7f3ed;
+  border: 1px solid #e7ded0;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.sheet-pay-instruct {
+  font-size: 0.72rem;
+  color: #5c4a3e;
+  margin: 0;
+}
+
+/* Sheet Table */
+.sheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+  font-size: 0.78rem;
+}
+
+.sheet-table th {
+  background: #f4eee4;
+  color: #201104;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #dcd1be;
+}
+
+.th-desc { text-align: left; width: 55%; }
+.th-qty { text-align: center; width: 12%; }
+.th-unit { text-align: right; width: 16%; }
+.th-total { text-align: right; width: 17%; }
+
+.sheet-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #eee7db;
+  vertical-align: top;
+}
+
+.it-name {
+  color: #201104;
+  font-size: 0.82rem;
+}
+
+.it-desc {
+  font-size: 0.72rem;
+  color: #786658;
+  margin: 0.15rem 0 0 0;
+}
+
+.td-qty { text-align: center; font-weight: 600; }
+.td-unit { text-align: right; }
+.td-total { text-align: right; font-weight: 700; color: #201104; }
+
+/* Totals bottom */
+.sheet-summary-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 1.5rem;
+  padding: 0.75rem 0 1.5rem 0;
+  border-bottom: 1px solid #ece4d8;
+}
+
+.sheet-notes-block p {
+  font-size: 0.74rem;
+  color: #665548;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.sheet-totals-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.st-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #554438;
+}
+
+.st-row.discount {
+  color: #10b981;
+}
+
+.st-row.grand-total {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #201104;
+  padding-top: 0.5rem;
+  border-top: 2px solid #201104;
+  margin-top: 0.25rem;
+}
+
+/* ─── OFFICIAL SIGNATURE & STAMP BOX (Form Step 4) ─── */
+.ci-signature-box {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 0.75rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 1.15rem;
+}
+
+@media (max-width: 640px) {
+  .ci-signature-box {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.ci-sig-preview-card {
+  width: 150px;
+  height: 84px;
+  background: #ffffff;
+  border: 1px dashed #d6cab8;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.ci-sig-img-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+}
+
+.ci-sig-img-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: contrast(1.1);
+}
+
+.ci-sig-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  color: #9c8e7e;
+  font-size: 0.68rem;
+  text-align: center;
+  padding: 0.25rem;
+}
+
+.ci-sig-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ci-sig-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ci-btn-upload-sig {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  color: var(--color-primary);
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-upload-sig:hover {
+  background: var(--color-primary);
+  color: #1a0f05;
+}
+
+.ci-btn-remove-sig {
+  background: transparent;
+  border: 1px solid var(--border-glass);
+  color: #ef4444;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.ci-btn-remove-sig:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Footer Stamp */
+.sheet-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 1.75rem;
+  font-size: 0.72rem;
+  color: #8c7b6f;
+  margin-top: 1.5rem;
+  border-top: 1px dashed #e5dec9;
+}
+
+.sheet-sign-box,
+.sheet-sign-line {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 240px;
+}
+
+.sheet-signature-wrap {
+  height: 54px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+
+.sheet-signature-img {
+  max-height: 50px;
+  max-width: 180px;
+  object-fit: contain;
+  display: block;
+}
+
+.sheet-sign-line-placeholder {
+  height: 54px;
+}
+
+.sheet-sign-rule,
+.sign-rule {
+  border-bottom: 1px solid #786658;
+  width: 100%;
+  margin-bottom: 0.35rem;
+}
+
+.sheet-signatory-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #201104;
+}
+
+.sheet-signatory-title {
+  font-size: 0.68rem;
+  color: #8c7b6f;
+}
+
+.sheet-thanks {
+  font-size: 0.72rem;
+  color: #8c7b6f;
+  font-style: italic;
+}
+
+/* PRINT MEDIA */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .ci-invoice-sheet,
+  .ci-invoice-sheet * {
+    visibility: visible;
+  }
+  .ci-invoice-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 1.5cm;
+    box-shadow: none;
+    border: none;
+  }
+}

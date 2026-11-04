@@ -66,40 +66,16 @@ const AdminLogin = () => {
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     inactivityTimerRef.current = setTimeout(() => {
       destroyForm();
-    }, 90000); // 90 seconds
+    }, 15 * 60 * 1000); // 15 minutes
   };
 
   useEffect(() => {
-    // Visibility and Blur check
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        blurTimerRef.current = setTimeout(destroyForm, 30000); // 30 seconds
-      } else {
-        if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-      }
-    };
-
-    const handleWindowBlur = () => {
-      blurTimerRef.current = setTimeout(destroyForm, 30000);
-    };
-
-    const handleWindowFocus = () => {
-      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleWindowBlur);
-    window.addEventListener('focus', handleWindowFocus);
-
-    // Initial inactivity timer
+    // Initial inactivity timer (relaxed to 15m)
     resetInactivityTimer();
 
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleWindowBlur);
-      window.removeEventListener('focus', handleWindowFocus);
-      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
     };
   }, []);
 
@@ -304,33 +280,42 @@ const AdminLogin = () => {
 
   return (
     <div className="adl-page">
-      <div className="adl-glow adl-glow--gold" />
-      <div className="adl-glow adl-glow--blue" />
+      <div className="adl-ambient-glow" />
+      <div className="adl-ambient-spotlight" />
 
       <motion.div
         className="adl-card"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
+        initial={{ opacity: 0, y: 22, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="adl-topbar">
-          {step === '2fa' && (
+          {step === '2fa' ? (
             <button className="adl-icon-btn" onClick={handleGoBack} aria-label="Go back">
               <FaArrowLeft />
             </button>
+          ) : (
+            <a href="/" className="adl-store-link" title="Return to Storefront">
+              <FaArrowLeft /> <span>Store</span>
+            </a>
           )}
-          <span className="adl-badge">SECURE PORTAL</span>
+          <span className="adl-badge">
+            <FaShieldAlt className="adl-badge-icon" />
+            SECURE PORTAL
+          </span>
         </div>
 
         <div className="adl-header">
-          <img src="/rerendet-logo.png" alt="Rerendet Coffee" className="adl-logo" />
+          <div className="adl-logo-wrap">
+            <img src="/rerendet-logo.png" alt="Rerendet Coffee" className="adl-logo" />
+          </div>
           <h1 className="adl-title">
             {step === 'login' ? 'Admin Portal' : 'Verify Identity'}
           </h1>
           <p className="adl-subtitle">
             {step === 'login'
               ? 'Restricted to authorised administrators only'
-              : `Code verification for account`}
+              : 'Enter verification code for account'}
           </p>
         </div>
 
@@ -339,7 +324,7 @@ const AdminLogin = () => {
             <motion.div
               className="adl-error"
               initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginBottom: '20px' }}
+              animate={{ opacity: 1, height: 'auto', marginBottom: '18px' }}
               exit={{ opacity: 0, height: 0, marginBottom: 0 }}
             >
               ⚠ {error}
@@ -348,7 +333,7 @@ const AdminLogin = () => {
         </AnimatePresence>
 
         {formDestroyed ? (
-          <div className="adl-destroyed-message" onClick={() => setFormDestroyed(false)} style={{ textAlign: 'center', padding: '2rem', cursor: 'pointer', color: '#D4AF37' }}>
+          <div className="adl-destroyed-message" onClick={() => setFormDestroyed(false)}>
             <p>Session cleared for security. Click here or begin typing to continue.</p>
           </div>
         ) : (
@@ -465,7 +450,7 @@ const AdminLogin = () => {
 
         <div className="adl-footer">
           <FaShieldAlt className="adl-footer-icon" />
-          <span>End-to-end encrypted session</span>
+          <span>256-Bit Encrypted Administrative Session</span>
         </div>
       </motion.div>
     </div>

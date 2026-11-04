@@ -224,7 +224,7 @@
     font-weight: 800;
     color: #0f172a;
     letter-spacing: -0.5px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: var(--font-heading);
 }
 
 /* Status Text */

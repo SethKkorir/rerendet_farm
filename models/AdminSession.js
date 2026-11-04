@@ -32,6 +32,9 @@ const adminSessionSchema = new mongoose.Schema({
   revokedAt: {
     type: Date
   },
+  replacedBy: {
+    type: String
+  },
   revokedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -42,8 +45,7 @@ const adminSessionSchema = new mongoose.Schema({
   },
   expiresAt: {
     type: Date,
-    required: true,
-    index: true // Target for TTL indexation
+    required: true
   },
   createdAt: {
     type: Date,

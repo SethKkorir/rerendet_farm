@@ -1,6 +1,19 @@
 // middleware/permissions.js - GRANULAR PERMISSION SCOPE SYSTEM
 
 export const ROLE_PERMISSIONS = {
+  admin: [
+    'orders.read',
+    'orders.write',
+    'payments.read',
+    'payments.override',
+    'inventory.read',
+    'inventory.write',
+    'users.read',
+    'users.manage',
+    'reports.read',
+    'settings.manage',
+    'settings.security'
+  ],
   super_admin: [
     'orders.read',
     'orders.write',
@@ -54,8 +67,8 @@ export const requirePermission = (scope) => {
       });
     }
 
-    const role = req.user.role;
-    const allowedScopes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS[role?.replace('-', '_')] || [];
+    const role = req.user.role || (req.user.userType === 'admin' ? 'admin' : 'customer');
+    const allowedScopes = ROLE_PERMISSIONS[role] || ROLE_PERMISSIONS[role?.replace('-', '_')] || (req.user.userType === 'admin' ? ROLE_PERMISSIONS.admin : []);
 
     if (!allowedScopes.includes(scope)) {
       return res.status(403).json({

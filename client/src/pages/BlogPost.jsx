@@ -15,12 +15,6 @@ const BlogPost = () => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (publicSettings?.features && publicSettings.features.coffeeAcademy === false) {
-            navigate('/');
-        }
-    }, [publicSettings, navigate]);
-
-    useEffect(() => {
         const fetchBlog = async () => {
             try {
                 setLoading(true);
@@ -133,8 +127,6 @@ const BlogPost = () => {
                     )}
                 </footer>
             </article>
-
-            <Footer />
         </div>
     );
 };

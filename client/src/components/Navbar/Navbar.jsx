@@ -1,16 +1,15 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaShoppingBag,
   FaBars,
   FaTimes,
   FaUser,
-  FaCoffee,
   FaSun,
   FaMoon
 } from 'react-icons/fa';
 import { AppContext } from '../../context/AppContext';
-import AuthModal from '../Auth/AuthModal';
 import './Navbar.css';
 
 function Navbar() {
@@ -23,27 +22,25 @@ function Navbar() {
     setMobileMenuOpen,
     logout,
     publicSettings,
-    fetchPublicSettings,
     showNotification,
-    showAuthModal,
-    setShowAuthModal,
     setAuthView
   } = useContext(AppContext);
 
   const isAdminUser = userType === 'admin' || user?.role === 'admin' || user?.role === 'super-admin';
 
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // State management
   const [isScrolled, setIsScrolled] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
 
-  // Scroll effect
+  // Smooth scroll listener
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      setIsScrolled(window.scrollY > 15);
     };
-    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -57,14 +54,10 @@ function Navbar() {
     document.documentElement.setAttribute('data-theme', initialMode ? 'dark' : 'light');
   }, []);
 
-  // Public settings are now centrally handled by AppContext initialization 
-  // to prevent redundant fetches and re-render loops.
-
-
-  // Toggle handlers
   const toggleMobileMenu = () => {
-    setMobileMenuOpen(!mobileMenuOpen);
-    document.body.classList.toggle('menu-open', !mobileMenuOpen);
+    const nextState = !mobileMenuOpen;
+    setMobileMenuOpen(nextState);
+    document.body.classList.toggle('menu-open', nextState);
   };
 
   const toggleTheme = () => {
@@ -74,11 +67,10 @@ function Navbar() {
     document.documentElement.setAttribute('data-theme', newMode ? 'dark' : 'light');
   };
 
-  // Auth handlers
   const openAuth = (view = 'login') => {
     setAuthView(view);
-    setShowAuthModal(true);
     setMobileMenuOpen(false);
+    navigate(view === 'signup' ? '/signup' : '/login');
   };
 
   const scrollToSection = (sectionId) => {
@@ -94,14 +86,14 @@ function Navbar() {
   const academyEnabled = publicSettings?.features?.coffeeAcademy ?? true;
   const navLinks = [
     { name: 'Shop', href: '#coffee-shop' },
-    ...(academyEnabled ? [{ name: 'Coffee Academy', href: '/blog' }] : []),
+    ...(academyEnabled ? [{ name: 'Academy', href: '/blog' }] : []),
     { name: 'About', href: '#about' },
     { name: 'Contact', href: '#contact' },
   ];
 
   const handleNavClick = (link) => {
     if (link.isComingSoon) {
-      showNotification('The Rerendet Coffee Editorial is coming soon. Stay tuned for highland stories!', 'info');
+      showNotification('The Rerendet Coffee Editorial is coming soon.', 'info');
       setMobileMenuOpen(false);
       return;
     }
@@ -116,44 +108,61 @@ function Navbar() {
 
   return (
     <>
-      {/* Main Header */}
-      <header className={`header ${isScrolled ? 'header--scrolled' : ''}`}>
+      <header
+        className={`header ${(isScrolled || location.pathname !== '/') ? 'header--scrolled' : ''}`}
+      >
         <div className="header__container">
-          <div className="header__logo" onClick={() => navigate('/')}>
+          {/* Logo Signature */}
+          <div className="header__logo" onClick={() => navigate('/')} title="Rerendet Coffee">
             <img
               src={publicSettings?.store?.logo || "/rerendet-logo.png"}
               alt={publicSettings?.store?.name || "Rerendet Coffee"}
               className="header__logo-img"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/rerendet-logo.png';
+              }}
             />
-            <span className="header__logo-text">
-              Rerendet <span>Coffee</span>
-            </span>
           </div>
 
           {/* Desktop Navigation */}
           <nav className="header__nav">
-            {navLinks.map((link) => (
-              <button
-                key={link.name}
-                onClick={() => handleNavClick(link)}
-                className="header__nav-link"
-              >
-                {link.name}
-              </button>
-            ))}
+            {navLinks.map((link) => {
+              const isActive = link.href.startsWith('/')
+                ? location.pathname === link.href
+                : location.pathname === '/' && location.hash === link.href;
+
+              return (
+                <button
+                  key={link.name}
+                  onClick={() => handleNavClick(link)}
+                  className={`header__nav-link ${isActive ? 'active' : ''}`}
+                >
+                  <span>{link.name}</span>
+                </button>
+              );
+            })}
           </nav>
 
           {/* Actions */}
           <div className="header__actions">
             {/* Theme Toggle */}
-            <button className="theme-toggle" onClick={toggleTheme}>
-              {darkMode ? <FaSun /> : <FaMoon />}
+            <button
+              type="button"
+              className="header__action-btn theme-toggle"
+              onClick={toggleTheme}
+              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label="Toggle theme"
+            >
+              <span className={`theme-toggle-icon ${darkMode ? 'is-dark' : 'is-light'}`}>
+                {darkMode ? <FaSun size={14} /> : <FaMoon size={14} />}
+              </span>
             </button>
 
             {/* Account */}
             <button
               type="button"
-              className="header__account"
+              className={`header__action-btn header__account ${user ? 'is-logged' : ''}`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -163,67 +172,107 @@ function Navbar() {
                   openAuth('login');
                 }
               }}
+              title={user ? (isAdminUser ? 'Admin Dashboard' : `Account: ${user.name || user.email}`) : 'Sign In'}
+              aria-label={user ? 'User Account' : 'Sign In'}
             >
-              <FaUser />
+              <FaUser size={13} />
+              {user && <span className="header__user-dot" />}
             </button>
 
-            {/* Cart */}
-            <div className="header__cart-wrapper">
-              <button className="header__cart" onClick={() => setIsCartOpen(true)}>
-                <FaShoppingBag />
+            {/* Cart Button with Animated Bounce Badge */}
+            <div className="header__cart-wrap">
+              <button
+                type="button"
+                className="header__action-btn header__cart"
+                onClick={() => setIsCartOpen(true)}
+                title="View Bag"
+                aria-label={`Shopping bag with ${cartCount} items`}
+              >
+                <FaShoppingBag size={14} />
                 {cartCount > 0 && (
-                  <span className="header__cart-badge">
+                  <span key={cartCount} className="header__cart-badge">
                     {cartCount > 99 ? '99+' : cartCount}
                   </span>
                 )}
               </button>
             </div>
 
-            {/* Mobile Menu Toggle */}
+            {/* Mobile Menu Trigger */}
             <button
-              className="header__mobile-trigger"
+              type="button"
+              className="header__action-btn header__mobile-trigger"
               onClick={toggleMobileMenu}
+              aria-label="Toggle Menu"
             >
-              {mobileMenuOpen ? <FaTimes /> : <FaBars />}
+              {mobileMenuOpen ? <FaTimes size={15} /> : <FaBars size={15} />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Menu */}
-        <div className={`header__mobile-menu ${mobileMenuOpen ? 'active' : ''}`}>
-          <nav className="header__mobile-nav">
-            {navLinks.map((link) => (
-              <button
-                key={link.name}
-                onClick={() => handleNavClick(link)}
-                className="header__mobile-nav-link"
+        {/* Mobile Menu Drawer */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <>
+              <motion.div
+                className="header__mobile-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={toggleMobileMenu}
+              />
+              <motion.div
+                className="header__mobile-menu"
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               >
-                {link.name}
-              </button>
-            ))}
-            {user ? (
-              <>
-                <button className="header__mobile-nav-link" onClick={() => { navigate(isAdminUser ? '/admin' : '/profile'); setMobileMenuOpen(false); }}>
-                  {isAdminUser ? 'Admin Panel' : 'My Account'}
-                </button>
-                <button className="header__mobile-nav-link" onClick={() => { logout(); setMobileMenuOpen(false); }}>
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                className="header__mobile-nav-link"
-                onClick={() => openAuth('login')}
-              >
-                Sign In
-              </button>
-            )}
-          </nav>
-        </div>
+                <nav className="header__mobile-nav">
+                  {navLinks.map((link) => (
+                    <button
+                      key={link.name}
+                      onClick={() => handleNavClick(link)}
+                      className="header__mobile-nav-link"
+                    >
+                      <span>{link.name}</span>
+                    </button>
+                  ))}
+                  <div className="header__mobile-divider" />
+                  {user ? (
+                    <>
+                      <button
+                        className="header__mobile-nav-link header__mobile-nav-link--accent"
+                        onClick={() => {
+                          navigate(isAdminUser ? '/admin' : '/profile');
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <span>{isAdminUser ? 'Admin Panel' : 'My Account'}</span>
+                      </button>
+                      <button
+                        className="header__mobile-nav-link header__mobile-nav-link--muted"
+                        onClick={() => {
+                          logout();
+                          setMobileMenuOpen(false);
+                        }}
+                      >
+                        <span>Logout</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="header__mobile-nav-link header__mobile-nav-link--accent"
+                      onClick={() => openAuth('login')}
+                    >
+                      <span>Sign In</span>
+                    </button>
+                  )}
+                </nav>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </header>
-
-
-
     </>
   );
 }

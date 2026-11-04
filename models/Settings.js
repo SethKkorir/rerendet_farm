@@ -11,7 +11,9 @@ const settingsSchema = new mongoose.Schema({
     address: { type: String, default: 'Bomet, Kenya' },
     description: { type: String, default: 'Premium coffee blends roasted to perfection' },
     logo: { type: String, default: '' },
-    favicon: { type: String, default: '' }
+    favicon: { type: String, default: '' },
+    signature: { type: String, default: '' },
+    signatoryName: { type: String, default: 'Authorized Signatory' }
   },
 
   // Homepage Hero Content & Promo Badge (Dynamic)
@@ -69,7 +71,8 @@ const settingsSchema = new mongoose.Schema({
     story: { type: String, default: 'Founded in the highlands of Kenya, Rerendet Farm has been cultivating exceptional coffee for generations. Our name comes from the local Kalenjin word for the evergreen tree that provides shade for our coffee plants.' },
     subStory: { type: String, default: 'At elevations of 1,800 meters above sea level, our beans develop slowly, allowing complex flavors to mature fully before harvest. Each batch is hand-picked, carefully processed, and roasted to perfection.' },
     imageUrl: { type: String, default: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?auto=format&fit=crop&q=80&w=1000' },
-    imageUrl2: { type: String, default: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=1000' }
+    imageUrl2: { type: String, default: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=1000' },
+    brewGuides: { type: Array, default: [] }
   },
 
   // Business Hours
@@ -148,6 +151,9 @@ const settingsSchema = new mongoose.Schema({
     keywords: { type: String, default: 'coffee, beans, brew, kenya, arabica' },
     googleAnalyticsId: { type: String, default: '' },
     googleTagManagerId: { type: String, default: '' },
+    googleSiteVerification: { type: String, default: '' },
+    googleSearchConsolePropertyId: { type: String, default: '' },
+    sitemapUrl: { type: String, default: '' },
     canonicalUrl: { type: String, default: '' },
     enableStructuredData: { type: Boolean, default: true },
     social: {
@@ -188,7 +194,41 @@ const settingsSchema = new mongoose.Schema({
     privacyPolicy: { type: String, default: '' },
     termsConditions: { type: String, default: '' },
     refundPolicy: { type: String, default: '' },
-    shippingPolicy: { type: String, default: '' }
+    shippingPolicy: { type: String, default: '' },
+    details: {
+      shippingPolicy: {
+        summary: { type: String, default: '' },
+        faqAnswer: { type: String, default: '' },
+        card1Label: { type: String, default: '' },
+        card1Excerpt: { type: String, default: '' },
+        card2Label: { type: String, default: '' },
+        card2Excerpt: { type: String, default: '' }
+      },
+      refundPolicy: {
+        summary: { type: String, default: '' },
+        faqAnswer: { type: String, default: '' },
+        card1Label: { type: String, default: '' },
+        card1Excerpt: { type: String, default: '' },
+        card2Label: { type: String, default: '' },
+        card2Excerpt: { type: String, default: '' }
+      },
+      termsConditions: {
+        summary: { type: String, default: '' },
+        faqAnswer: { type: String, default: '' },
+        card1Label: { type: String, default: '' },
+        card1Excerpt: { type: String, default: '' },
+        card2Label: { type: String, default: '' },
+        card2Excerpt: { type: String, default: '' }
+      },
+      privacyPolicy: {
+        summary: { type: String, default: '' },
+        faqAnswer: { type: String, default: '' },
+        card1Label: { type: String, default: '' },
+        card1Excerpt: { type: String, default: '' },
+        card2Label: { type: String, default: '' },
+        card2Excerpt: { type: String, default: '' }
+      }
+    }
   },
   cancellationFeeKES: { type: Number, default: 200 },
   documentations: [

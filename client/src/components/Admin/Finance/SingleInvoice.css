@@ -1,0 +1,202 @@
+/* client/src/components/Admin/Finance/SingleInvoice.css */
+
+.single-invoice-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  color: var(--text-main);
+  animation: siFadeIn 0.3s ease-out;
+}
+
+@keyframes siFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.si-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.si-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.si-btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  color: var(--text-muted);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.si-btn-back:hover {
+  color: var(--text-main);
+  border-color: var(--border-main);
+}
+
+.si-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.si-title-group h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.si-status-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+
+.si-status-tag.paid {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.si-status-tag.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.si-status-tag.overdue {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.si-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.si-btn-mark-paid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  padding: 0.5rem 0.95rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.si-btn-mark-paid:hover:not(:disabled) {
+  background: #10b981;
+  color: #ffffff;
+}
+
+.si-btn-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  color: #1a0f05;
+  padding: 0.5rem 1.15rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.si-btn-print:hover {
+  background: var(--color-primary-dark, #b5952f);
+}
+
+/* Container */
+.si-sheet-container {
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.si-sheet {
+  background: #ffffff;
+  color: #1a1512;
+  border: 1px solid #e5dec9;
+  border-radius: 12px;
+  padding: 3rem 2.5rem;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+  font-family: -apple-system, BlinkMacSystemFont, "Outfit", sans-serif;
+  line-height: 1.45;
+}
+
+[data-theme='dark'] .si-sheet {
+  background: #fbf9f5;
+  color: #1a1512;
+  border-color: #d6cab8;
+}
+
+/* Loading & Not Found */
+.si-loading,
+.si-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 1rem;
+  text-align: center;
+  gap: 1rem;
+  color: var(--text-muted);
+}
+
+.si-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-glass);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.font-bold {
+  font-weight: 700;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .si-sheet,
+  .si-sheet * {
+    visibility: visible;
+  }
+  .si-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 1.5cm;
+    box-shadow: none;
+    border: none;
+  }
+}

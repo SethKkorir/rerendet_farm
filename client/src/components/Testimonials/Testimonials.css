@@ -1,323 +1,377 @@
-/* src/components/Testimonials/Testimonials.css - Premium Adaptive Version */
+/* Testimonials.css — Clean Minimalist 3-Card Moving Carousel
+   Pixel-Perfect Match to Uploaded Mockup with Auto-Slide & Dual-Mode */
 
+:root,
+[data-theme='light'] {
+  --tm-bg: var(--bg-home, #F8F4EE);
+  --tm-card-bg: var(--bg-card, #FFFFFF);
+  --tm-card-border: var(--border-light, #ECE5DC);
+  --tm-text-title: var(--text-main, #1d1510);
+  --tm-text-author: var(--text-main, #1d1510);
+  --tm-text-body: var(--text-muted, #615045);
+  --tm-quote: var(--color-primary, #D4AF37);
+  --tm-card-shadow-active: 0 16px 36px rgba(111, 78, 55, 0.12), 0 4px 12px rgba(111, 78, 55, 0.05);
+  --tm-card-shadow-side: 0 6px 18px rgba(111, 78, 55, 0.05);
+  --tm-btn-bg: var(--bg-card, #FFFFFF);
+  --tm-btn-border: var(--border-main, #D6CAB8);
+  --tm-btn-color: var(--text-main, #1d1510);
+}
+
+[data-theme='dark'] {
+  --tm-bg: var(--bg-home, #201104);
+  --tm-card-bg: var(--bg-card, #2c180b);
+  --tm-card-border: var(--border-main, rgba(216, 150, 78, 0.22));
+  --tm-text-title: #fffaf5;
+  --tm-text-author: #fffaf5;
+  --tm-text-body: #dfccba;
+  --tm-quote: #d8964e;
+  --tm-card-shadow-active: 0 20px 45px rgba(0, 0, 0, 0.65);
+  --tm-card-shadow-side: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --tm-btn-bg: var(--bg-surface, #341d0e);
+  --tm-btn-border: rgba(216, 150, 78, 0.25);
+  --tm-btn-color: #fffaf5;
+}
+
+/* ══ Testimonials Root Section ═════════════════════════════════════ */
 .testimonials {
-  background-color: var(--bg-deep);
-  color: var(--text-main);
-  padding: 3.5rem 0;
+  background-color: var(--tm-bg);
+  padding: 4.5rem 1.25rem 4.5rem;
   position: relative;
   overflow: hidden;
-  transition: background-color 0.4s ease, color 0.4s ease;
-}
-
-
-
-.testimonials .container {
-  position: relative;
-  z-index: 1;
-}
-
-.testimonials-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.testimonials .section-title {
-  text-align: center;
-  font-family: var(--font-heading, "Playfair Display", serif);
-  font-size: 2rem;
-  font-weight: 400;
-  color: var(--text-main);
-  margin-bottom: 0.5rem;
-  letter-spacing: -0.5px;
-}
-
-.testimonials-header p {
-  font-size: 0.9rem;
-  color: var(--color-primary);
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  font-weight: 700;
-  margin-bottom: 1rem;
-}
-
-
-
-.btn-write-review {
-  background: var(--bg-glass);
-  border: 1px solid var(--border-main);
-  color: var(--color-primary);
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: var(--transition-smooth);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  backdrop-filter: var(--glass-blur);
-}
-
-.btn-write-review:hover {
-  background: var(--color-primary);
-  color: white;
-  transform: translateY(-3px);
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
-}
-
-.testimonial-slider {
-  position: relative;
-  max-width: 900px;
-  margin: 0 auto;
-  min-height: 240px;
-}
-
-.testimonial-slide-modern {
-  text-align: center;
-  padding: 1.5rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-main);
-  border-radius: 20px;
-  box-shadow: var(--shadow-sm);
-}
-
-.quote-icon {
-  font-size: 1.5rem;
-  color: var(--color-primary);
-  opacity: 0.2;
-  margin-bottom: 0.5rem;
-}
-
-.rating-stars {
-  color: #fbbf24;
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-}
-
-.testimonial-text {
-  font-family: var(--font-heading, "Playfair Display", serif);
-  font-size: 1.15rem;
-  line-height: 1.5;
-  margin-bottom: 1.5rem;
-  font-style: italic;
-  font-weight: 300;
-  color: var(--text-main);
-}
-
-.testimonial-author {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.author-avatar-placeholder {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  font-weight: 700;
-  box-shadow: var(--shadow-md);
-}
-
-.author-info {
-  text-align: left;
-}
-
-.author-info h4 {
-  font-size: 0.95rem;
-  margin-bottom: 2px;
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.author-info p {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  font-weight: 700;
-}
-
-.testimonial-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1.5rem;
-  gap: 30px;
-}
-
-.testimonial-prev,
-.testimonial-next {
-  background: var(--bg-card);
-  border: 1px solid var(--border-main);
-  color: var(--text-main);
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: var(--transition-fast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.testimonial-prev:hover,
-.testimonial-next:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  transform: scale(1.1);
-}
-
-.testimonial-dots {
-  display: flex;
-  gap: 12px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--border-strong);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.dot.active {
-  background-color: var(--color-primary);
-  transform: scale(1.4);
-  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
-}
-
-/* Review Modal Redesign - Theme Adaptive */
-.review-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-overlay);
-  backdrop-filter: blur(10px);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.review-modal {
-  background: var(--bg-card);
-  padding: 3rem;
-  border-radius: 24px;
-  border: 1px solid var(--border-main);
-  color: var(--text-main);
-  max-width: 500px;
-  width: 90%;
-}
-
-.review-modal h3 {
-  font-family: var(--font-heading, "Playfair Display", serif);
-  font-size: 2.2rem;
-  margin-bottom: 0.75rem;
-  color: var(--text-main);
-}
-
-.review-modal p {
-  color: var(--text-muted);
-  font-size: 1rem;
-  margin-bottom: 2rem;
-}
-
-.mock-form .form-group label {
-  color: var(--text-main);
-  font-size: 0.8rem;
-  letter-spacing: 1.5px;
-  margin-bottom: 0.75rem;
-  text-transform: uppercase;
-}
-
-.star-select {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 1.25rem;
-}
-
-.star-input {
-  font-size: 1.8rem;
-  transition: transform 0.2s ease;
-}
-
-.mock-form textarea {
-  background: var(--bg-input);
-  border: 1px solid var(--border-main);
-  color: var(--text-main);
-  padding: 1.25rem;
-  border-radius: 12px;
-  font-size: 1rem;
-  transition: border-color 0.2s ease;
-}
-
-.submit-review-btn {
-  background: var(--color-primary);
-  color: white;
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  margin-top: 1.5rem;
-}
-
-/* Placeholder State */
-.no-reviews-placeholder {
-  background: var(--bg-card);
-  border: 1px dashed var(--border-main);
-  padding: 4rem 2rem;
-  border-radius: 24px;
-}
-
-.placeholder-star {
-  font-size: 3rem;
-  color: var(--color-primary);
-  opacity: 0.2;
+  font-family: var(--font-body);
+  transition: background-color 0.3s ease;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
   .testimonials {
-    padding: 4rem 0;
+    padding: 3.5rem 1rem 3.5rem;
+  }
+}
+
+.testimonials-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ══ Section Header ═════════════════════════════════════════════════ */
+.testimonials-header {
+  text-align: center;
+  margin-bottom: 2.75rem;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.testimonials-tag {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim, #8C827A);
+  margin-bottom: 0.75rem;
+}
+
+.testimonials-title {
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 3.8vw, 2.75rem);
+  font-weight: 700;
+  color: var(--tm-text-title);
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+@media (max-width: 768px) {
+  .testimonials-header {
+    margin-bottom: 2rem;
+  }
+}
+
+/* ══ Carousel Stage with Side Arrows ═══════════════════════════════ */
+.testimonials-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+/* Navigation Circular Buttons matching mockup */
+.tm-nav-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--tm-btn-bg);
+  border: 1px solid var(--tm-btn-border);
+  color: var(--tm-btn-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: all 0.25s ease;
+  z-index: 10;
+  flex-shrink: 0;
+  font-size: 0.95rem;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tm-nav-btn:hover {
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  border-color: var(--tm-quote);
+  color: var(--tm-quote);
+}
+
+.tm-nav-btn.prev {
+  left: 0;
+}
+
+.tm-nav-btn.next {
+  right: 0;
+}
+
+@media (max-width: 840px) {
+  .tm-nav-btn.prev {
+    left: -6px;
   }
 
-  .testimonials .section-title {
-    font-size: 2.2rem;
+  .tm-nav-btn.next {
+    right: -6px;
+  }
+}
+
+/* ══ 3-Card Carousel Track ═════════════════════════════════════════ */
+.tm-cards-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.75rem;
+  width: 100%;
+  max-width: 960px;
+  padding: 1.5rem 2.5rem;
+  box-sizing: border-box;
+}
+
+@media (max-width: 840px) {
+  .tm-cards-track {
+    padding: 1rem 0;
+    gap: 0;
+  }
+}
+
+/* ── Individual Minimalist Card ── */
+.tm-card {
+  background: var(--tm-card-bg);
+  border: 1px solid var(--tm-card-border);
+  border-radius: 12px;
+  padding: 2.25rem 2rem 2.25rem;
+  width: 290px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+  position: relative;
+  box-sizing: border-box;
+  transition: all 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Side Cards (Left & Right) */
+.tm-card.side {
+  transform: scale(0.92);
+  opacity: 0.85;
+  box-shadow: var(--tm-card-shadow-side);
+  filter: blur(0.2px);
+}
+
+.tm-card.side:hover {
+  opacity: 0.98;
+  transform: scale(0.95);
+}
+
+/* Center Active Card */
+.tm-card.active {
+  transform: scale(1.08);
+  opacity: 1;
+  box-shadow: var(--tm-card-shadow-active);
+  z-index: 5;
+  border-color: rgba(212, 175, 55, 0.45);
+}
+
+[data-theme='dark'] .tm-card.active {
+  border-color: rgba(212, 175, 55, 0.55);
+}
+
+@media (max-width: 840px) {
+  .tm-card.side {
+    display: none;
+    /* Show only center card on mobile for clean fit */
   }
 
-  .testimonial-text {
-    font-size: 1.4rem;
+  .tm-card.active {
+    transform: scale(1);
+    width: 100%;
+    max-width: 330px;
   }
+}
 
-  .testimonial-slide-modern {
-    padding: 2rem;
-  }
+/* ── Quotation Marks (Gold Accent) ── */
+.tm-quote-mark {
+  font-family: var(--font-heading);
+  font-size: 2.2rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--tm-quote);
+  user-select: none;
+}
 
-  .testimonial-slider {
-    min-height: auto;
-  }
+.tm-quote-mark.open {
+  align-self: flex-start;
+  margin-bottom: 0.25rem;
+}
 
-  .review-modal {
-    padding: 2rem;
-  }
+.tm-quote-mark.close {
+  align-self: flex-end;
+  margin-top: 0.25rem;
+}
+
+/* ── Card Content ── */
+.tm-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+.tm-card-author {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--tm-text-author);
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.025em;
+}
+
+.tm-card-role {
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-primary-dark, #B5952F);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.65rem;
+}
+
+.tm-card-stars {
+  display: flex;
+  gap: 3px;
+  color: var(--color-primary, #D4AF37);
+  font-size: 0.82rem;
+  margin-bottom: 1rem;
+}
+
+.tm-card-body {
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--tm-text-body);
+  margin: 0;
+  text-align: center;
+}
+
+/* ══ Bottom Controls: Indicators & Share Action ════════════════════ */
+.tm-bottom-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  margin-top: 2.5rem;
+}
+
+.tm-dots-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tm-btn-border);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.tm-dot.active {
+  width: 22px;
+  border-radius: 999px;
+  background: var(--tm-quote);
+}
+
+/* Minimal Share Button */
+.tm-share-btn {
+  background: none;
+  border: none;
+  color: var(--tm-text-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.tm-share-btn:hover {
+  color: var(--tm-quote);
+}
+
+/* Review Modal (Preserved for Customer Submissions) */
+.review-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+}
+
+.review-modal {
+  background: var(--tm-card-bg);
+  border: 1px solid var(--tm-card-border);
+  border-radius: 20px;
+  padding: 2rem;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  position: relative;
+  box-sizing: border-box;
+}
+
+.close-modal-btn.dark {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: none;
+  border: none;
+  font-size: 1.15rem;
+  color: var(--tm-text-body);
+  cursor: pointer;
 }

@@ -4,6 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion } from 'framer-motion';
 import { FaShoppingBag, FaArrowLeft, FaLeaf, FaShieldAlt, FaTruck } from 'react-icons/fa';
+import { isProductOutOfStock } from '../../utils/stockValidator';
 // import FlavorChart from './FlavorChart'; // hidden for now
 import './ProductDetail.css';
 
@@ -43,8 +44,16 @@ const ProductDetail = () => {
         fetchProduct();
     }, [slug, showAlert]);
 
+    const isOutOfStock = isProductOutOfStock(product);
+
     const handleAddToCart = async () => {
         if (!selectedSize || !product) return;
+        if (isOutOfStock) {
+            showAlert(`"${product.name}" is currently out of stock and cannot be added to cart.`, 'error');
+            import('../../api/api').then(m => m.reportOutOfStock(product._id)).catch(() => {});
+            return;
+        }
+
         setAddingToCart(true);
         try {
             const sizeOption = product.sizes.find(s => s.size === selectedSize);
@@ -161,7 +170,7 @@ const ProductDetail = () => {
                             </div>
                         )}
 
-                        {product.inventory?.stock <= 0 || product.inStock === false ? (
+                        {isOutOfStock ? (
                             <div className="out-of-stock-section" style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(239, 68, 68, 0.08)', borderRadius: '12px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                                     <span>⚠️ Currently Out of Stock</span>

@@ -1,85 +1,921 @@
-/* components/OrderConfirmation/OrderConfirmation.css */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap');
+/* OrderConfirmation.css - Minimalist Luxury Split Card Confirmation
+   Pixel-Perfect Match to Target Mockup with Rerendet Coffee Theme & Dual-Mode Support */
 
-/* ══ PAGE LAYOUT ══════════════════════════════════════════════════ */
-.oc-modern-page {
-  min-height: 100dvh;
-  background: #0d0a08;
-  color: #f5f0eb;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  padding: 5.5rem 1.25rem 4rem;
+:root,
+[data-theme='light'] {
+  --oc-page-bg: #EFECE6;
+  --oc-card-bg: #FFFFFF;
+  --oc-left-bg: #DCD2C4;
+  --oc-left-text: #261B14;
+  --oc-border: #E5DFD5;
+  --oc-right-bg: #FAFAF9;
+  --oc-surface-subtle: #F1EFEA;
+  --oc-text-primary: #17120E;
+  --oc-text-muted: #6B655D;
+  --oc-text-subtle: #9E968B;
+  --oc-gold: #D4A737;
+  --oc-gold-hover: #BF932B;
+  --oc-green: #10B981;
+  --oc-green-bg: #E8F7ED;
+  --oc-btn-bg: #1A1410;
+  --oc-btn-text: #FFFFFF;
+  --oc-btn-hover: #33261F;
+  --oc-card-shadow: 0 20px 60px rgba(38, 27, 20, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --oc-modal-bg: #FFFFFF;
+  --oc-modal-table-header: #F6F4EF;
+}
+
+[data-theme='dark'] {
+  --oc-page-bg: #201104;
+  --oc-card-bg: #2c180b;
+  --oc-left-bg: #341d0e;
+  --oc-left-text: #fffaf5;
+  --oc-border: rgba(216, 150, 78, 0.22);
+  --oc-right-bg: #2c180b;
+  --oc-surface-subtle: #341d0e;
+  --oc-text-primary: #fffaf5;
+  --oc-text-muted: #dfccba;
+  --oc-text-subtle: #bfa58f;
+  --oc-gold: #d8964e;
+  --oc-gold-hover: #e5a85b;
+  --oc-green: #10B981;
+  --oc-green-bg: rgba(16, 185, 129, 0.15);
+  --oc-btn-bg: #d8964e;
+  --oc-btn-text: #1a0d03;
+  --oc-btn-hover: #e5a85b;
+  --oc-card-shadow: 0 25px 70px rgba(0, 0, 0, 0.7);
+  --oc-modal-bg: #201104;
+  --oc-modal-table-header: #341d0e;
+}
+
+/* ── Full Page Container (Pins between Navbar & Footer) ── */
+.oc-clean-page {
+  background: var(--oc-page-bg);
+  min-height: calc(100vh - 4.5rem);
+  padding-top: 8.5rem; /* Generous clearance for fixed navbar */
+  padding-bottom: 5.5rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--oc-text-primary);
+  transition: background-color 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .oc-clean-page {
+    padding-top: 6.5rem;
+    padding-bottom: 3.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* ── Split Card Container ── */
+.oc-clean-card {
+  width: 100%;
+  max-width: 860px;
+  background: var(--oc-card-bg);
+  border-radius: 28px;
+  border: 1px solid var(--oc-border);
+  box-shadow: var(--oc-card-shadow);
+  display: grid;
+  grid-template-columns: 46% 54%;
+  overflow: hidden;
   position: relative;
-  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-/* Ambient glow orbs */
-.oc-ambient-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(100px);
-  pointer-events: none;
-  z-index: 0;
+@media (max-width: 840px) {
+  .oc-clean-card {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+    border-radius: 24px;
+  }
 }
 
-.oc-orb-1 {
-  top: 5%;
-  left: -100px;
-  width: 450px;
-  height: 450px;
-  background: radial-gradient(circle, rgba(196, 131, 90, 0.12) 0%, transparent 70%);
-}
-
-.oc-orb-2 {
-  top: 40%;
-  right: -120px;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%);
-}
-
-.oc-wrapper {
-  max-width: 960px;
-  margin: 0 auto;
+/* ── Left Side: Brand Visual Showcase ── */
+.oc-left-pane {
+  background: var(--oc-left-bg);
+  padding: 2.25rem 2rem;
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
+  justify-content: space-between;
   position: relative;
-  z-index: 1;
+  overflow: hidden;
+  box-sizing: border-box;
+  min-height: 540px;
 }
 
-/* ══ LOADING STATE ════════════════════════════════════════════════ */
-.oc-loading-state {
-  min-height: 70vh;
+@media (max-width: 840px) {
+  .oc-left-pane {
+    min-height: 290px;
+    padding: 1.75rem 1.5rem;
+  }
+}
+
+/* Brand Header - Huge prominent logo with NO duplicate text line */
+.oc-brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 2;
+}
+
+.oc-brand-logo-img {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  border-radius: 16px;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.12));
+  transition: transform 0.3s ease;
+}
+
+.oc-brand-logo-img:hover {
+  transform: scale(1.04);
+}
+
+@media (max-width: 840px) {
+  .oc-brand-logo-img {
+    width: 68px;
+    height: 68px;
+  }
+}
+
+/* Center Coffee Image matching Hero section */
+.oc-visual-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto 0;
+  position: relative;
+  z-index: 2;
+  padding: 1rem 0;
+}
+
+.oc-visual-bag {
+  max-width: 220px;
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 25px rgba(0, 0, 0, 0.18));
+  transition: transform 0.4s ease;
+}
+
+.oc-clean-card:hover .oc-visual-bag {
+  transform: translateY(-4px) scale(1.02);
+}
+
+@media (max-width: 840px) {
+  .oc-visual-bag {
+    max-height: 160px;
+  }
+}
+
+/* Bottom Feature Pill Badge */
+.oc-feature-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0.5rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: #382A21;
+  max-width: 90%;
+  line-height: 1.35;
+  z-index: 2;
+}
+
+[data-theme='dark'] .oc-feature-pill {
+  background: rgba(20, 14, 11, 0.7);
+  border-color: rgba(212, 175, 55, 0.25);
+  color: #E2D7CF;
+}
+
+.oc-feature-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* Subtle background accent glow */
+.oc-left-pane::before {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+[data-theme='dark'] .oc-left-pane::before {
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.12) 0%, transparent 70%);
+}
+
+/* ── Right Side: Confirmation Details ── */
+.oc-right-pane {
+  background: var(--oc-right-bg);
+  padding: 2.5rem 2.25rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .oc-right-pane {
+    padding: 1.85rem 1.35rem;
+  }
+}
+
+/* Close button (top right) */
+.oc-close-btn {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: none;
+  border: none;
+  color: var(--oc-text-subtle);
+  font-size: 1.15rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.oc-close-btn:hover {
+  background: var(--oc-surface-subtle);
+  color: var(--oc-text-primary);
+}
+
+/* Top Green Check Circle */
+.oc-check-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.1rem;
+}
+
+.oc-check-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--oc-green-bg);
+  color: var(--oc-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+}
+
+.oc-check-circle svg {
+  width: 26px;
+  height: 26px;
+}
+
+/* Thank You Title & Subtitle */
+.oc-heading-group {
+  text-align: center;
+  margin-bottom: 1.65rem;
+}
+
+.oc-thank-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--oc-text-primary);
+  margin: 0 0 0.45rem;
+  letter-spacing: -0.3px;
+}
+
+.oc-thank-sub {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--oc-text-muted);
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+/* Order Meta Box */
+.oc-order-box {
+  background: var(--oc-surface-subtle);
+  border-radius: 14px;
+  padding: 0.85rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1.65rem;
+}
+
+.oc-order-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.oc-order-icon-shell {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--oc-card-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--oc-text-primary);
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  border: 1px solid var(--oc-border);
+}
+
+.oc-order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.oc-order-num {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--oc-text-primary);
+}
+
+.oc-order-subtext {
+  font-size: 0.78rem;
+  color: var(--oc-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Vertical 3-Node Timeline ── */
+.oc-timeline {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin-bottom: 1.65rem;
+  padding-left: 0.35rem;
+}
+
+.oc-timeline-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  position: relative;
+  padding-bottom: 1.35rem;
+}
+
+.oc-timeline-step:last-child {
+  padding-bottom: 0;
+}
+
+/* Vertical connector line */
+.oc-timeline-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 6px;
+  width: 2px;
+  height: calc(100% - 10px);
+  background: var(--oc-border);
+}
+
+.oc-timeline-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 3px;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.oc-timeline-dot.active {
+  background: var(--oc-green);
+  border: 3px solid var(--oc-green-bg);
+}
+
+.oc-timeline-dot.pending {
+  background: var(--oc-right-bg);
+  border: 2px solid var(--oc-text-subtle);
+}
+
+.oc-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.oc-step-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--oc-text-primary);
+}
+
+.oc-step-sub {
+  font-size: 0.76rem;
+  color: var(--oc-text-muted);
+}
+
+/* ── Notification Callout Banner ── */
+.oc-notify-callout {
+  background: var(--oc-surface-subtle);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--oc-text-muted);
+  line-height: 1.4;
+  margin-bottom: 1.65rem;
+}
+
+.oc-notify-icon {
+  font-size: 1rem;
+  color: var(--oc-text-primary);
+  flex-shrink: 0;
+}
+
+/* ── Action Buttons ── */
+.oc-actions-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: auto;
+  width: 100%;
+}
+
+.btn-oc-track {
+  width: 100%;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--oc-btn-bg);
+  color: var(--oc-btn-text);
+  border: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s ease;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.btn-oc-track:hover {
+  background: var(--oc-btn-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.btn-oc-receipt {
+  width: 100%;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--oc-surface-subtle);
+  color: var(--oc-text-primary);
+  border: 1px solid var(--oc-border);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn-oc-receipt:hover {
+  border-color: var(--oc-gold);
+  color: var(--oc-gold);
+  background: var(--oc-card-bg);
+}
+
+.btn-oc-back {
+  background: none;
+  border: none;
+  color: var(--oc-text-muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  font-family: inherit;
+  padding: 4px 8px;
+}
+
+.btn-oc-back:hover {
+  color: var(--oc-text-primary);
+}
+
+/* ── Floating Receipt Pop-Up Modal ── */
+.oc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  box-sizing: border-box;
+}
+
+.oc-receipt-modal {
+  width: 100%;
+  max-width: 580px;
+  max-height: 88vh;
+  background: var(--oc-modal-bg);
+  border-radius: 24px;
+  border: 1px solid var(--oc-border);
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.oc-modal-header {
+  padding: 1.25rem 1.65rem;
+  border-bottom: 1px solid var(--oc-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--oc-surface-subtle);
+}
+
+.oc-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oc-modal-title-icon {
+  font-size: 1.35rem;
+  color: var(--oc-gold);
+}
+
+.oc-modal-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--oc-text-primary);
+}
+
+.oc-modal-sub {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: var(--oc-text-muted);
+}
+
+.oc-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.oc-modal-print-btn {
+  background: var(--oc-card-bg);
+  border: 1px solid var(--oc-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--oc-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.oc-modal-print-btn:hover {
+  border-color: var(--oc-gold);
+  color: var(--oc-gold);
+}
+
+.oc-modal-close-btn {
+  background: none;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--oc-text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.oc-modal-close-btn:hover {
+  background: var(--oc-border);
+  color: var(--oc-text-primary);
+}
+
+.oc-modal-body {
+  padding: 1.5rem 1.65rem;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Brand row inside receipt */
+.oc-rcpt-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.oc-rcpt-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.oc-rcpt-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.oc-rcpt-brand-name {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  color: var(--oc-text-primary);
+}
+
+.oc-rcpt-brand-tag {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: var(--oc-text-muted);
+}
+
+.oc-rcpt-status {
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.oc-rcpt-status.paid {
+  background: var(--oc-green-bg);
+  color: var(--oc-green);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.oc-rcpt-status.pending {
+  background: rgba(212, 167, 55, 0.12);
+  color: var(--oc-gold);
+  border: 1px solid rgba(212, 167, 55, 0.25);
+}
+
+.oc-rcpt-divider {
+  height: 1px;
+  background: var(--oc-border);
+  margin: 1rem 0;
+}
+
+/* Meta grid */
+.oc-rcpt-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.85rem 1.25rem;
+  margin-bottom: 1.35rem;
+  background: var(--oc-surface-subtle);
+  padding: 1rem 1.15rem;
+  border-radius: 14px;
+}
+
+@media (max-width: 480px) {
+  .oc-rcpt-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rcpt-label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--oc-text-muted);
+  margin-bottom: 2px;
+}
+
+.rcpt-val {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--oc-text-primary);
+}
+
+.rcpt-val.mono {
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
+/* Table wrap */
+.oc-rcpt-table-wrap {
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--oc-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.oc-rcpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.oc-rcpt-table th {
+  background: var(--oc-modal-table-header);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--oc-text-muted);
+  text-align: left;
+}
+
+.oc-rcpt-table th.center,
+.oc-rcpt-table td.center {
+  text-align: center;
+}
+
+.oc-rcpt-table th.right,
+.oc-rcpt-table td.right {
+  text-align: right;
+}
+
+.oc-rcpt-table td {
+  padding: 0.65rem 0.85rem;
+  border-top: 1px solid var(--oc-border);
+  color: var(--oc-text-primary);
+}
+
+.rcpt-item-name {
+  font-weight: 700;
+  color: var(--oc-text-primary);
+}
+
+.rcpt-item-sub {
+  font-size: 0.72rem;
+  color: var(--oc-text-muted);
+}
+
+/* Totals */
+.oc-rcpt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+  padding-top: 0.5rem;
+}
+
+.rcpt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.86rem;
+  color: var(--oc-text-muted);
+}
+
+.rcpt-total-row span:last-child {
+  font-weight: 700;
+  color: var(--oc-text-primary);
+}
+
+.rcpt-total-row.discount span:last-child {
+  color: var(--oc-green);
+}
+
+.rcpt-total-row.grand {
+  border-top: 1.5px solid var(--oc-border);
+  padding-top: 0.65rem;
+  margin-top: 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--oc-text-primary);
+}
+
+.rcpt-grand-val {
+  color: var(--oc-gold);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.oc-rcpt-security {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--oc-text-subtle);
+  padding: 0.65rem 0;
+  text-align: center;
+}
+
+.oc-modal-footer {
+  padding: 1rem 1.65rem;
+  border-top: 1px solid var(--oc-border);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  background: var(--oc-surface-subtle);
+}
+
+.btn-modal-print {
+  padding: 0.65rem 1.2rem;
+  background: var(--oc-gold);
+  color: #1A1410;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-modal-print:hover {
+  background: var(--oc-gold-hover);
+  transform: translateY(-1px);
+}
+
+.btn-modal-close {
+  padding: 0.65rem 1.2rem;
+  background: var(--oc-card-bg);
+  border: 1px solid var(--oc-border);
+  color: var(--oc-text-primary);
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-modal-close:hover {
+  background: var(--oc-surface-subtle);
+}
+
+/* ── Loading State ── */
+.oc-loading-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  min-height: 400px;
   text-align: center;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
-.oc-luxury-spinner {
-  width: 54px;
-  height: 54px;
-  border: 3px solid rgba(196, 131, 90, 0.15);
-  border-top-color: #C4835A;
+.oc-clean-spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--oc-border);
+  border-top-color: var(--oc-gold);
   border-radius: 50%;
-  animation: ocSpin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: ocSpin 0.8s linear infinite;
 }
 
 @keyframes ocSpin {
   to { transform: rotate(360deg); }
 }
 
-/* ══ CONFETTI ═════════════════════════════════════════════════════ */
-.oc-confetti-wrap {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  overflow: hidden;
-}
-
+/* ── Confetti Burst Animation ── */
 .oc-particle {
   position: absolute;
   top: -12px;
@@ -93,815 +929,10 @@
   100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
 }
 
-/* ══ 1. HERO CARD ═════════════════════════════════════════════════ */
-.oc-hero-card {
-  background: radial-gradient(circle at 50% 0%, rgba(38, 26, 20, 0.95) 0%, rgba(18, 14, 11, 0.98) 100%);
-  border: 1px solid rgba(196, 131, 90, 0.25);
-  border-radius: 24px;
-  padding: 3.25rem 2rem 2.5rem;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.oc-hero-pattern {
-  position: absolute;
+.oc-confetti-wrap {
+  position: fixed;
   inset: 0;
-  background-image: radial-gradient(rgba(196, 131, 90, 0.06) 1px, transparent 1px);
-  background-size: 24px 24px;
   pointer-events: none;
-}
-
-.oc-success-icon-box {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.25rem;
-}
-
-.oc-success-svg {
-  font-size: 72px;
-  color: #10B981;
-  filter: drop-shadow(0 0 20px rgba(16, 185, 129, 0.45));
-  position: relative;
-  z-index: 2;
-}
-
-.oc-pulse-ring {
-  position: absolute;
-  border-radius: 50%;
-  border: 1.5px solid rgba(16, 185, 129, 0.35);
-  animation: ocPulseRing 2.4s cubic-bezier(0.25, 1, 0.5, 1) infinite;
-}
-
-.oc-pulse-ring.ring-1 { width: 90px; height: 90px; }
-.oc-pulse-ring.ring-2 { width: 120px; height: 120px; animation-delay: 0.6s; }
-
-@keyframes ocPulseRing {
-  0% { transform: scale(0.7); opacity: 0.8; }
-  100% { transform: scale(1.4); opacity: 0; }
-}
-
-.oc-hero-subtitle {
-  display: block;
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 2.5px;
-  color: #C4835A;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.oc-hero-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #f5f0eb;
-  margin: 0 0 0.75rem;
-  letter-spacing: -0.5px;
-}
-
-.oc-hero-description {
-  font-size: 1.05rem;
-  color: #a89f91;
-  max-width: 600px;
-  margin: 0 auto 2rem;
-  line-height: 1.6;
-}
-
-.oc-customer-name {
-  color: #f5f0eb;
-  font-weight: 600;
-}
-
-/* Meta Ribbon */
-.oc-meta-ribbon {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(10, 8, 6, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 0.75rem 1.5rem;
-  gap: 1.5rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-.oc-meta-chip {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2rem;
-}
-
-.chip-label {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #8c827a;
-  font-weight: 600;
-}
-
-.chip-value-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.chip-code {
-  font-family: 'Outfit', monospace;
-  font-size: 1.05rem;
-  color: #f5f0eb;
-  letter-spacing: 0.5px;
-}
-
-.oc-copy-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #C4835A;
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.75rem;
-}
-
-.oc-copy-btn:hover {
-  background: #C4835A;
-  color: #ffffff;
-  transform: scale(1.05);
-}
-
-.oc-copy-btn .copy-done {
-  color: #10B981;
-}
-
-.oc-meta-divider {
-  width: 1px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.oc-status-pill {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.25rem 0.65rem;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.oc-status-pill.paid {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.35);
-}
-
-.oc-status-pill.pending {
-  background: rgba(245, 158, 11, 0.15);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.oc-status-pill.failed {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-}
-
-.chip-highlight {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-  color: #E5A96E;
-}
-
-/* ══ 2. JOURNEY STEPPER CARD ══════════════════════════════════════ */
-.oc-journey-card {
-  background: rgba(20, 16, 13, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 20px;
-  padding: 1.75rem 2rem;
-  backdrop-filter: blur(12px);
-}
-
-.oc-journey-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.oc-card-tag {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: #C4835A;
-  font-weight: 700;
-  display: block;
-}
-
-.oc-card-heading {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.4rem;
-  color: #f5f0eb;
-  margin: 0.15rem 0 0;
-  font-weight: 600;
-}
-
-.oc-roast-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.25);
-  color: #34d399;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.35rem 0.75rem;
-  border-radius: 20px;
-}
-
-.oc-stepper-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  position: relative;
-}
-
-.oc-step-node {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  position: relative;
-  z-index: 1;
-}
-
-.oc-step-icon-shell {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: #191410;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  color: #6b635b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  margin-bottom: 0.85rem;
-  position: relative;
-  transition: all 0.3s ease;
-}
-
-.oc-step-node.completed .oc-step-icon-shell {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: #10B981;
-  color: #10B981;
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
-}
-
-.oc-step-node.active .oc-step-icon-shell {
-  background: rgba(196, 131, 90, 0.2);
-  border-color: #C4835A;
-  color: #C4835A;
-  box-shadow: 0 0 25px rgba(196, 131, 90, 0.35);
-  animation: ocActiveGlow 2s infinite ease-in-out;
-}
-
-@keyframes ocActiveGlow {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.06); }
-}
-
-.oc-check-dot {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 17px;
-  height: 17px;
-  border-radius: 50%;
-  background: #10B981;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #14100d;
-}
-
-.oc-step-details {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.oc-step-title {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #f5f0eb;
-}
-
-.oc-step-desc {
-  font-size: 0.72rem;
-  color: #8c827a;
-  line-height: 1.35;
-}
-
-.oc-step-timing {
-  font-size: 0.68rem;
-  color: #C4835A;
-  font-weight: 600;
-  margin-top: 0.2rem;
-}
-
-.oc-step-track {
-  position: absolute;
-  top: 25px;
-  left: 50%;
-  width: 100%;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.08);
-  z-index: -1;
-}
-
-.oc-step-node.completed .oc-step-track {
-  background: linear-gradient(90deg, #10B981, rgba(255, 255, 255, 0.08));
-}
-
-/* ══ 3. TWO COLUMN LAYOUT ═════════════════════════════════════════ */
-.oc-grid-columns {
-  display: grid;
-  grid-template-columns: 1.35fr 1fr;
-  gap: 1.5rem;
-}
-
-.oc-details-card {
-  background: rgba(20, 16, 13, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 20px;
-  padding: 1.75rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.oc-details-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 1.25rem;
-}
-
-.oc-subheading {
-  font-family: 'Playfair Display', serif;
-  font-size: 1.25rem;
-  color: #f5f0eb;
-  margin: 0;
-  font-weight: 600;
-}
-
-.oc-batch-tag {
-  font-size: 0.7rem;
-  color: #C4835A;
-  font-weight: 600;
-  background: rgba(196, 131, 90, 0.1);
-  padding: 0.25rem 0.55rem;
-  border-radius: 12px;
-}
-
-.oc-items-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  flex: 1;
-}
-
-.oc-product-row {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 12px;
-}
-
-.oc-product-thumb {
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
+  z-index: 9999;
   overflow: hidden;
-  background: #0d0a08;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.oc-product-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.oc-product-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.oc-product-name {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #f5f0eb;
-  margin: 0 0 0.35rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.oc-product-tags {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.badge-roast {
-  font-size: 0.7rem;
-  background: rgba(196, 131, 90, 0.15);
-  color: #E5A96E;
-  padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-  font-weight: 600;
-}
-
-.badge-qty {
-  font-size: 0.7rem;
-  background: rgba(255, 255, 255, 0.05);
-  color: #a89f91;
-  padding: 0.15rem 0.45rem;
-  border-radius: 6px;
-}
-
-.oc-product-pricing {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.price-unit {
-  font-size: 0.72rem;
-  color: #8c827a;
-}
-
-.price-total {
-  font-size: 0.98rem;
-  color: #f5f0eb;
-  font-weight: 700;
-}
-
-/* Ledger */
-.oc-financial-ledger {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.ledger-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.88rem;
-  color: #a89f91;
-}
-
-.ledger-row.discount {
-  color: #34d399;
-}
-
-.ledger-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 0.35rem 0;
-}
-
-.ledger-row.total {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #f5f0eb;
-  align-items: center;
-}
-
-.ledger-grand-total {
-  font-family: 'Outfit', sans-serif;
-  font-size: 1.4rem;
-  color: #C4835A;
-  font-weight: 800;
-}
-
-/* Right Column Tiles */
-.oc-logistics-column {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.oc-info-tile {
-  background: rgba(20, 16, 13, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 18px;
-  padding: 1.35rem;
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.oc-tile-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.15rem;
-  flex-shrink: 0;
-}
-
-.oc-tile-icon-box.blue {
-  background: rgba(59, 130, 246, 0.12);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.25);
-}
-
-.oc-tile-icon-box.gold {
-  background: rgba(196, 131, 90, 0.12);
-  color: #E5A96E;
-  border: 1px solid rgba(196, 131, 90, 0.25);
-}
-
-.oc-tile-icon-box.green {
-  background: rgba(16, 185, 129, 0.12);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.25);
-}
-
-.oc-tile-content {
-  flex: 1;
-}
-
-.oc-tile-content h4 {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #f5f0eb;
-  margin: 0 0 0.4rem;
-}
-
-.oc-tile-text {
-  font-size: 0.85rem;
-  color: #a89f91;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.oc-tile-text strong {
-  color: #f5f0eb;
-}
-
-.oc-contact-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
-  padding: 0.25rem 0.6rem;
-  border-radius: 6px;
-  color: #C4835A;
-  margin-top: 0.65rem;
-  font-weight: 600;
-}
-
-.oc-receipt-ref {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.78rem;
-  margin-top: 0.5rem;
-  color: #8c827a;
-}
-
-.oc-receipt-ref code {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 0.2rem 0.45rem;
-  border-radius: 4px;
-  color: #E5A96E;
-  font-family: 'Outfit', monospace;
-  font-weight: 700;
-}
-
-.oc-security-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  color: #10B981;
-  margin-top: 0.65rem;
-  font-weight: 600;
-}
-
-.email-highlight {
-  color: #34d399 !important;
-  font-weight: 600;
-}
-
-/* ══ 4. CTA TOOLBAR ═══════════════════════════════════════════════ */
-.oc-cta-toolbar {
-  display: flex;
-  gap: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.oc-btn-main {
-  flex: 1;
-  min-width: 180px;
-  padding: 0.85rem 1.35rem;
-  border-radius: 12px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: none;
-}
-
-.oc-btn-main.primary {
-  background: linear-gradient(135deg, #C4835A 0%, #A66942 100%);
-  color: #ffffff;
-  box-shadow: 0 10px 25px rgba(196, 131, 90, 0.35);
-}
-
-.oc-btn-main.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 30px rgba(196, 131, 90, 0.45);
-}
-
-.oc-btn-main.outline {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f5f0eb;
-}
-
-.oc-btn-main.outline:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-}
-
-.oc-btn-main.whatsapp {
-  background: rgba(37, 211, 102, 0.12);
-  border: 1px solid rgba(37, 211, 102, 0.3);
-  color: #25D366;
-}
-
-.oc-btn-main.whatsapp:hover {
-  background: #25D366;
-  color: #ffffff;
-  transform: translateY(-2px);
-}
-
-.oc-btn-main.ghost {
-  background: transparent;
-  color: #a89f91;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.oc-btn-main.ghost:hover {
-  color: #f5f0eb;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-/* ══ 5. QUALITY GUARANTEE ROW ═════════════════════════════════════ */
-.oc-guarantee-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.25rem;
-  margin-top: 0.5rem;
-}
-
-.oc-guarantee-box {
-  background: rgba(20, 16, 13, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 1.35rem 1.25rem;
-  text-align: center;
-}
-
-.guarantee-icon {
-  font-size: 1.4rem;
-  color: #C4835A;
-  margin-bottom: 0.65rem;
-}
-
-.oc-guarantee-box h5 {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #f5f0eb;
-  margin: 0 0 0.4rem;
-}
-
-.oc-guarantee-box p {
-  font-size: 0.78rem;
-  color: #8c827a;
-  line-height: 1.5;
-  margin: 0;
-}
-
-/* ══ PRINT MEDIA OPTIMIZATIONS ════════════════════════════════════ */
-@media print {
-  body, .oc-modern-page {
-    background: #ffffff !important;
-    color: #000000 !important;
-    padding: 0 !important;
-  }
-
-  .oc-ambient-orb, .oc-confetti-wrap, .oc-cta-toolbar, .oc-guarantee-grid {
-    display: none !important;
-  }
-
-  .oc-hero-card, .oc-journey-card, .oc-details-card, .oc-info-tile {
-    background: #ffffff !important;
-    border: 1px solid #cccccc !important;
-    box-shadow: none !important;
-    color: #000000 !important;
-  }
-
-  .oc-hero-title, .oc-card-heading, .oc-subheading, .oc-tile-content h4, .oc-product-name {
-    color: #000000 !important;
-  }
-
-  .oc-hero-description, .oc-step-desc, .oc-tile-text, .ledger-row {
-    color: #444444 !important;
-  }
-
-  .ledger-grand-total {
-    color: #000000 !important;
-  }
-}
-
-/* ══ RESPONSIVENESS ═══════════════════════════════════════════════ */
-@media (max-width: 900px) {
-  .oc-grid-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .oc-stepper-grid {
-    grid-template-columns: repeat(2, 1fr);
-    row-gap: 2rem;
-  }
-
-  .oc-step-track {
-    display: none;
-  }
-}
-
-@media (max-width: 650px) {
-  .oc-hero-title {
-    font-size: 2rem;
-  }
-
-  .oc-meta-ribbon {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.85rem;
-    padding: 1rem;
-  }
-
-  .oc-meta-divider {
-    display: none;
-  }
-
-  .oc-stepper-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .oc-guarantee-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .oc-btn-main {
-    min-width: 100%;
-  }
 }

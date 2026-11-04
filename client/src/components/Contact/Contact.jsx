@@ -1,12 +1,19 @@
 import React, { useState, useContext } from 'react';
 import { AppContext } from '../../context/AppContext';
-import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaFacebookF, FaInstagram, FaTwitter, FaWhatsapp, FaCheckCircle, FaExclamationCircle } from 'react-icons/fa';
+import {
+  FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp,
+  FaCheckCircle, FaExclamationCircle, FaArrowRight, FaClock, FaShieldAlt
+} from 'react-icons/fa';
 import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import './Contact.css';
 
 const Contact = () => {
-  const { showNotification, publicSettings, settings } = useContext(AppContext);
-  const social = publicSettings?.seo?.social || {};
+  const { showNotification, publicSettings } = useContext(AppContext);
+
+  const supportPhone = publicSettings?.support?.phone || '+254 711 245 765';
+  const supportEmail = publicSettings?.support?.email || 'support@rerendetcoffee.com';
+  const ordersEmail = 'orders@rerendetcoffee.com';
+  const farmAddress = publicSettings?.store?.address || 'Rerendet Farm, Nandi County, Highland Ridge, Kenya';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -24,23 +31,23 @@ const Contact = () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+      newErrors.name = 'Full name is required';
     } else if (formData.name.trim().length < 2) {
       newErrors.name = 'Name must be at least 2 characters';
     }
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
     if (!formData.subject.trim()) {
-      newErrors.subject = 'Subject is required';
+      newErrors.subject = 'Please select a topic';
     }
 
     if (!formData.message.trim()) {
-      newErrors.message = 'Message is required';
+      newErrors.message = 'Please share your message';
     } else if (formData.message.trim().length < 10) {
       newErrors.message = 'Message must be at least 10 characters';
     }
@@ -68,7 +75,7 @@ const Contact = () => {
     e.preventDefault();
 
     if (!validateForm()) {
-      showNotification('Please fix the errors in the form', 'error');
+      showNotification('Please fill in the required fields correctly.', 'error');
       return;
     }
 
@@ -95,13 +102,13 @@ const Contact = () => {
           message: '',
           hp_website: ''
         });
-        showNotification(result.message || "Message sent! We'll respond within 2-4 business hours.", 'success');
+        showNotification(result.message || "Message sent! We'll reply within 2-4 business hours.", 'success');
       } else {
         throw new Error(result.message || 'Failed to send message');
       }
     } catch (error) {
       console.error('Contact form error:', error);
-      showNotification(error.message || 'Failed to send message. Please try again later.', 'error');
+      showNotification(error.message || 'Failed to send message. Please reach us via WhatsApp or phone.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -121,227 +128,225 @@ const Contact = () => {
   };
 
   const handleWhatsAppClick = () => {
-    const url = getWhatsAppLink(publicSettings, 'Hi Rerendet Coffee! I have an inquiry.');
+    const url = getWhatsAppLink(publicSettings, 'Hi Rerendet Coffee! I would like to inquire about your specialty roasts.');
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  if (isSubmitted) {
-    return (
-      <section id="contact" className="contact">
-        <div className="container">
-          <div className="success-message">
-            <FaCheckCircle className="success-icon" />
-            <h2>Thank You for Your Message!</h2>
-            <p>
-              We've received your message and will get back to you within 2 to 4 business hours.
-              In the meantime, feel free to explore more of our freshly roasted coffee offerings.
-            </p>
-            <button
-              onClick={handleResetForm}
-              className="btn primary"
-            >
-              Send Another Message
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section id="contact" className="contact">
-      <div className="container">
-        <div className="contact-wrapper">
-          <div className="contact-info">
-            <h2 className="section-title">Get In Touch</h2>
-            <p className="contact-description">
-              We'd love to hear from you! Whether you have questions about our roasts,
-              need help with an order, or are interested in bulk wholesale,
-              our team is ready to help.
+    <section id="contact" className="contact-section">
+      <div className="contact-container">
+        <div className="contact-grid">
+          {/* ── Left Column: Contact Info ── */}
+          <div className="contact-info-col">
+            <h2 className="contact-heading">Get In Touch</h2>
+            <p className="contact-lead">
+              We would love to hear from you. Whether you have questions about our highland volcanic roasts, need assistance with your order, or are planning bulk wholesale, our team is ready to help.
             </p>
 
-            {/* Fast WhatsApp CTA Card */}
-            <div className="whatsapp-card" onClick={handleWhatsAppClick} style={{ cursor: 'pointer', background: '#25D366', color: '#ffffff', padding: '16px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '24px', boxShadow: '0 8px 20px rgba(37,211,102,0.25)' }}>
-              <FaWhatsapp style={{ fontSize: '32px' }} />
-              <div>
-                <strong style={{ display: 'block', fontSize: '1rem' }}>Instant WhatsApp Support</strong>
-                <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>Chat directly with our roasting team (Fastest response)</span>
+            {/* Instant WhatsApp Support Card */}
+            <div className="contact-wa-card" onClick={handleWhatsAppClick} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleWhatsAppClick()}>
+              <div className="wa-card-icon-wrap">
+                <FaWhatsapp className="wa-card-icon" />
+              </div>
+              <div className="wa-card-body">
+                <div className="wa-card-top">
+                  <span className="wa-card-title">Instant WhatsApp Support</span>
+                  <span className="wa-card-pill">Fastest Response</span>
+                </div>
+                <p className="wa-card-desc">Chat directly with our roasting team & farm concierge</p>
               </div>
             </div>
 
-            <div className="contact-details">
-              <div className="contact-item">
-                <div className="contact-icon-container">
-                  <FaMapMarkerAlt className="contact-icon" />
+            {/* Contact Details List */}
+            <div className="contact-cards-list">
+              <div className="contact-detail-card">
+                <div className="detail-icon-wrap">
+                  <FaMapMarkerAlt />
                 </div>
-                <div className="contact-text">
+                <div className="detail-content">
                   <h4>Roastery & Farm Location</h4>
                   <p>Rerendet Farm, Nandi County<br />Highland Ridge, Kenya — Delivery Nationwide</p>
                 </div>
               </div>
 
-              <div className="contact-item">
-                <div className="contact-icon-container">
-                  <FaPhone className="contact-icon" />
+              <div className="contact-detail-card">
+                <div className="detail-icon-wrap">
+                  <FaPhone />
                 </div>
-                <div className="contact-text">
+                <div className="detail-content">
                   <h4>Call Us</h4>
-                  <p>+254 711 245 765<br />Mon - Sat: 8:00 AM - 6:00 PM EAT</p>
+                  <p>
+                    <a href={`tel:${supportPhone.replace(/\s+/g, '')}`} className="detail-link">{supportPhone}</a>
+                    <span className="detail-sub"><FaClock size={10} /> Mon – Sat: 8:00 AM – 6:00 PM EAT</span>
+                  </p>
                 </div>
               </div>
 
-              <div className="contact-item">
-                <div className="contact-icon-container">
-                  <FaEnvelope className="contact-icon" />
+              <div className="contact-detail-card">
+                <div className="detail-icon-wrap">
+                  <FaEnvelope />
                 </div>
-                <div className="contact-text">
+                <div className="detail-content">
                   <h4>Email Us</h4>
-                  <p>support@rerendetcoffee.com<br />orders@rerendetcoffee.com</p>
+                  <p>
+                    <a href={`mailto:${supportEmail}`} className="detail-link">{supportEmail}</a>
+                    <a href={`mailto:${ordersEmail}`} className="detail-link">{ordersEmail}</a>
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="contact-form-container">
-            <form className="contact-form" onSubmit={handleSubmit} noValidate>
-              {/* Honeypot Anti-Spam Hidden Field */}
-              <input
-                type="text"
-                name="hp_website"
-                value={formData.hp_website}
-                onChange={handleInputChange}
-                style={{ display: 'none' }}
-                tabIndex="-1"
-                autoComplete="off"
-              />
-
-              <div className="form-group">
-                <label htmlFor="name" className="form-label">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.name ? 'error' : ''}`}
-                  placeholder="Enter your full name"
-                  disabled={isSubmitting}
-                />
-                {errors.name && (
-                  <div className="error-message">
-                    <FaExclamationCircle className="error-icon" />
-                    {errors.name}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="email" className="form-label">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className={`form-input ${errors.email ? 'error' : ''}`}
-                  placeholder="Enter your email address"
-                  disabled={isSubmitting}
-                />
-                {errors.email && (
-                  <div className="error-message">
-                    <FaExclamationCircle className="error-icon" />
-                    {errors.email}
-                  </div>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="subject" className="form-label">
-                  Inquiry Topic / Subject *
-                </label>
-                <select
-                  id="subject"
-                  name="subject"
-                  value={formData.subject}
-                  onChange={handleInputChange}
-                  className="form-input"
-                  disabled={isSubmitting}
-                  style={{ width: '100%', height: '48px', padding: '0 14px', borderRadius: '8px' }}
-                >
-                  <option value="General Inquiry">General Inquiry</option>
-                  <option value="Order Issue">Order Issue</option>
-                  <option value="Bulk & Wholesale">Bulk & Wholesale</option>
-                  <option value="Feedback / Suggestion">Feedback / Suggestion</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              {formData.subject === 'Order Issue' && (
-                <div className="form-group">
-                  <label htmlFor="orderNumber" className="form-label">
-                    Order Number (Optional)
-                  </label>
+          {/* ── Right Column: Interactive Form ── */}
+          <div className="contact-form-col">
+            <div className="contact-form-box">
+              {isSubmitted ? (
+                <div className="contact-success-state">
+                  <FaCheckCircle className="success-check-icon" />
+                  <h3 className="success-title">Message Received</h3>
+                  <p className="success-desc">
+                    Thank you for reaching out. Your inquiry has been routed to our roasting team and we will respond within 2 to 4 business hours.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResetForm}
+                    className="contact-submit-btn"
+                  >
+                    Send Another Message
+                  </button>
+                </div>
+              ) : (
+                <form className="contact-form" onSubmit={handleSubmit} noValidate>
+                  {/* Honeypot Spam Prevention */}
                   <input
                     type="text"
-                    id="orderNumber"
-                    name="orderNumber"
-                    value={formData.orderNumber}
+                    name="hp_website"
+                    value={formData.hp_website}
                     onChange={handleInputChange}
-                    className="form-input"
-                    placeholder="e.g. ORD-2026-8492"
-                    disabled={isSubmitting}
+                    style={{ display: 'none' }}
+                    tabIndex="-1"
+                    autoComplete="off"
                   />
-                  <span style={{ fontSize: '0.8rem', color: '#777', marginTop: '4px', display: 'block' }}>
-                    Providing your order number helps us resolve your inquiry much faster.
-                  </span>
-                </div>
-              )}
 
-              <div className="form-group">
-                <label htmlFor="message" className="form-label">
-                  Message *
-                </label>
-                <textarea
-                  id="message"
-                  name="message"
-                  rows="5"
-                  value={formData.message}
-                  onChange={handleInputChange}
-                  className={`form-textarea ${errors.message ? 'error' : ''}`}
-                  placeholder="Tell us how we can help you..."
-                  disabled={isSubmitting}
-                />
-                {errors.message && (
-                  <div className="error-message">
-                    <FaExclamationCircle className="error-icon" />
-                    {errors.message}
+                  <div className="contact-field-group">
+                    <label htmlFor="name" className="contact-label">
+                      Full Name <span className="req-star">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className={`contact-input ${errors.name ? 'has-error' : ''}`}
+                      placeholder="Enter your full name"
+                      disabled={isSubmitting}
+                      autoComplete="name"
+                    />
+                    {errors.name && (
+                      <span className="field-error">
+                        <FaExclamationCircle /> {errors.name}
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
 
-              <button
-                type="submit"
-                className={`btn primary btn-block ${isSubmitting ? 'loading' : ''}`}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="spinner"></div>
-                    Sending...
-                  </>
-                ) : (
-                  'Send Message'
-                )}
-              </button>
+                  <div className="contact-field-group">
+                    <label htmlFor="email" className="contact-label">
+                      Email Address <span className="req-star">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className={`contact-input ${errors.email ? 'has-error' : ''}`}
+                      placeholder="Enter your email address"
+                      disabled={isSubmitting}
+                      autoComplete="email"
+                    />
+                    {errors.email && (
+                      <span className="field-error">
+                        <FaExclamationCircle /> {errors.email}
+                      </span>
+                    )}
+                  </div>
 
-              <div className="form-note">
-                <p>* Required fields. Your inquiry will be routed directly to customer care.</p>
-              </div>
-            </form>
+                  <div className="contact-field-group">
+                    <label htmlFor="subject" className="contact-label">
+                      Inquiry Topic / Subject <span className="req-star">*</span>
+                    </label>
+                    <select
+                      id="subject"
+                      name="subject"
+                      value={formData.subject}
+                      onChange={handleInputChange}
+                      className="contact-select"
+                      disabled={isSubmitting}
+                    >
+                      <option value="General Inquiry">General Inquiry</option>
+                      <option value="Order Issue">Order Issue</option>
+                      <option value="Bulk & Wholesale">Bulk & Wholesale</option>
+                      <option value="Feedback / Suggestion">Feedback / Suggestion</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  {formData.subject === 'Order Issue' && (
+                    <div className="contact-field-group">
+                      <label htmlFor="orderNumber" className="contact-label">
+                        Order Number (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        id="orderNumber"
+                        name="orderNumber"
+                        value={formData.orderNumber}
+                        onChange={handleInputChange}
+                        className="contact-input"
+                        placeholder="e.g. ORD-2026-8492"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  )}
+
+                  <div className="contact-field-group">
+                    <label htmlFor="message" className="contact-label">
+                      Message <span className="req-star">*</span>
+                    </label>
+                    <textarea
+                      id="message"
+                      name="message"
+                      rows="4"
+                      value={formData.message}
+                      onChange={handleInputChange}
+                      className={`contact-textarea ${errors.message ? 'has-error' : ''}`}
+                      placeholder="Tell us how we can help you..."
+                      disabled={isSubmitting}
+                    />
+                    {errors.message && (
+                      <span className="field-error">
+                        <FaExclamationCircle /> {errors.message}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="contact-submit-btn"
+                    disabled={isSubmitting}
+                  >
+                    <span>{isSubmitting ? 'Sending Message...' : 'Send Message'}</span>
+                    {!isSubmitting && <FaArrowRight size={12} />}
+                  </button>
+
+                  <div className="contact-privacy-note">
+                    <FaShieldAlt size={11} />
+                    <span>Your inquiry is transmitted securely and routed to our roasting team.</span>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       </div>

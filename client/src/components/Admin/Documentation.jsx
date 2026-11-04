@@ -168,7 +168,7 @@ const Documentation = () => {
           padding: 40px;
           border-radius: 8px;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-          font-family: 'Inter', system-ui, sans-serif;
+          font-family: var(--font-body, 'Outfit', sans-serif);
           max-width: 800px;
           margin: 0 auto;
         }

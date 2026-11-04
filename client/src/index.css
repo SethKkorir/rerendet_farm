@@ -38,39 +38,45 @@
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-xl: 32px;
-  --font-heading: 'Playfair Display', serif;
-  --font-body: 'Outfit', sans-serif;
+  --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-main: var(--font-body);
+  --font-primary: var(--font-body);
   --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   --glass-blur: blur(16px);
 }
 
 [data-theme='dark'] {
-  /* --- Semantic Workspace (Dark Mode: Premium Hand-Selected Espresso) --- */
-  --bg-home: #0f0a08;       /* Triple-shot espresso black-brown */
-  --bg-deep: #080504;       /* Ultra-deep roasted coffee bean */
-  --bg-surface: #18110e;    /* Dark roasted cocoa mocha */
-  --bg-card: #201713;       /* Hot creamy latte clay */
-  --bg-input: #0f0a08;
-  --bg-glass: rgba(24, 17, 14, 0.90); /* Highly opaque, rich coffee bean glass */
-  --bg-overlay: rgba(8, 5, 4, 0.75); /* Deep dark roast tint */
+  /* --- Semantic Workspace (Dark Mode: Artisanal Roasted Mocha & Warm Cream — From Reference) --- */
+  --bg-home: #201104;       /* Deep roasted mocha canvas */
+  --bg-deep: #160b02;       /* Ultra-deep espresso backdrop */
+  --bg-surface: #341d0e;    /* Rich coffee surface (nav & panels) */
+  --bg-card: #2c180b;       /* Warm roasted chocolate card */
+  --bg-input: #1a0d03;      /* Dark roasted coffee well */
+  --bg-glass: rgba(44, 24, 11, 0.94); /* Warm coffee glass */
+  --bg-overlay: rgba(22, 11, 2, 0.85);
 
-  --text-main: #faf6f0;     /* Delicious milk foam white */
-  --text-muted: #b5a496;    /* Warm milk chocolate dust */
-  --text-dim: #8a7667;      /* Muted roasted coffee skin */
-  --text-on-dark: #fdfdfc;
-  --text-gold: #D4AF37;
+  --color-primary: #d8964e; /* Warm golden caramel */
+  --color-primary-dark: #b87834;
+  --color-primary-light: #f0b573;
+  --color-accent: #7a4d29;  /* Roasted mocha brown pill accent */
 
-  --border-light: #221814;
-  --border-main: #33241d;   /* Warm roasted shell */
-  --border-strong: #4f3b32; /* Golden crema boundary */
-  --border-glass: rgba(212, 175, 55, 0.15); /* Glowing gold-glass boundary */
+  --text-main: #fffaf5;     /* Warm milk foam cream white (100% visible) */
+  --text-muted: #dfccba;    /* Creamy latte milk dust (high contrast & clear) */
+  --text-dim: #bfa58f;      /* Hazelnut cream hints */
+  --text-on-dark: #fffaf5;
+  --text-gold: #d8964e;     /* High-luminance caramel gold */
 
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.6);
-  --shadow-md: 0 6px 15px rgba(0, 0, 0, 0.7);
-  --shadow-lg: 0 15px 30px rgba(0, 0, 0, 0.8);
-  --shadow-premium: 0 30px 60px rgba(0, 0, 0, 0.85);
+  --border-light: rgba(216, 150, 78, 0.14);
+  --border-main: rgba(216, 150, 78, 0.24);  /* Clean, visible warm contours */
+  --border-strong: rgba(216, 150, 78, 0.5); /* Glowing caramel border */
+  --border-glass: rgba(216, 150, 78, 0.2);
+
+  --shadow-sm: 0 2px 6px rgba(10, 5, 1, 0.5);
+  --shadow-md: 0 6px 18px rgba(10, 5, 1, 0.65);
+  --shadow-lg: 0 16px 36px rgba(10, 5, 1, 0.8);
+  --shadow-premium: 0 25px 60px rgba(10, 5, 1, 0.9);
 }
 
 /* --- Aliases for Backward Compatibility --- */
@@ -113,17 +119,24 @@ html {
   padding-right: clamp(1rem, 3vw, 2.5rem);
 }
 
-/* Fluid Typography - scaled down */
+/* Fluid Typography - matching Our Coffee Shop modern Scandinavian aesthetic */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
 h1 {
-  font-size: clamp(2rem, 6vw, 4rem);
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
 }
 
 h2 {
-  font-size: clamp(1.75rem, 5vw, 3rem);
+  font-size: clamp(1.85rem, 3.8vw, 2.75rem);
 }
 
 h3 {
-  font-size: clamp(1.25rem, 3vw, 1.8rem);
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
 }
 
 body {

@@ -1,15 +1,18 @@
 // components/Admin/ProductsManagement.jsx — Category-Aware Rewrite
 import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaSearch, FaPlus, FaEdit, FaTrash, FaBox, FaUpload,
   FaTimes, FaTag, FaStar, FaCoffee, FaLeaf,
   FaGlobe, FaLayerGroup, FaBoxOpen, FaBell, FaCheckCircle,
-  FaTools, FaShoppingBag, FaGift, FaCheck, FaCog, FaEye, FaEyeSlash
+  FaTools, FaShoppingBag, FaGift, FaCheck, FaCog, FaEye, FaEyeSlash,
+  FaHeartbeat
 } from 'react-icons/fa';
 import './ProductsManagement.css';
 import { updateProductStock } from '../../api/api';
+import InventoryHealth from './InventoryHealth';
 
 /* ─── Constants ──────────────────────────────────────────────── */
 const ROAST_LEVELS = [
@@ -103,6 +106,24 @@ const getCategoryConfig = (cat) => CATEGORY_CONFIG[cat] || DEFAULT_CATEGORY_CONF
 /* ─── Main Component ─────────────────────────────────────────── */
 const ProductsManagement = () => {
   const { showAlert, token } = useContext(AppContext);
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [mainTab, setMainTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') === 'inventory' || params.get('tab') === 'health' ? 'inventory' : 'catalogue';
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'inventory' || tabParam === 'health') {
+      setMainTab('inventory');
+    } else if (!tabParam) {
+      setMainTab('catalogue');
+    }
+  }, [location.search]);
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid');
@@ -287,8 +308,36 @@ const ProductsManagement = () => {
 
   return (
     <div className="products-management">
-      {/* ── Header ── */}
-      <div className="pm-header">
+      {/* ── Sub-Nav: Catalogue vs Inventory Health ── */}
+      <div className="pm-subnav-bar">
+        <button
+          type="button"
+          className={`pm-subnav-tab ${mainTab === 'catalogue' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('catalogue');
+            navigate('/admin/products', { replace: true });
+          }}
+        >
+          <FaBox /> Product Catalogue
+        </button>
+        <button
+          type="button"
+          className={`pm-subnav-tab ${mainTab === 'inventory' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('inventory');
+            navigate('/admin/products?tab=inventory', { replace: true });
+          }}
+        >
+          <FaHeartbeat /> Inventory Health &amp; Forecasting
+        </button>
+      </div>
+
+      {mainTab === 'inventory' ? (
+        <InventoryHealth />
+      ) : (
+        <>
+          {/* ── Header ── */}
+          <div className="pm-header">
         <div>
           <h1 className="pm-title">Products</h1>
           <p className="pm-subtitle">{products.length} products in catalogue</p>
@@ -387,6 +436,7 @@ const ProductsManagement = () => {
               ) : (
                 <div className="card-image placeholder">
                   <span style={{ fontSize: '2rem' }}>{allCategories.find(c => c.value === (product.categoryId?._id || product.categoryId) || c.slug === product.category)?.icon || '📦'}</span>
+                  {product.badge && <span className="product-badge">{product.badge}</span>}
                   {product.isFeatured && <span className="featured-star"><FaStar /></span>}
                 </div>
               )}
@@ -407,25 +457,45 @@ const ProductsManagement = () => {
                   </div>
                 )}
                 <div className="card-footer" onClick={e => e.stopPropagation()}>
-                  <div className="quick-stock-adjust-hardened" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', width: '100%', fontSize: '0.8rem', color: '#a1a1aa' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div className="card-stock-block">
+                    <div className="card-stock-row-top">
                       <span>Physical: <strong>{product.inventory?.physicalStock || 0}</strong></span>
                       <span>Reserved: <strong>{product.inventory?.reservedStock || 0}</strong></span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                    <div className="card-stock-row-avail">
                       <span>Available:</span>
                       <span className={`stock-chip ${
                         (product.inventory?.physicalStock - product.inventory?.reservedStock) <= (product.inventory?.lowStockThreshold || 5) ? 'low' : 'ok'
-                      }`} style={{ fontWeight: 'bold' }}>
+                      }`}>
                         {product.inventory?.physicalStock - product.inventory?.reservedStock || 0}
                       </span>
                     </div>
                   </div>
-                  <div className="card-actions" style={{ marginTop: '0.5rem' }}>
-                    <button className="btn-card-action edit" title="Edit"
-                      onClick={() => { setEditingProduct(product); setShowProductModal(true); }}><FaEdit /></button>
-                    <button className="btn-card-action delete" title="Delete"
-                      onClick={() => handleDeleteProduct(product._id)}><FaTrash /></button>
+                  <div className="card-footer-controls">
+                    <div className="card-quick-steppers">
+                      <button
+                        type="button"
+                        className="btn-quick-adjust"
+                        title="Restock +5 units"
+                        onClick={() => handleQuickStockUpdate(product._id, 5)}
+                      >
+                        +5
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-quick-adjust"
+                        title="Restock +10 units"
+                        onClick={() => handleQuickStockUpdate(product._id, 10)}
+                      >
+                        +10
+                      </button>
+                    </div>
+                    <div className="card-actions">
+                      <button className="btn-card-action edit" title="Edit"
+                        onClick={() => { setEditingProduct(product); setShowProductModal(true); }}><FaEdit /></button>
+                      <button className="btn-card-action delete" title="Delete"
+                        onClick={() => handleDeleteProduct(product._id)}><FaTrash /></button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -451,7 +521,10 @@ const ProductsManagement = () => {
                       {product.images?.[0]
                         ? <img src={product.images[0].url} alt={product.name} className="table-thumb" />
                         : <div className="table-thumb placeholder">{allCategories.find(c => c.value === (product.categoryId?._id || product.categoryId) || c.slug === product.category)?.icon || '📦'}</div>}
-                      <div><strong>{product.name}</strong>{product.badge && <span className="table-badge">{product.badge}</span>}</div>
+                      <div className="table-name-wrap">
+                        <strong>{product.name}</strong>
+                        {product.badge && <span className="table-badge">{product.badge}</span>}
+                      </div>
                     </div>
                   </td>
                   <td className="price-col">KES {product.sizes?.[0]?.price?.toLocaleString() || '—'}</td>
@@ -475,6 +548,8 @@ const ProductsManagement = () => {
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
 
       <AnimatePresence>
@@ -528,6 +603,106 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
   const catObj = allCategories.find(c => c.value === formData.category || c.slug === formData.category);
   const cfg = getCategoryConfig(catObj?.slug || formData.category);
+
+  // Quick Start Templates
+  const QUICK_TEMPLATES = [
+    {
+      label: 'Single-Origin Coffee',
+      icon: '☕',
+      data: {
+        name: 'Rerendet AA Arabica Reserve',
+        description: 'Single-origin specialty Arabica harvested at high altitude in Bomet, Kenya. Rich tasting notes of citrus, blackcurrant, and smooth dark chocolate with a creamy finish.',
+        sizes: [
+          { size: '250g', price: 750 },
+          { size: '500g', price: 1400 },
+          { size: '1000g', price: 2700 }
+        ],
+        roastLevel: 'medium-dark',
+        origin: 'Bomet, Kenya (1,950m ASL)',
+        flavorNotes: ['Blackcurrant', 'Citrus', 'Caramel'],
+        badge: 'Top Harvest',
+        tags: 'specialty, arabica, single-origin, rerendet',
+        inventory: { physicalStock: 50, lowStockThreshold: 10 },
+        isFeatured: true
+      }
+    },
+    {
+      label: 'Organic Hass Avocados',
+      icon: '🥑',
+      data: {
+        name: 'Organic Fresh Hass Avocados',
+        description: 'Naturally tree-ripened organic Hass avocados harvested directly from the fertile soils of Rerendet Farm. Exceptionally creamy, rich in natural oils, and chemical-free.',
+        sizes: [
+          { size: '1kg Bag (~4-5 pcs)', price: 250 },
+          { size: '5kg Family Crate', price: 1100 }
+        ],
+        origin: 'Rerendet Farm, Kenya',
+        badge: 'Farm Fresh',
+        tags: 'organic, avocado, produce, fresh-harvest',
+        inventory: { physicalStock: 40, lowStockThreshold: 8 },
+        isFeatured: true
+      }
+    },
+    {
+      label: 'Pure Raw Honey',
+      icon: '🍯',
+      data: {
+        name: 'Rerendet Pure Raw Honey',
+        description: '100% pure unfiltered raw multi-floral forest honey. Harvested sustainably from our indigenous acacia apiaries on the farm with natural health enzymes preserved.',
+        sizes: [
+          { size: '500g Glass Jar', price: 650 },
+          { size: '1kg Glass Jar', price: 1200 }
+        ],
+        origin: 'Rerendet Forest Apiary',
+        badge: '100% Raw',
+        tags: 'honey, raw, organic, pure, apiary',
+        inventory: { physicalStock: 30, lowStockThreshold: 5 },
+        isFeatured: false
+      }
+    },
+    {
+      label: 'Brewing Equipment',
+      icon: '⚙️',
+      data: {
+        name: 'Artisan French Press / Glass Brewer',
+        description: 'Heat-resistant borosilicate glass with stainless steel multi-layer micro-filtration. Delivers a clean, aromatic extraction for specialty coffees and teas.',
+        sizes: [
+          { size: 'Standard (600ml / 4 Cups)', price: 3200 },
+          { size: 'Large (1000ml / 8 Cups)', price: 4200 }
+        ],
+        badge: 'Barista Grade',
+        tags: 'equipment, brewer, barista, french-press',
+        inventory: { physicalStock: 15, lowStockThreshold: 3 },
+        isFeatured: false
+      }
+    }
+  ];
+
+  const applyTemplate = (tpl) => {
+    let catMatch = formData.category;
+    if (tpl.icon === '☕') {
+      const found = allCategories.find(c => c.slug?.includes('coffee') || c.label?.toLowerCase().includes('coffee'));
+      if (found) catMatch = found.value;
+    } else if (tpl.icon === '⚙️') {
+      const found = allCategories.find(c => c.slug?.includes('brew') || c.label?.toLowerCase().includes('equipment'));
+      if (found) catMatch = found.value;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      ...tpl.data,
+      category: catMatch || prev.category
+    }));
+    showAlert(`Applied ${tpl.label} template!`, 'success');
+  };
+
+  const QUICK_SIZE_PILLS = [
+    '250g', '500g', '1000g', '2000g', '1kg Bag', '5kg Crate', '500g Jar', '1kg Jar', 'Standard', 'One Size'
+  ];
+
+  const handleQuickAddSize = (sz) => {
+    set('sizes', [...formData.sizes, { size: sz, price: '' }]);
+  };
 
   // Update size default when category changes
   const handleCategoryChange = (val) => {
@@ -674,6 +849,25 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
           <button className="pm-close-btn" onClick={onClose}><FaTimes /></button>
         </div>
 
+        {!product && (
+          <div className="pm-tpl-strip">
+            <span className="pm-tpl-label">⚡ 1-Click Templates:</span>
+            <div className="pm-tpl-chips">
+              {QUICK_TEMPLATES.map((tpl, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="pm-tpl-btn"
+                  onClick={() => applyTemplate(tpl)}
+                >
+                  <span>{tpl.icon}</span>
+                  <span>{tpl.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="pm-modal-body">
           {/* LEFT nav */}
           <nav className="pm-form-nav">
@@ -782,6 +976,22 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                 <motion.div key="pricing" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
                   <h3 className="pm-section-title">💰 Sizes &amp; Pricing</h3>
                   <p className="pm-section-hint">Add one or more size/variant options with prices. Use names that make sense for <strong>{catObj?.label || formData.category}</strong>.</p>
+
+                  <div className="pm-quick-sizes-bar">
+                    <span className="pm-qs-label">⚡ Quick Add Variant:</span>
+                    <div className="pm-qs-chips">
+                      {QUICK_SIZE_PILLS.map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          className="pm-qs-chip"
+                          onClick={() => handleQuickAddSize(sz)}
+                        >
+                          + {sz}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   <div className="sizes-builder">
                     {formData.sizes.map((size, i) => (

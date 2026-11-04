@@ -1025,12 +1025,20 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 // @route   POST /api/orders/shipping-cost
 // @access  Public
 const calculateShippingCost = asyncHandler(async (req, res) => {
-  const { country, county } = req.body;
+  const { country = 'Kenya', county } = req.body;
 
-  if (!country || !county) {
+  if (!country) {
     return res.status(400).json({
       success: false,
-      message: 'Country and county are required'
+      message: 'Country is required'
+    });
+  }
+
+  const isKenya = country.trim().toLowerCase() === 'kenya';
+  if (isKenya && !county) {
+    return res.status(400).json({
+      success: false,
+      message: 'County is required for delivery within Kenya'
     });
   }
 
@@ -1040,17 +1048,28 @@ const calculateShippingCost = asyncHandler(async (req, res) => {
     const baseShippingPrice = settings?.payment?.shippingPrice ?? 500;
 
     let shippingCost = baseShippingPrice;
+    let estimate = '1–2 business days';
 
-    if (country.toLowerCase() !== 'kenya') {
-      shippingCost = 2000; // International Rate
+    if (!isKenya) {
+      const eastAfricanNeighbors = ['uganda', 'tanzania', 'rwanda', 'burundi', 'south sudan', 'ethiopia'];
+      const isEastAfrica = eastAfricanNeighbors.includes(country.trim().toLowerCase());
+
+      if (isEastAfrica) {
+        shippingCost = 1200; // Regional East Africa Rate
+        estimate = '3–5 business days (Regional Courier)';
+      } else {
+        shippingCost = 2500; // Worldwide International Air Express Rate
+        estimate = '5–7 business days (DHL Express Worldwide)';
+      }
     } else {
       // Check if admin has configured a custom county price
       const customRate = settings?.countyShipping?.find(
-        item => item.county.toLowerCase() === county.trim().toLowerCase()
+        item => item.county.toLowerCase() === (county || '').trim().toLowerCase()
       );
 
       if (customRate !== undefined && customRate !== null) {
         shippingCost = customRate.price;
+        estimate = (county || '').toLowerCase() === 'nairobi' ? 'Same day / Next day' : '1–2 business days';
       } else {
         const { getShippingZone } = await import('../utils/kenyaLocations.js');
         const zone = getShippingZone(county);
@@ -1058,17 +1077,22 @@ const calculateShippingCost = asyncHandler(async (req, res) => {
         if (baseShippingPrice <= 50) {
           // Flat rate mode for nominal/promotional fees
           shippingCost = baseShippingPrice;
+          estimate = '1–2 business days';
         } else {
           // Premium Adaptive Zone Scaling (relative to base standard fee)
           if (zone === 'Nairobi') {
             shippingCost = Math.max(0, baseShippingPrice - 300);
+            estimate = 'Same day / Next day';
           } else if (zone === 'Metropolitan') {
             shippingCost = Math.max(0, baseShippingPrice - 150);
+            estimate = '1–2 business days';
           } else if (zone === 'Major City') {
             shippingCost = Math.max(0, baseShippingPrice - 50);
+            estimate = '1–2 business days';
           } else {
             // Rest of Kenya
             shippingCost = Math.max(0, baseShippingPrice + 100);
+            estimate = '2–3 business days';
           }
         }
       }
@@ -1078,6 +1102,10 @@ const calculateShippingCost = asyncHandler(async (req, res) => {
       success: true,
       data: {
         shippingCost,
+        estimate,
+        estimatedDays: estimate,
+        country,
+        county: isKenya ? county : undefined,
         currency: 'KES'
       }
     });
@@ -1216,9 +1244,10 @@ const cancelOrder = asyncHandler(async (req, res) => {
   }
 
   // Validate cancellationReason
-  const { cancellationReason, cancellationNote } = req.body;
+  const cancellationReason = req.body?.cancellationReason || 'changed_mind';
+  const cancellationNote = req.body?.cancellationNote || '';
   const allowedReasons = ['changed_mind', 'wrong_size_selected', 'found_better_price', 'payment_issue', 'ordered_by_mistake', 'other'];
-  if (!cancellationReason || !allowedReasons.includes(cancellationReason)) {
+  if (!allowedReasons.includes(cancellationReason)) {
     res.status(400);
     throw new Error('Valid cancellation reason is required');
   }
@@ -1512,10 +1541,22 @@ const validateCart = asyncHandler(async (req, res) => {
     let priceChanged = false;
     let issueMessage = null;
 
-    if (availableStock <= 0) {
+    if (availableStock <= 0 || product.inStock === false) {
       isOutOfStock = true;
       hasIssues = true;
       issueMessage = `"${product.name}" is currently out of stock.`;
+
+      try {
+        const { createAlert } = await import('../models/AdminAlert.js');
+        await createAlert(
+          'warning',
+          'low_stock',
+          `🚨 Out of Stock Cart Removal: Item "${product.name}" is out of stock (Available: ${availableStock}) and was auto-purged from customer cart.`,
+          { productId: product._id }
+        );
+      } catch (err) {
+        console.warn('AdminAlert cart validation warning:', err.message);
+      }
     } else if (availableStock < requestedQuantity) {
       isLowStock = true;
       hasIssues = true;

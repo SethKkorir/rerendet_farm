@@ -45,6 +45,7 @@ const Newsletter = () => {
     <section id="newsletter" className="newsletter">
       <div className="container">
         <div className="newsletter-content">
+          <span className="newsletter-tag">Stay Connected</span>
           <h2>Join Our Coffee Journey</h2>
           <p>Subscribe to receive updates, special offers, and brewing tips straight to your inbox.</p>
           <form className="newsletter-form" onSubmit={handleSubmit}>

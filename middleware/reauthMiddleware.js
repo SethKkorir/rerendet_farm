@@ -24,6 +24,10 @@ export const requireRecentReauth = asyncHandler(async (req, res, next) => {
   }
 
   if (!reauthToken) {
+    // If the request directly carries password confirmation for controller-level verification, allow it through
+    if (req.body && (req.body.currentPassword || req.body.password)) {
+      return next();
+    }
     return res.status(403).json({
       success: false,
       code: 'REAUTH_REQUIRED',

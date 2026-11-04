@@ -17,7 +17,7 @@
 }
 
 .pm-title-section h2 {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 28px;
   font-weight: 700;
   color: #D4AF37;
@@ -506,7 +506,7 @@
 .banner-text h3 {
   margin: 0 0 6px 0;
   color: #D4AF37;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
   font-size: 20px;
   display: flex;
   align-items: center;
@@ -601,7 +601,7 @@
   margin: 0;
   font-size: 16px;
   color: #D4AF37;
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-heading);
 }
 
 .status-pill {

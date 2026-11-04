@@ -16,11 +16,23 @@ if (!process.env.JWT_SECRET) console.warn('⚠️ JWT_SECRET not set. Using fall
 if (!process.env.JWT_REFRESH_SECRET) console.warn('⚠️ JWT_REFRESH_SECRET not set. Using fallback (UNSAFE).');
 
 /**
+ * Helper to safely extract client IP considering reverse proxies.
+ */
+export const getClientIp = (req) => {
+  if (!req) return '127.0.0.1';
+  const forwarded = req.headers && req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return String(forwarded).split(',')[0].trim();
+  }
+  return req.ip || req.socket?.remoteAddress || '127.0.0.1';
+};
+
+/**
  * Generates a SHA-256 session fingerprint combining client IP and User-Agent.
  * Normalized to handle loopback/localhost variations in development.
  */
 export const generateFingerprintHash = (ip, userAgent) => {
-  const normalizedIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' ? 'loopback' : (ip || '');
+  const normalizedIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === 'localhost' ? 'loopback' : (ip || '');
   const cleanUA = (userAgent || '').trim();
   return crypto.createHash('sha256').update(`${normalizedIp}:${cleanUA}`).digest('hex');
 };
@@ -97,50 +109,48 @@ export const verifyRefreshToken = (token) => {
   return jwt.verify(token, REFRESH_TOKEN_SECRET);
 };
 
+// ── Cookie Options Helper ──────────────────────────────────────────────────
+export const getAuthCookieOptions = (maxAgeMs) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const sameSitePolicy = process.env.COOKIE_SAME_SITE || (isProd ? 'none' : 'lax');
+  const isSecure = isProd || sameSitePolicy === 'none';
+
+  const options = {
+    httpOnly: true,          // JS cannot read this — XSS-proof
+    secure: isSecure,        // Enforce HTTPS-only in production or when sameSite=none
+    sameSite: sameSitePolicy,// Configurable CSRF & cross-domain cookie transmission
+    path: '/'                // Global route access
+  };
+
+  if (maxAgeMs !== undefined && maxAgeMs !== null) {
+    options.maxAge = maxAgeMs;
+  }
+
+  return options;
+};
+
 // ── Set Access Token as HttpOnly Cookie ──────────────────────────────────────
 export const setTokenCookie = (res, token) => {
-  res.cookie('token', token, {
-    httpOnly: true,          // JS cannot read this — XSS-proof
-    secure: process.env.NODE_ENV === 'production', // Enforce secure/HTTPS-only in production
-    sameSite: 'strict',      // No cross-site requests
-    maxAge: 15 * 60 * 1000,  // 15 mins matching access token
-    path: '/'                // Global route access
-  });
+  res.cookie('token', token, getAuthCookieOptions(15 * 60 * 1000)); // 15 mins matching access token
 };
 
 // ── Clear Access Token Cookie ─────────────────────────────────────────────────
 export const clearTokenCookie = (res) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/'
-  });
+  res.clearCookie('token', getAuthCookieOptions());
 };
 
 // ── Set Refresh Token as HttpOnly Cookie ─────────────────────────────────────
 export const setRefreshTokenCookie = (res, refreshToken) => {
-  const cookieExpireDays = process.env.JWT_COOKIE_EXPIRE;
-  if (cookieExpireDays === undefined || isNaN(Number(cookieExpireDays))) {
-    throw new Error("JWT_COOKIE_EXPIRE environment variable is not set");
-  }
-  res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,          // JS cannot read this — XSS-proof
-    secure: process.env.NODE_ENV === 'production', // Enforce secure/HTTPS-only in production
-    sameSite: 'strict',      // No cross-site requests
-    maxAge: Number(cookieExpireDays) * 24 * 60 * 60 * 1000,
-    path: '/' // Global route access for logout and refresh endpoint
-  });
+  const cookieExpireDays = (!process.env.JWT_COOKIE_EXPIRE || isNaN(Number(process.env.JWT_COOKIE_EXPIRE)))
+    ? 7
+    : Number(process.env.JWT_COOKIE_EXPIRE);
+
+  res.cookie('refreshToken', refreshToken, getAuthCookieOptions(cookieExpireDays * 24 * 60 * 60 * 1000));
 };
 
 // ── Clear Refresh Token Cookie ────────────────────────────────────────────────
 export const clearRefreshTokenCookie = (res) => {
-  res.clearCookie('refreshToken', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/'
-  });
+  res.clearCookie('refreshToken', getAuthCookieOptions());
 };
 
 // ── Legacy — kept for compatibility ──────────────────────────────────────────

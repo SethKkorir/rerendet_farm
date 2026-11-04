@@ -17,7 +17,7 @@ const Testimonials = lazy(() => import('./components/Testimonials/Testimonials')
 const Contact = lazy(() => import('./components/Contact/Contact'));
 const Newsletter = lazy(() => import('./components/Newsletter/Newsletter'));
 const CartSidebar = lazy(() => import('./components/Cart/CartSidebar'));
-const PaymentModals = lazy(() => import('./components/Modals/PaymentModal').then(module => ({ default: (props) => <><module.MpesaModal {...props} /><module.CardModal {...props} /></> })));
+const PaymentModals = lazy(() => import('./components/Modals/PaymentModal'));
 const BackToTop = lazy(() => import('./components/BackToTop/BackToTop'));
 const Notification = lazy(() => import('./components/Notification/Notification'));
 const AuthModal = lazy(() => import('./components/Auth/AuthModal'));
@@ -39,6 +39,7 @@ const Blog = lazy(() => import('./pages/Blog'));
 const BlogPost = lazy(() => import('./pages/BlogPost'));
 const TrackOrder = lazy(() => import('./pages/TrackOrder'));
 const Auth = lazy(() => import('./pages/Auth'));
+const EmergencySuperGate = lazy(() => import('./pages/EmergencySuperGate'));
 
 // Admin Sub-routes
 const Dashboard = lazy(() => import('./components/Admin/Dashboard'));
@@ -56,6 +57,10 @@ const AdsManagement = lazy(() => import('./components/Admin/AdsManagement'));
 const CouponManagement = lazy(() => import('./components/Admin/CouponManagement'));
 const BlogManagement = lazy(() => import('./components/Admin/BlogManagement'));
 const Documentation = lazy(() => import('./components/Admin/Documentation'));
+const InvoicesManagement = lazy(() => import('./components/Admin/Finance/InvoicesManagement'));
+const CreateInvoice = lazy(() => import('./components/Admin/Finance/CreateInvoice'));
+const SingleInvoice = lazy(() => import('./components/Admin/Finance/SingleInvoice'));
+const TransactionsManagement = lazy(() => import('./components/Admin/Finance/TransactionsManagement'));
 
 // HARDENED UPGRADE GAPS COMPONENTS
 const LazyInventoryHealth = lazy(() => import('./components/Admin/InventoryHealth'));
@@ -77,15 +82,17 @@ const PageLoader = () => (
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { settingsLoading, isAdmin, showAuthModal, setShowAuthModal, authView, globalMaintenance, publicSettings } = useContext(AppContext);
+  const { settingsLoading, authLoading, isAdmin, showAuthModal, setShowAuthModal, authView, globalMaintenance, publicSettings } = useContext(AppContext);
 
-  // Redirect modal requests to full page routes
+  // When auth is triggered anywhere, navigate to the dedicated in-page auth route (above: Navbar, below: Footer)
   useEffect(() => {
     if (showAuthModal) {
       setShowAuthModal(false);
       navigate(authView === 'signup' ? '/signup' : '/login');
     }
   }, [showAuthModal, authView, navigate, setShowAuthModal]);
+
+
 
   // Scroll to top or specific target on every route change
   useEffect(() => {
@@ -102,6 +109,46 @@ function App() {
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
   }, [location.pathname, location.state]);
+
+  // Dynamic SEO & Google Search Console Verification Meta Injection
+  useEffect(() => {
+    if (!publicSettings?.seo) return;
+    const { metaTitle, metaDescription, keywords, googleSiteVerification } = publicSettings.seo;
+
+    if (metaTitle && !location.pathname.startsWith('/admin')) {
+      document.title = metaTitle;
+    }
+
+    if (metaDescription) {
+      let descMeta = document.querySelector('meta[name="description"]');
+      if (!descMeta) {
+        descMeta = document.createElement('meta');
+        descMeta.name = 'description';
+        document.head.appendChild(descMeta);
+      }
+      descMeta.content = metaDescription;
+    }
+
+    if (keywords) {
+      let kwMeta = document.querySelector('meta[name="keywords"]');
+      if (!kwMeta) {
+        kwMeta = document.createElement('meta');
+        kwMeta.name = 'keywords';
+        document.head.appendChild(kwMeta);
+      }
+      kwMeta.content = keywords;
+    }
+
+    if (googleSiteVerification) {
+      let gscMeta = document.querySelector('meta[name="google-site-verification"]');
+      if (!gscMeta) {
+        gscMeta = document.createElement('meta');
+        gscMeta.name = 'google-site-verification';
+        document.head.appendChild(gscMeta);
+      }
+      gscMeta.content = googleSiteVerification;
+    }
+  }, [publicSettings?.seo, location.pathname]);
 
   useEffect(() => {
     AOS.init({ duration: 800, once: true, easing: 'ease-in-out' });
@@ -122,10 +169,12 @@ function App() {
   }, []);
 
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const isPortalRoute = location.pathname.startsWith('/account') || location.pathname.startsWith('/profile');
+  const isEmergencyRoute = location.pathname.startsWith('/emergency');
 
   if (settingsLoading) return <PageLoader />;
 
-  if (globalMaintenance && !isAdminRoute && !isAdmin) {
+  if (globalMaintenance && !isAdminRoute && !isAdmin && !isEmergencyRoute) {
     return (
       <div className="maintenance-overlay">
         <div className="maintenance-content">
@@ -146,9 +195,11 @@ function App() {
         <SessionLock />
         <SeasonalEffects />
         
-        {!isAdminRoute && <Navbar />}
+        {!isAdminRoute && !isEmergencyRoute && <Navbar />}
 
         <Routes>
+          {/* Dedicated Independent Emergency Super Gate */}
+          <Route path="/emergency/super-gate" element={<EmergencySuperGate />} />
           <Route path="/" element={
             <>
               <main>
@@ -160,16 +211,18 @@ function App() {
                 <Contact />
                 <Newsletter />
               </main>
-              <Footer />
             </>
           } />
 
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/checkout" element={<Checkout />} />
-          <Route path="/login" element={<Auth />} />
-          <Route path="/signup" element={<Auth />} />
+          <Route path="/login" element={<Auth defaultView="login" />} />
+          <Route path="/signup" element={<Auth defaultView="signup" />} />
+          <Route path="/reset-password" element={<Auth defaultView="reset-password" />} />
+          <Route path="/auth" element={<Auth defaultView="login" />} />
           <Route path="/order-confirmation/:id" element={<OrderConfirmation />} />
-          <Route path="/orders" element={<Orders />} />
+          <Route path="/order-receipt/:id" element={<OrderReceipt />} />
+          <Route path="/orders" element={<Navigate to="/account?tab=orders" replace />} />
           <Route path="/profile" element={<AccountDashboard />} />
           <Route path="/account" element={<AccountDashboard />} />
           <Route path="/account/*" element={<AccountDashboard />} />
@@ -192,9 +245,12 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/orders" element={<OrdersManagement />} />
                     <Route path="/products" element={<ProductsManagement />} />
-                    <Route path="/inventory-health" element={
-                      <Suspense fallback={<PageLoader />}><LazyInventoryHealth /></Suspense>
-                    } />
+                    <Route path="/inventory-health" element={<Navigate to="/admin/products?tab=inventory" replace />} />
+                    <Route path="/invoices" element={<InvoicesManagement />} />
+                    <Route path="/invoices/new" element={<CreateInvoice />} />
+                    <Route path="/invoices/:id" element={<SingleInvoice />} />
+                    <Route path="/transactions" element={<TransactionsManagement />} />
+                    <Route path="/transactions/:id" element={<TransactionsManagement />} />
                     <Route path="/users" element={<UsersManagement />} />
                     <Route path="/analytics" element={<Analytics />} />
                     <Route path="/settings" element={<Settings />} />
@@ -204,7 +260,7 @@ function App() {
                     <Route path="/sessions" element={
                       <Suspense fallback={<PageLoader />}><LazyActiveSessions /></Suspense>
                     } />
-                    <Route path="/payments" element={<PaymentsManagement />} />
+                    <Route path="/payments" element={<Navigate to="/admin/transactions" replace />} />
                     <Route path="/logs" element={<ActivityLogs />} />
                     <Route path="/audit-feed" element={
                       <Suspense fallback={<PageLoader />}><LazyActivityFeed /></Suspense>
@@ -224,13 +280,14 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {!isAdminRoute && (
+        {!isAdminRoute && !isEmergencyRoute && <Footer />}
+
+        {!isAdminRoute && !isEmergencyRoute && (
           <>
             <CartSidebar />
             <PaymentModals />
             <BackToTop />
             <WhatsAppSupport />
-            <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} initialView={authView} />
           </>
         )}
       </Suspense>

@@ -2,7 +2,7 @@
 import jwt from 'jsonwebtoken';
 import asyncHandler from 'express-async-handler';
 import dotenv from 'dotenv';
-import { verifyAccessToken, generateFingerprintHash } from '../utils/generateToken.js';
+import { verifyAccessToken, generateFingerprintHash, getClientIp } from '../utils/generateToken.js';
 
 // Load environment variables
 dotenv.config();
@@ -30,7 +30,7 @@ const protect = asyncHandler(async (req, res, next) => {
 
       // Validate session fingerprint (IP and User-Agent) if present in token
       if (decoded.fpt) {
-        const ip = req.ip || req.socket?.remoteAddress || '';
+        const ip = getClientIp(req);
         const userAgent = req.headers['user-agent'] || '';
         const currentFpt = generateFingerprintHash(ip, userAgent);
 
@@ -110,9 +110,8 @@ const admin = asyncHandler(async (req, res, next) => {
   }
 
   // Check both userType and role for admin access
-  const isAdmin = req.user.userType === 'admin' ||
-    req.user.role === 'admin' ||
-    req.user.role === 'super-admin';
+  const validAdminRoles = ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'];
+  const isAdmin = req.user.userType === 'admin' || validAdminRoles.includes(req.user.role);
 
   if (isAdmin) {
     // Mandate 2FA TOTP only if explicitly enforced via environment variable
@@ -148,7 +147,7 @@ const validateToken = asyncHandler(async (req, res) => {
 
       // Validate session fingerprint (IP and User-Agent) if present in token
       if (decoded.fpt) {
-        const ip = req.ip || req.socket?.remoteAddress || '';
+        const ip = getClientIp(req);
         const userAgent = req.headers['user-agent'] || '';
         const currentFpt = generateFingerprintHash(ip, userAgent);
 

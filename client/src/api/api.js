@@ -25,12 +25,15 @@ const API = axios.create({
 // ── In-Memory Token Store ─────────────────────────────────────────────────────
 // Token lives ONLY in JS memory — invisible to XSS and browser DevTools storage
 let _accessToken = null;
-let _refreshPromise = null; // Prevents multiple concurrent refresh calls
 
 export const tokenStore = {
   get: () => _accessToken,
-  set: (t) => { _accessToken = t; },
-  clear: () => { _accessToken = null; },
+  set: (t) => {
+    _accessToken = t || null;
+  },
+  clear: () => {
+    _accessToken = null;
+  },
 };
 
 // ── Request Interceptor — attach access token from memory ─────────────────────
@@ -49,12 +52,17 @@ API.interceptors.request.use(
 let isRefreshing = false;
 let refreshSubscribers = [];
 
-const subscribeTokenRefresh = (cb) => {
-  refreshSubscribers.push(cb);
+const subscribeTokenRefresh = (resolve, reject) => {
+  refreshSubscribers.push({ resolve, reject });
 };
 
 const onTokenRefreshed = (token) => {
-  refreshSubscribers.map((cb) => cb(token));
+  refreshSubscribers.forEach(({ resolve }) => resolve(token));
+  refreshSubscribers = [];
+};
+
+const onTokenRefreshFailed = (error) => {
+  refreshSubscribers.forEach(({ reject }) => reject(error));
   refreshSubscribers = [];
 };
 
@@ -63,6 +71,9 @@ API.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
+    // Reject immediately if no request config exists
+    if (!original) return Promise.reject(error);
+
     // Handle 429 Too Many Requests
     if (error.response?.status === 429) {
       console.warn('🛑 API Rate limit hit. Cooling down...');
@@ -70,61 +81,64 @@ API.interceptors.response.use(
     }
 
     // Avoid silent token refresh for standard login/auth paths where a 401 indicates invalid credentials
-    const isLoginOrAuth = original?.url?.includes('/auth/customer/login') || 
-                          original?.url?.includes('/login') || 
-                          original?.url?.includes('/auth/customer/register') ||
-                          original?.url?.includes('/auth/google') ||
-                          original?.url?.includes('/auth/forgot-password') ||
-                          original?.url?.includes('/auth/reset-password');
+    const isLoginOrAuth = original.url?.includes('/login') || 
+                          original.url?.includes('/auth/customer/login') || 
+                          original.url?.includes('/auth/customer/register') ||
+                          original.url?.includes('/auth/google') ||
+                          original.url?.includes('/auth/forgot-password') ||
+                          original.url?.includes('/auth/reset-password') ||
+                          original.url?.includes('/auth/admin/challenge') ||
+                          original.url?.includes('/auth/refresh') ||
+                          original.url?.includes('/auth/logout');
 
     if (error.response?.status === 401 && !original._retried && !isLoginOrAuth) {
       original._retried = true;
 
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          subscribeTokenRefresh((token) => {
-            original.headers['Authorization'] = `Bearer ${token}`;
+        return new Promise((resolve, reject) => {
+          subscribeTokenRefresh((newToken) => {
+            original.headers['Authorization'] = `Bearer ${newToken}`;
             resolve(API(original));
-          });
+          }, reject);
         });
       }
 
       isRefreshing = true;
 
       try {
-        console.log('🔄 Attempting token refresh...');
-        // Use the relative path since we are using axios directly here
-        const res = await axios.post('/api/auth/refresh', {}, { 
+        console.log('🔄 Attempting silent token refresh...');
+        const refreshEndpoint = apiBaseUrl.endsWith('/') ? `${apiBaseUrl}auth/refresh` : `${apiBaseUrl}/auth/refresh`;
+
+        const res = await axios.post(refreshEndpoint, {}, { 
           withCredentials: true,
           headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
 
-        if (res.data.success && res.data.data.token) {
+        if (res.data?.success && res.data?.data?.token) {
           const newToken = res.data.data.token;
           tokenStore.set(newToken);
           
-          // Update original request
+          // Update original request with the fresh token
           original.headers['Authorization'] = `Bearer ${newToken}`;
           
           isRefreshing = false;
           onTokenRefreshed(newToken);
           
           return API(original);
+        } else {
+          throw new Error('Refresh response missing token');
         }
       } catch (refreshError) {
         isRefreshing = false;
-        console.error('❌ Refresh token expired or invalid');
+        const hadActiveSession = Boolean(tokenStore.get());
         tokenStore.clear();
+        onTokenRefreshFailed(refreshError);
         
-        // Dispatch custom event to notify AppContext to clear authentication
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('auth-expired'));
+        // Dispatch session expired only if the user was actually logged in previously
+        if (hadActiveSession && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth-expired', { detail: { error: refreshError } }));
         }
         
-        if (window.location.pathname.startsWith('/admin') && !window.location.pathname.includes('/login')) {
-          const adminSegment = import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin';
-          window.location.href = `/admin/${adminSegment}/login`;
-        }
         return Promise.reject(refreshError);
       }
     }
@@ -141,14 +155,23 @@ export const register = (payload) => API.post('/auth/customer/register', payload
 export const logout = () => API.post('/auth/logout');
 export const verifyEmail = (payload) => API.post('/auth/verify-email', payload);
 export const resendVerification = (payload) => API.post('/auth/resend-verification', payload);
-export const checkEmail = (params) => API.get('/auth/check-email', { params });
+export const checkEmail = (params) => {
+  const emailParam = typeof params === 'string' ? params : params?.email;
+  return API.get('/auth/check-email', { params: { email: emailParam } });
+};
 export const forgotPassword = (payload) => API.post('/auth/forgot-password', payload);
+export const verifyResetCode = (payload) => API.post('/auth/verify-reset-code', payload);
 export const resetPassword = (payload) => API.post('/auth/reset-password', payload);
 export const verifyPassword = (payload) => API.post('/auth/verify-password', payload);
 
 // ---- User Profile & Orders ----
 export const getCurrentUser = () => API.get('/auth/me');
 export const updateProfile = (payload) => API.put('/auth/profile', payload);
+export const getUserAddresses = () => API.get('/auth/addresses');
+export const addAddress = (payload) => API.post('/auth/addresses', payload);
+export const updateAddress = (id, payload) => API.put(`/auth/addresses/${id}`, payload);
+export const deleteAddress = (id) => API.delete(`/auth/addresses/${id}`);
+export const setDefaultAddress = (id) => API.put(`/auth/addresses/${id}/default`);
 export const changePassword = (payload) => API.put('/auth/change-password', payload);
 export const deleteAccount = (payload) => API.delete('/auth/profile', { data: payload });
 export const getMyOrders = (params) => API.get('/orders/my', { params });
@@ -163,6 +186,8 @@ export const getAdminUsers = (params) => API.get('/admin/users', { params });
 export const updateUserRole = (id, role) => API.put(`/admin/users/${id}/role`, { role });
 export const deleteUser = (id) => API.delete(`/admin/users/${id}`);
 export const resetUserSecurity = (id, type) => API.patch(`/admin/users/${id}/security-reset`, { type });
+export const generateUserPasswordReset = (id) => API.post(`/admin/users/${id}/generate-password-reset`);
+export const unlockCustomerPassword = (id, payload) => API.put(`/admin/users/${id}/unlock-password`, payload);
 export const getAdminOrders = (params) => API.get('/admin/orders', { params });
 export const getAdminProducts = (params) => API.get('/admin/products', { params });
 export const getAdminOrderDetail = (id) => API.get(`/admin/orders/${id}`);
@@ -174,6 +199,21 @@ export const updateProductStock = (id, payload) => API.patch(`/admin/products/${
 export const unlockUserAccount = (id) => API.put(`/auth/${import.meta.env.VITE_ADMIN_PATH_SEGMENT || 'admin'}/unlock/${id}`);
 export const getSystemHealth = () => API.get('/admin/system-health');
 export const invalidateCache = (payload) => API.post('/admin/cache/invalidate', payload);
+export const getAdminAlerts = () => API.get('/admin/alerts');
+export const resolveAdminAlert = (id) => API.patch(`/admin/alerts/${id}/resolve`);
+export const resolveAllAdminAlerts = (payload) => API.patch('/admin/alerts/resolve-all', payload);
+
+// ---- Finance & Invoicing ----
+export const getInvoices = (params) => API.get('/admin/invoices', { params });
+export const getInvoiceById = (id) => API.get(`/admin/invoices/${id}`);
+export const createInvoice = (payload) => API.post('/admin/invoices', payload);
+export const updateInvoiceStatus = (id, payload) => API.patch(`/admin/invoices/${id}/status`, payload);
+export const deleteInvoice = (id) => API.delete(`/admin/invoices/${id}`);
+export const getTransactions = (params) => API.get('/admin/transactions', { params });
+export const getTransactionById = (id) => API.get(`/admin/transactions/${id}`);
+export const settlePaymentIssue = (payload) => API.post('/admin/transactions/settle', payload);
+export const queryTransactionGateway = (id) => API.post(`/admin/transactions/${id}/query-gateway`);
+export const getUnsettledPayments = () => API.get('/admin/transactions/unsettled');
 
 // ---- Profile ----
 export const getProfile = () => API.get('/auth/me');
@@ -189,6 +229,7 @@ export const processMpesaPayment = (payload) => API.post('/payments/mpesa', payl
 export const processCardPayment = (payload) => API.post('/payments/card', payload);
 export const processCashOnDelivery = (payload) => API.post('/payments/cash-on-delivery', payload);
 export const validateCart = (items) => API.post('/orders/validate-cart', { items });
+export const reportOutOfStock = (productId) => API.post(`/products/${productId}/out-of-stock-attempt`);
 
 // ---- Subscriptions ----
 export const getMySubscriptions = () => API.get('/subscriptions/mine');
@@ -200,11 +241,8 @@ export const updateSubscriptionFrequency = (id, frequency) => API.put(`/subscrip
 export const cancelSubscription = (id, reason) => API.put(`/subscriptions/${id}/cancel`, { reason });
 
 // ---- Addresses ----
-export const getMyAddresses = () => API.get('/addresses');
-export const createAddress = (payload) => API.post('/addresses', payload);
-export const updateAddress = (id, payload) => API.put(`/addresses/${id}`, payload);
-export const setDefaultAddress = (id) => API.put(`/addresses/${id}/default`);
-export const deleteAddress = (id, force = false) => API.delete(`/addresses/${id}${force ? '?force=true' : ''}`);
+export const getMyAddresses = getUserAddresses;
+export const createAddress = addAddress;
 
 // ---- Payment Methods ----
 export const getMyPaymentMethods = () => API.get('/payment-methods');

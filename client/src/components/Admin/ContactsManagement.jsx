@@ -182,7 +182,7 @@ const ContactsManagement = () => {
                         <FaSearch className="ci-search-icon" />
                         <input
                             type="text"
-                            placeholder="Search name, subject, email…"
+                            placeholder="Search by Ticket #, name, email, order #…"
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                         />
@@ -239,7 +239,12 @@ const ContactsManagement = () => {
 
                                     <div className="ci-contact-content">
                                         <div className="ci-contact-top">
-                                            <strong className="ci-contact-name">{contact.name}</strong>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                                <strong className="ci-contact-name">{contact.name}</strong>
+                                                <span style={{ fontSize: '0.66rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--color-primary, #6F4E37)', background: 'rgba(111,78,55,0.08)', padding: '1px 5px', borderRadius: '4px', flexShrink: 0 }}>
+                                                    #{contact.ticketNumber || contact.ticketReference || ('TKT-' + contact._id.slice(-6).toUpperCase())}
+                                                </span>
+                                            </div>
                                             <span className="ci-contact-time">{timeAgo(contact.createdAt)}</span>
                                         </div>
                                         <p className="ci-contact-subject">{contact.subject}</p>
@@ -353,6 +358,9 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
                 <div className="ci-thread-subject-block">
                     <h2 className="ci-thread-subject">{contact.subject}</h2>
                     <div className="ci-thread-meta">
+                        <span style={{ fontSize: '0.74rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--color-primary, #6F4E37)', background: 'rgba(111,78,55,0.08)', padding: '2px 8px', borderRadius: '5px', letterSpacing: '0.5px' }}>
+                            Ref: #{contact.ticketNumber || contact.ticketReference || ('TKT-' + contact._id.slice(-6).toUpperCase())}
+                        </span>
                         <StatusBadge status={contact.status} />
                         <span className="ci-thread-date"><FaCalendar /> {formatDate(contact.createdAt)}</span>
                     </div>

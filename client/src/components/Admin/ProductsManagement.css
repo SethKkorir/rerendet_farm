@@ -1,5 +1,43 @@
 /* ProductsManagement.css — Premium Overhaul */
 
+/* Sub-Nav Bar (Catalogue vs Inventory Health) */
+.pm-subnav-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.75rem;
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  padding-bottom: 0.85rem;
+}
+
+.pm-subnav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted, #a1a1aa);
+  padding: 0.55rem 1.15rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pm-subnav-tab:hover {
+  color: var(--text-main, #f5f0e8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.pm-subnav-tab.active {
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.35);
+  color: var(--color-primary, #D4AF37);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-weight: 700;
+}
+
 /* ══════════════════════════════════
    BASE PAGE
 ══════════════════════════════════ */
@@ -396,10 +434,73 @@
 /* Card Footer */
 .card-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.6rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-light);
+}
+
+.card-stock-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.06));
+}
+
+.card-stock-row-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--text-muted, #a1a1aa);
+}
+
+.card-stock-row-top strong {
+  color: var(--text-main, #f5f0e8);
+}
+
+.card-stock-row-avail {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-muted, #a1a1aa);
+}
+
+.card-footer-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.card-quick-steppers {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-quick-adjust {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border-main, rgba(255, 255, 255, 0.12));
+  color: var(--color-primary, #D4AF37);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-quick-adjust:hover {
+  background: var(--color-primary, #D4AF37);
+  color: #12100e;
+  border-color: var(--color-primary, #D4AF37);
+  transform: translateY(-1px);
 }
 
 .stock-chip {
@@ -2067,4 +2168,107 @@
   font-weight: 800;
   font-size: 0.85rem;
   padding: 0 4px;
+}
+
+/* Table Name Wrap with Badge */
+.table-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Quick 1-Click Templates Bar in ProductModal */
+.pm-tpl-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--bg-deep, rgba(0, 0, 0, 0.25));
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.08));
+  overflow-x: auto;
+}
+
+.pm-tpl-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-primary, #D4AF37);
+  white-space: nowrap;
+}
+
+.pm-tpl-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+.pm-tpl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-main, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  color: var(--text-main, #f5f0e8);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pm-tpl-btn:hover {
+  background: rgba(212, 175, 55, 0.15);
+  border-color: var(--color-primary, #D4AF37);
+  color: var(--color-primary, #D4AF37);
+  transform: translateY(-1px);
+}
+
+/* Quick Add Variant Pills in Pricing Section */
+.pm-quick-sizes-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-deep, rgba(0, 0, 0, 0.15));
+  border: 1px dashed var(--border-main, rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.pm-qs-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted, #a1a1aa);
+  white-space: nowrap;
+}
+
+.pm-qs-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pm-qs-chip {
+  padding: 0.2rem 0.55rem;
+  background: var(--bg-card, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  color: var(--text-main, #f5f0e8);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pm-qs-chip:hover {
+  background: var(--color-primary, #D4AF37);
+  border-color: var(--color-primary, #D4AF37);
+  color: #12100e;
 }

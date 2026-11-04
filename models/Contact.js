@@ -6,6 +6,13 @@ const contactSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
+  ticketNumber: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true
+  },
   order: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order'
@@ -68,18 +75,29 @@ const contactSchema = new mongoose.Schema({
     default: null
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 import { sanitizeString } from '../utils/inputSanitizer.js';
 
-// Pre-save hook: Sanitize user input to prevent stored XSS in admin dashboard
+// Pre-save hook: Generate ticketNumber and sanitize user input
 contactSchema.pre('save', function (next) {
+  if (!this.ticketNumber) {
+    const randomDigits = Math.floor(10000 + Math.random() * 90000);
+    this.ticketNumber = `TKT-${randomDigits}`;
+  }
   if (this.name) this.name = sanitizeString(this.name);
   if (this.subject) this.subject = sanitizeString(this.subject);
   if (this.message) this.message = sanitizeString(this.message);
   if (this.adminResponse) this.adminResponse = sanitizeString(this.adminResponse);
   next();
+});
+
+// Virtual for formatted human-readable reference code
+contactSchema.virtual('ticketReference').get(function () {
+  return this.ticketNumber || `TKT-${this._id ? this._id.toString().slice(-6).toUpperCase() : 'REF'}`;
 });
 
 // Index for better query performance

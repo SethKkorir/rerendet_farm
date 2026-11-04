@@ -20,6 +20,8 @@ const maintenanceMode = asyncHandler(async (req, res, next) => {
         '/api/auth/refresh',     // Allow silent token refresh under maintenance mode
         '/api/settings/public',  // Public settings needed to display shop status
         '/api/settings/super-gate', // CRITICAL: Allow the magic link to be triggered even if site is blocked
+        '/api/emergency',        // CRITICAL: Dedicated Emergency Super Gate endpoints
+        '/api/locations',        // Allow country and location resolution
         '/api/health',           // Health check
         '/api/public/heartbeat',
         '/api/cron'              // Cron triggers

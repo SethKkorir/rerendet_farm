@@ -45,6 +45,8 @@ import dashboardRoutes from './routes/dashboardRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import addressRoutes from './routes/addressRoutes.js';
 import paymentMethodRoutes from './routes/paymentMethodRoutes.js';
+import emergencyRoutes from './routes/emergencyRoutes.js';
+import locationRoutes from './routes/locationRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 import maintenanceMode from './middleware/maintenanceMiddleware.js';
 
@@ -103,7 +105,9 @@ app.use(httpLogger);
 console.log("🏁 server.js execution started");
 // ================= DB =================
 console.log("🔗 Connecting to MongoDB...");
-connectDB();
+connectDB().catch(err => {
+  console.error("❌ MongoDB connection error:", err.message);
+});
 console.log("✅ connectDB initiated");
 
 // CSP Override Middleware for Admin Pages (Layer 8)
@@ -341,15 +345,20 @@ import adminControlsRoutes from './routes/adminControlsRoutes.js';
 import adminAlertRoutes from './routes/adminAlertRoutes.js';
 import adminSessionRoutes from './routes/adminSessionRoutes.js';
 import adminAuditRoutes from './routes/adminAuditRoutes.js';
+import financeRoutes from './routes/financeRoutes.js';
 app.use('/api/admin/reports', adminReportingRoutes);
 app.use('/api/admin/controls', adminControlsRoutes);
 app.use('/api/admin/alerts', adminAlertRoutes);
 app.use('/api/admin/sessions', adminSessionRoutes);
 app.use('/api/admin/audit-log', adminAuditRoutes);
+app.use('/api/admin/finance', financeRoutes);
+app.use('/api/admin', financeRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/emergency', emergencyRoutes);
+app.use('/api/locations', locationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/promotions', adRoutes);
 app.use('/api/blogs', blogRoutes);
@@ -362,6 +371,77 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payment-methods', paymentMethodRoutes);
+
+// ================= DYNAMIC SITEMAP FOR GOOGLE SEARCH CONSOLE =================
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const Settings = (await import('./models/Settings.js')).default;
+    const Product = (await import('./models/Product.js')).default;
+    const Blog = (await import('./models/Blog.js')).default;
+
+    const settings = await Settings.getSettings();
+    const rawHost = req.get('host') || 'rerendetcoffee.com';
+    const defaultProto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const baseUrl = (settings?.seo?.canonicalUrl || `${defaultProto}://${rawHost}`).replace(/\/+$/, '');
+
+    const staticRoutes = [
+      { url: '', priority: '1.0', changefreq: 'daily' },
+      { url: '/shop', priority: '0.9', changefreq: 'daily' },
+      { url: '/about', priority: '0.8', changefreq: 'monthly' },
+      { url: '/contact', priority: '0.8', changefreq: 'monthly' },
+      { url: '/blog', priority: '0.8', changefreq: 'weekly' },
+      { url: '/shipping-policy', priority: '0.4', changefreq: 'monthly' },
+      { url: '/refund-policy', priority: '0.4', changefreq: 'monthly' },
+      { url: '/terms-conditions', priority: '0.4', changefreq: 'monthly' },
+      { url: '/privacy-policy', priority: '0.4', changefreq: 'monthly' }
+    ];
+
+    let productEntries = [];
+    try {
+      const products = await Product.find({ isArchived: { $ne: true } }).select('_id updatedAt name').lean();
+      productEntries = products.map(p => ({
+        url: `/product/${p._id}`,
+        lastmod: p.updatedAt ? new Date(p.updatedAt).toISOString() : new Date().toISOString(),
+        priority: '0.8',
+        changefreq: 'weekly'
+      }));
+    } catch (e) {
+      // product query fallback
+    }
+
+    let blogEntries = [];
+    try {
+      const blogs = await Blog.find({ isPublished: true }).select('slug _id updatedAt').lean();
+      blogEntries = blogs.map(b => ({
+        url: `/blog/${b.slug || b._id}`,
+        lastmod: b.updatedAt ? new Date(b.updatedAt).toISOString() : new Date().toISOString(),
+        priority: '0.7',
+        changefreq: 'monthly'
+      }));
+    } catch (e) {
+      // blog query fallback
+    }
+
+    const allUrls = [...staticRoutes, ...productEntries, ...blogEntries];
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${allUrls.map(item => `  <url>
+    <loc>${baseUrl}${item.url}</loc>
+    ${item.lastmod ? `<lastmod>${item.lastmod}</lastmod>` : ''}
+    <changefreq>${item.changefreq || 'weekly'}</changefreq>
+    <priority>${item.priority || '0.5'}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    res.header('Content-Type', 'application/xml');
+    res.header('Cache-Control', 'public, max-age=3600');
+    res.send(xml);
+  } catch (error) {
+    console.error('Sitemap generation error:', error);
+    res.status(500).send('Error generating XML sitemap');
+  }
+});
 
 // ================= PUBLIC DELIVERY RATES =================
 app.get('/api/delivery-rates', async (req, res) => {

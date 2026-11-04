@@ -1,21 +1,22 @@
 // src/components/Admin/AdminLayout.jsx
-import React, { useState, useContext, useEffect, useRef } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
-import { playNotificationSound } from '../../utils/sound';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaTachometerAlt, FaShoppingBag, FaBox, FaUsers,
   FaEnvelope, FaChartBar, FaCog, FaSignOutAlt,
-  FaBars, FaTimes, FaBell, FaUserCircle,
-  FaInfoCircle, FaExclamationCircle, FaBullhorn, FaAd,
-  FaSun, FaMoon, FaChevronLeft, FaChevronRight, FaStore, FaHistory, FaPenNib, FaTicketAlt,
-  FaCreditCard, FaFileInvoiceDollar, FaBoxOpen, FaBook
+  FaBars, FaTimes, FaBell,
+  FaBullhorn, FaAd, FaSun, FaMoon, FaChevronLeft, 
+  FaChevronRight, FaHistory, FaPenNib, FaTicketAlt,
+  FaCreditCard, FaBoxOpen, FaBook, FaExternalLinkAlt,
+  FaShieldAlt, FaFileInvoiceDollar, FaReceipt
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
 import CommandPalette from './CommandPalette';
 import AlertCenter from './AlertCenter';
+import { getAdminAlerts } from '../../api/api';
 
 // Bottom nav items (5 most used on mobile)
 const BOTTOM_NAV = [
@@ -29,41 +30,45 @@ const BOTTOM_NAV = [
 // ─── Navigation structure ────────────────────────────────────
 const NAV_GROUPS = [
   {
-    label: 'Main',
+    label: 'Overview',
     items: [
       { id: 'dashboard', label: 'Dashboard', Icon: FaTachometerAlt, path: '/admin', color: '#D4AF37', bg: 'rgba(212,175,55,0.18)' },
     ],
   },
   {
-    label: 'Manage',
+    label: 'Store Operations',
     items: [
-      { id: 'orders', label: 'Orders', Icon: FaShoppingBag, path: '/admin/orders', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
-      { id: 'products', label: 'Products', Icon: FaBox, path: '/admin/products', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
-      { id: 'inventory-health', label: 'Inventory Health', Icon: FaBoxOpen, path: '/admin/inventory-health', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
-      { id: 'payments', label: 'Payments', Icon: FaCreditCard, path: '/admin/payments', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
-      { id: 'analytics', label: 'Analytics & Reports', Icon: FaChartBar, path: '/admin/analytics', color: '#06b6d4', bg: 'rgba(6,182,212,0.18)' },
-      { id: 'users', label: 'Users', Icon: FaUsers, path: '/admin/users', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
-      { id: 'contacts', label: 'Contacts', Icon: FaEnvelope, path: '/admin/contacts', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
+      { id: 'orders', label: 'Orders', Icon: FaShoppingBag, path: '/admin/orders', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)', badgeKey: 'pendingOrders', badgeType: 'warn' },
+      { id: 'products', label: 'Products & Inventory', Icon: FaBox, path: '/admin/products', color: '#10b981', bg: 'rgba(16,185,129,0.18)', badgeKey: 'lowStockCount', badgeType: 'crit' },
     ],
   },
   {
-    label: 'Growth',
+    label: 'Finance & Billing',
     items: [
+      { id: 'invoices', label: 'Invoices', Icon: FaFileInvoiceDollar, path: '/admin/invoices', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
+      { id: 'transactions', label: 'Transactions', Icon: FaReceipt, path: '/admin/transactions', color: '#3b82f6', bg: 'rgba(59,130,246,0.18)' },
+    ],
+  },
+  {
+    label: 'Audience & Growth',
+    items: [
+      { id: 'analytics', label: 'Analytics & Reports', Icon: FaChartBar, path: '/admin/analytics', color: '#06b6d4', bg: 'rgba(6,182,212,0.18)' },
+      { id: 'users', label: 'Customers', Icon: FaUsers, path: '/admin/users', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
+      { id: 'contacts', label: 'Inquiries', Icon: FaEnvelope, path: '/admin/contacts', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)', badgeKey: 'unreadContacts', badgeType: 'info' },
       { id: 'marketing', label: 'Marketing', Icon: FaBullhorn, path: '/admin/marketing', color: '#ec4899', bg: 'rgba(236,72,153,0.18)' },
       { id: 'ads', label: 'Ads & Promos', Icon: FaAd, path: '/admin/ads', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
       { id: 'coupons', label: 'Coupons', Icon: FaTicketAlt, path: '/admin/coupons', color: '#fbbf24', bg: 'rgba(251,191,36,0.18)' },
-      { id: 'blogs', label: 'Blogs', Icon: FaPenNib, path: '/admin/blogs', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
+      { id: 'blogs', label: 'Coffee Journal', Icon: FaPenNib, path: '/admin/blogs', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
     ],
   },
   {
-    label: 'System',
+    label: 'System & Security',
     items: [
       { id: 'settings', label: 'Settings', Icon: FaCog, path: '/admin/settings', color: '#94a3b8', bg: 'rgba(148,163,184,0.18)' },
-      { id: 'operational-controls', label: 'Operational Controls', Icon: FaCog, path: '/admin/controls', color: '#f59e0b', bg: 'rgba(245,158,11,0.18)' },
-      { id: 'active-sessions', label: 'Active Sessions', Icon: FaUsers, path: '/admin/sessions', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
+      { id: 'active-sessions', label: 'Active Sessions', Icon: FaShieldAlt, path: '/admin/sessions', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
       { id: 'documentation', label: 'Documentation', Icon: FaBook, path: '/admin/documentation', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
-      { id: 'logs', label: 'Security Logs', Icon: FaHistory, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
-      { id: 'audit-feed', label: 'Activity Log Feed', Icon: FaHistory, path: '/admin/audit-feed', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
+      { id: 'logs', label: 'Security Logs', Icon: FaHistory, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)', badgeKey: 'criticalAlerts', badgeType: 'crit' },
+      { id: 'audit-feed', label: 'Activity Feed', Icon: FaHistory, path: '/admin/audit-feed', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
     ],
   },
 ];
@@ -72,18 +77,21 @@ const ALL_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 // ─── Component ───────────────────────────────────────────────
 const AdminLayout = ({ children }) => {
-  const { user, logout, showNotification, token } = useContext(AppContext);
+  const { user, logout, showNotification, token, fetchDashboardStats } = useContext(AppContext);
   const navigate = useNavigate();
   const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('adminSidebarCollapsed') === 'true');
   const [activeMenu, setActiveMenu] = useState('dashboard');
-  const [showNotifications, setShowNotifications] = useState(false);
   const [hoveredItem, setHoveredItem] = useState(null);
 
   // ── Theme ──
   const [adminDark, setAdminDark] = useState(() => localStorage.getItem('darkMode') === 'true');
+
+  useEffect(() => {
+    localStorage.setItem('adminSidebarCollapsed', collapsed);
+  }, [collapsed]);
 
   // Synchronize theme with document attribute
   useEffect(() => {
@@ -97,26 +105,62 @@ const AdminLayout = ({ children }) => {
     return () => window.removeEventListener('storage', sync);
   }, []);
 
-  // ── Gap 1: Dynamic AlertCenter Badge counts ──
+  // ── Dynamic Badges & Metrics ──
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
   const [alertCounts, setAlertCounts] = useState({ critical: 0, warning: 0, info: 0 });
+  const [navMetrics, setNavMetrics] = useState({
+    pendingOrders: 0,
+    lowStockCount: 0,
+    unreadContacts: 0,
+    criticalAlerts: 0
+  });
 
   const fetchAlertCounts = async () => {
+    if (!token || !user) return;
+    const isAdmin = user.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(user.role);
+    if (!isAdmin) return;
+    try {
+      const res = await getAdminAlerts();
+      if (res.data?.success) {
+        const counts = res.data.data?.counts || { critical: 0, warning: 0, info: 0 };
+        setAlertCounts(counts);
+        setNavMetrics(prev => ({ ...prev, criticalAlerts: counts.critical }));
+      }
+    } catch {}
+  };
+
+  const fetchLiveCounts = async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/admin/alerts', {
+      if (typeof fetchDashboardStats === 'function') {
+        const sRes = await fetchDashboardStats('30d');
+        if (sRes?.success && sRes?.data) {
+          setNavMetrics(prev => ({
+            ...prev,
+            pendingOrders: sRes.data.overview?.pendingOrders || 0,
+            lowStockCount: sRes.data.lowStockProducts?.length || 0,
+          }));
+        }
+      }
+
+      // Check unread contacts
+      const cRes = await fetch('/api/admin/contacts?status=new', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (data.success) {
-        setAlertCounts(data.data.counts || { critical: 0, warning: 0, info: 0 });
+      const cData = await cRes.json();
+      if (cData?.total !== undefined) {
+        setNavMetrics(prev => ({ ...prev, unreadContacts: cData.total }));
       }
     } catch {}
   };
 
   useEffect(() => {
     fetchAlertCounts();
-    const interval = setInterval(fetchAlertCounts, 60000);
+    fetchLiveCounts();
+    const interval = setInterval(() => {
+      fetchAlertCounts();
+      fetchLiveCounts();
+    }, 60000);
     return () => clearInterval(interval);
   }, [token]);
 
@@ -144,6 +188,11 @@ const AdminLayout = ({ children }) => {
 
   const activeItem = ALL_ITEMS.find(i => i.id === activeMenu);
 
+  // User initials
+  const initials = user?.firstName
+    ? `${user.firstName[0]}${user.lastName ? user.lastName[0] : ''}`.toUpperCase()
+    : 'AD';
+
   return (
     <div className={`admin-layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <CommandPalette />
@@ -151,24 +200,30 @@ const AdminLayout = ({ children }) => {
       {/* ═══ SIDEBAR ═══ */}
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
 
-        {/* Ambient orbs */}
-        <div className="sb-orb sb-orb-top" />
-        <div className="sb-orb sb-orb-bottom" />
-
-        {/* ── Brand ── */}
+        {/* ── Brand Header (Clean & Minimal) ── */}
         <div className="sidebar-header">
           <motion.div
             className="sidebar-logo"
-            initial={{ opacity: 0, x: -15 }}
+            initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => navigate('/admin')}
-            style={{ cursor: 'pointer' }}
+            title="Rerendet Admin Dashboard"
           >
-            <div className="sb-logo-chip"><FaStore /></div>
+            <div className="sb-logo-emblem-wrap">
+              <img
+                src="/rerendet-emblem.png"
+                alt="Rerendet"
+                className="sb-brand-emblem"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/rerendet-logo.png';
+                }}
+              />
+            </div>
             {!collapsed && (
               <div className="sidebar-brand-text">
                 <span className="brand-main">Rerendet</span>
-                <span className="brand-sub">Admin Panel</span>
+                <span className="brand-sub">Admin</span>
               </div>
             )}
           </motion.div>
@@ -177,17 +232,22 @@ const AdminLayout = ({ children }) => {
             <button
               className="sb-collapse-btn"
               onClick={() => setCollapsed(c => !c)}
-              title={collapsed ? 'Expand' : 'Collapse'}
+              title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+              aria-label="Toggle sidebar collapse"
             >
               {collapsed ? <FaChevronRight /> : <FaChevronLeft />}
             </button>
-            <button className="sidebar-toggle" onClick={() => setSidebarOpen(false)}>
+            <button
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar"
+            >
               <FaTimes />
             </button>
           </div>
         </div>
 
-        {/* ── Nav groups ── */}
+        {/* ── Navigation groups ── */}
         <nav className="sidebar-nav">
           {NAV_GROUPS.map((group, gi) => (
             <div key={group.label} className="sb-nav-group">
@@ -198,6 +258,9 @@ const AdminLayout = ({ children }) => {
 
               {group.items.map((item, idx) => {
                 const isActive = activeMenu === item.id;
+                const badgeValue = item.badgeKey ? navMetrics[item.badgeKey] : 0;
+                const hasBadge = Boolean(badgeValue && badgeValue > 0);
+
                 return (
                   <div
                     key={item.id}
@@ -206,56 +269,58 @@ const AdminLayout = ({ children }) => {
                     onMouseLeave={() => setHoveredItem(null)}
                   >
                     <motion.button
-                      initial={{ opacity: 0, x: -16 }}
+                      initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: (gi * 4 + idx) * 0.04, ease: 'easeOut' }}
+                      transition={{ delay: (gi * 3 + idx) * 0.02, ease: 'easeOut' }}
                       className={`nav-item ${isActive ? 'active' : ''}`}
                       onClick={() => handleMenuClick(item)}
                     >
-                      {/* Left active bar */}
+                      {/* Active indicator bar */}
                       {isActive && (
                         <motion.span
                           className="nav-active-bar"
-                          style={{ background: item.color }}
                           layoutId="activeBar"
-                          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                          transition={{ type: 'spring', stiffness: 450, damping: 32 }}
                         />
                       )}
 
                       {/* Icon chip */}
-                      <span
-                        className="nav-icon-chip"
-                        style={{
-                          background: isActive ? item.bg : 'rgba(255,255,255,0.07)',
-                          color: isActive ? item.color : 'rgba(255,255,255,0.4)',
-                          boxShadow: isActive ? `0 0 14px ${item.color}50` : 'none',
-                        }}
-                      >
+                      <span className={`nav-icon-chip ${isActive ? 'active' : ''}`}>
                         <item.Icon />
+                        {collapsed && hasBadge && (
+                          <span className={`sb-collapsed-dot ${item.badgeType || 'warn'}`} />
+                        )}
                       </span>
 
                       {!collapsed && (
                         <span className="nav-label">{item.label}</span>
                       )}
 
-                      {/* Collapsed active dot */}
-                      {isActive && collapsed && (
-                        <span className="nav-active-dot" style={{ background: item.color }} />
+                      {/* Live Counter Badge */}
+                      {!collapsed && hasBadge && (
+                        <span className={`nav-badge ${item.badgeType || 'warn'}`}>
+                          {badgeValue}
+                        </span>
                       )}
                     </motion.button>
 
-                    {/* Tooltip (collapsed only) */}
+                    {/* Tooltip (collapsed mode) */}
                     <AnimatePresence>
                       {collapsed && hoveredItem === item.id && (
                         <motion.div
                           className="sb-tooltip"
-                          initial={{ opacity: 0, x: -8 }}
+                          initial={{ opacity: 0, x: -6 }}
                           animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -5 }}
-                          transition={{ duration: 0.14 }}
+                          exit={{ opacity: 0, x: -4 }}
+                          transition={{ duration: 0.12 }}
                         >
-                          <span className="sb-tip-dot" style={{ background: item.color }} />
-                          {item.label}
+                          <span className="sb-tip-dot" />
+                          <span>{item.label}</span>
+                          {hasBadge && (
+                            <span className={`sb-tip-badge ${item.badgeType || 'warn'}`}>
+                              {badgeValue}
+                            </span>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -266,24 +331,41 @@ const AdminLayout = ({ children }) => {
           ))}
         </nav>
 
-        {/* ── Footer ── */}
+        {/* ── Footer / Admin Identity ── */}
         <div className="sidebar-footer">
-          <div className="admin-profile">
+          <div className="admin-profile" onClick={() => navigate('/admin/settings')}>
             <div className="profile-avatar-wrap">
-              <FaUserCircle className="profile-avatar" />
+              <div className="profile-initials-chip">{initials}</div>
               <span className="profile-online-dot" />
             </div>
             {!collapsed && (
               <div className="profile-info">
-                <span className="admin-name">{user?.firstName} {user?.lastName}</span>
-                <span className="admin-role">{user?.role || 'Administrator'}</span>
+                <span className="admin-name">
+                  {user?.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Administrator'}
+                </span>
+                <span className="admin-role-pill">
+                  {user?.role === 'super-admin' ? 'Super Admin' : (user?.role || 'Admin')}
+                </span>
               </div>
+            )}
+            {!collapsed && (
+              <button
+                className="sb-profile-settings-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/admin/settings');
+                }}
+                title="Settings"
+                aria-label="Settings"
+              >
+                <FaCog />
+              </button>
             )}
           </div>
 
-          <button className="logout-btn" onClick={handleLogout} title="Logout">
+          <button className="logout-btn" onClick={handleLogout} title="Sign Out">
             <FaSignOutAlt />
-            {!collapsed && <span>Logout</span>}
+            {!collapsed && <span>Sign Out</span>}
           </button>
         </div>
       </aside>
@@ -295,46 +377,52 @@ const AdminLayout = ({ children }) => {
 
       {/* ═══ MAIN ═══ */}
       <div className="admin-main">
+        {/* ── Header Bar (Clean, Minimal, Quiet Luxury) ── */}
         <header className="admin-header">
           <div className="header-left">
-            <button className="menu-toggle" onClick={() => setSidebarOpen(s => !s)}>
+            <button className="menu-toggle" onClick={() => setSidebarOpen(s => !s)} aria-label="Toggle menu">
               <FaBars />
             </button>
-            <div className="header-page-info">
-              {activeItem && (
-                <span
-                  className="header-page-icon"
-                  style={{ background: activeItem.bg, color: activeItem.color }}
-                >
-                  <activeItem.Icon />
-                </span>
-              )}
-              <h1 className="page-title">
-                {activeItem?.label || 'Admin Panel'}
-              </h1>
-            </div>
+            <h1 className="page-title">
+              {activeItem?.label || 'Dashboard'}
+            </h1>
           </div>
 
           <div className="header-right">
+            {/* Direct Storefront link */}
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="header-store-btn"
+              title="Open Live Storefront"
+            >
+              <span>Store</span>
+              <FaExternalLinkAlt className="header-ext-icon" />
+            </a>
+
+            {/* Theme Toggle (Icon only) */}
             <button
-              className="admin-theme-toggle"
+              className="admin-theme-btn"
               onClick={() => setAdminDark(!adminDark)}
               title={adminDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label="Toggle theme"
             >
-              <span className={`theme-icon ${adminDark ? 'sun' : 'moon'}`}>
-                {adminDark ? <FaSun /> : <FaMoon />}
-              </span>
-              <span className="theme-label">{adminDark ? 'Light' : 'Dark'}</span>
+              {adminDark ? <FaSun className="theme-sun" /> : <FaMoon className="theme-moon" />}
             </button>
 
+            {/* Notification Bell (Clean single-counter badge) */}
             <div className="notification-wrapper">
-              <button className="notification-btn" onClick={() => setIsAlertCenterOpen(true)}>
+              <button
+                className="notification-btn"
+                onClick={() => setIsAlertCenterOpen(true)}
+                title="Alerts & Notifications"
+                aria-label="Alerts"
+              >
                 <FaBell />
                 {totalAlerts > 0 && (
-                  <span className="alert-badges-container" style={{ position: 'absolute', top: '-8px', right: '-12px', display: 'flex', gap: '2px' }}>
-                    {alertCounts.critical > 0 && <span className="alert-pill-badge crit">{alertCounts.critical}</span>}
-                    {alertCounts.warning > 0 && <span className="alert-pill-badge warn">{alertCounts.warning}</span>}
-                    {alertCounts.info > 0 && <span className="alert-pill-badge inf">{alertCounts.info}</span>}
+                  <span className="notif-badge">
+                    {totalAlerts > 99 ? '99+' : totalAlerts}
                   </span>
                 )}
               </button>
@@ -371,7 +459,6 @@ const AdminLayout = ({ children }) => {
             </button>
           );
         })}
-        {/* Logout visible in mobile bottom bar */}
         <button
           className="bn-item bn-logout"
           style={{ '--bn-color': '#ef4444', '--bn-bg': 'rgba(239,68,68,0.18)' }}
