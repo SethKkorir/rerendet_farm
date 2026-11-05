@@ -7,6 +7,7 @@ import {
   FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaEnvelope, FaExclamationCircle, FaPercent, FaSync, FaGlobe, FaCheckCircle
 } from 'react-icons/fa';
 import PaymentProcessingModal from '../PaymentProcessingModal/PaymentProcessingModal';
+import BrandLoader from '../UI/BrandLoader';
 import './Checkout.css';
 import { KENYA_LOCATIONS } from '../../utils/kenyaLocations';
 import { COUNTRY_LIST, COUNTRY_OBJECTS, fetchGlobalCountries, getCountryDetails, getDialCode, getFlag } from '../../utils/countryList';
@@ -600,7 +601,7 @@ function Checkout() {
   if (authLoading) {
     return (
       <div className="checkout-page" style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="btn-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(212,175,55,0.1)', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <BrandLoader minHeight="70vh" subtitle="PREPARING CHECKOUT DISPATCH" />
       </div>
     );
   }

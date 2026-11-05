@@ -2,22 +2,13 @@
 import React, { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
+import BrandLoader from '../UI/BrandLoader';
 
 const AdminRoute = ({ children, requiredRole = 'admin' }) => {
   const { user, userType, isAuthenticated, authLoading } = useContext(AppContext);
 
   if (authLoading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0B0F1A' }}>
-        <div className="btn-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(212,175,55,0.1)', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
+    return <BrandLoader fullScreen subtitle="ADMIN CONSOLE SECURE GATE" />;
   }
 
   console.log('🔍 AdminRoute check:', {

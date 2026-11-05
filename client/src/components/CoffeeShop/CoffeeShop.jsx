@@ -810,12 +810,52 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
 };
 
 /* ══════════════════════════════════════════════════════════
+   ☕ PRODUCT CARD SKELETON PLACEHOLDER
+══════════════════════════════════════════════════════════ */
+const ProductCardSkeleton = () => (
+  <div className="scand-card scand-card--skeleton" aria-hidden="true">
+    <div className="scand-img-wrapper">
+      <div className="scand-skeleton-badge" />
+      <div className="scand-skeleton-pouch" />
+      <div className="scand-floor-shadow" style={{ opacity: 0.18 }} />
+    </div>
+    <div className="scand-info">
+      <div className="scand-skeleton-name" />
+      <div className="scand-skeleton-name scand-skeleton-name--short" />
+      <div className="scand-skeleton-flavor" />
+      <div className="scand-bottom-row" style={{ marginTop: '1.25rem' }}>
+        <div className="scand-skeleton-price" />
+        <div className="scand-skeleton-btn" />
+      </div>
+    </div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════════════════
    ☕ MAIN COFFEE SHOP COMPONENT
 ══════════════════════════════════════════════════════════ */
 const CoffeeShop = () => {
   const { addToCart, showAlert } = useContext(AppContext);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('rerendet_cached_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('rerendet_cached_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch (_) {}
+    return true;
+  });
   const [addingToCart, setAddingToCart] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
@@ -827,20 +867,33 @@ const CoffeeShop = () => {
 
   const fetchProducts = useCallback(async () => {
     try {
-      setLoading(true);
+      // Keep existing products visible without flashing if revalidating
+      setProducts(current => {
+        if (!current || current.length === 0) setLoading(true);
+        return current;
+      });
+
       const response = await fetch('/api/products?isActive=true&limit=100');
       if (!response.ok) throw new Error('Failed to fetch products');
       const result = await response.json();
 
       if (result.success && Array.isArray(result.data?.products)) {
         setProducts(result.data.products);
+        try {
+          sessionStorage.setItem('rerendet_cached_products', JSON.stringify(result.data.products));
+        } catch (_) {}
       } else {
         setProducts([]);
       }
     } catch (err) {
       console.error(err);
-      showAlert('Failed to load specialty coffee collection.', 'error');
-      setProducts([]);
+      setProducts(current => {
+        if (!current || current.length === 0) {
+          showAlert('Failed to load specialty coffee collection.', 'error');
+          return [];
+        }
+        return current;
+      });
     } finally {
       setLoading(false);
     }
@@ -995,9 +1048,10 @@ const CoffeeShop = () => {
 
         {/* ── Main Products Grid ── */}
         {loading ? (
-          <div className="scand-loading-state">
-            <div className="scand-spinner" />
-            <p>Sourcing specialty highland harvest...</p>
+          <div className="scand-grid">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <ProductCardSkeleton key={`skeleton-${idx}`} />
+            ))}
           </div>
         ) : filteredProducts.length === 0 ? (
           <div className="scand-empty-state">

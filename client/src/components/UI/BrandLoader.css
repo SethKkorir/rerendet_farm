@@ -1,0 +1,137 @@
+/* ═══════════════════════════════════════════════════════════
+   BrandLoader.css — Luxury Shimmer Typography & Emblem Loader
+   Replaces generic spinning circles with high-end brand reveal
+═══════════════════════════════════════════════════════════ */
+
+.brand-loader-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 2.5rem 1rem;
+  background: transparent;
+}
+
+.brand-loader-container.brand-loader--fullscreen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-home, #0e0804);
+  z-index: 99999;
+}
+
+[data-theme='light'] .brand-loader-container.brand-loader--fullscreen {
+  background: #FAF7F2;
+}
+
+.brand-loader-card {
+  text-align: center;
+  max-width: 340px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.brand-loader-emblem {
+  font-size: 2.85rem;
+  line-height: 1;
+  margin-bottom: 0.85rem;
+  filter: drop-shadow(0 4px 18px rgba(212, 175, 55, 0.4));
+  animation: brandEmblemFloat 2s ease-in-out infinite;
+}
+
+.brand-loader-title {
+  font-family: 'Cinzel', 'Playfair Display', Georgia, serif;
+  font-size: clamp(1.25rem, 2.5vw, 1.55rem);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  margin: 0 0 0.4rem 0;
+  background: linear-gradient(
+    90deg,
+    #B5952F 0%,
+    #D4AF37 25%,
+    #FFF4D2 50%,
+    #D4AF37 75%,
+    #B5952F 100%
+  );
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: brandTextShine 2.2s linear infinite;
+  text-transform: uppercase;
+}
+
+[data-theme='light'] .brand-loader-title {
+  background: linear-gradient(
+    90deg,
+    #842A1C 0%,
+    #B5952F 30%,
+    #D4AF37 50%,
+    #842A1C 80%,
+    #B5952F 100%
+  );
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.brand-loader-sub {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  color: var(--color-primary, #D4AF37);
+  opacity: 0.75;
+  margin: 0 0 1.6rem 0;
+  text-transform: uppercase;
+}
+
+.brand-loader-track {
+  width: 140px;
+  height: 3px;
+  background: rgba(212, 175, 55, 0.15);
+  border-radius: 99px;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+}
+
+[data-theme='light'] .brand-loader-track {
+  background: rgba(132, 42, 28, 0.15);
+}
+
+.brand-loader-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+  border-radius: 99px;
+  animation: brandBarSlide 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+[data-theme='light'] .brand-loader-bar {
+  background: linear-gradient(90deg, transparent, #842A1C, #D4AF37, transparent);
+}
+
+@keyframes brandTextShine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes brandEmblemFloat {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-5px) scale(1.06);
+    opacity: 1;
+    filter: drop-shadow(0 6px 22px rgba(212, 175, 55, 0.6));
+  }
+}
+
+@keyframes brandBarSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(260%); }
+}

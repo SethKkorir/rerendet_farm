@@ -773,6 +773,98 @@
   border-color: #2a160b !important;
 }
 
+/* ── Skeleton Placeholder Cards ── */
+.scand-card--skeleton {
+  pointer-events: none;
+  user-select: none;
+}
+
+.scand-skeleton-badge,
+.scand-skeleton-pouch,
+.scand-skeleton-name,
+.scand-skeleton-flavor,
+.scand-skeleton-price,
+.scand-skeleton-btn {
+  background: linear-gradient(
+    90deg,
+    #ECE5DC 0%,
+    #FDFBF7 50%,
+    #ECE5DC 100%
+  );
+  background-size: 200% 100%;
+  animation: scandShimmerPulse 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+[data-theme='dark'] .scand-skeleton-badge,
+[data-theme='dark'] .scand-skeleton-pouch,
+[data-theme='dark'] .scand-skeleton-name,
+[data-theme='dark'] .scand-skeleton-flavor,
+[data-theme='dark'] .scand-skeleton-price,
+[data-theme='dark'] .scand-skeleton-btn {
+  background: linear-gradient(
+    90deg,
+    #2c180b 0%,
+    #4a2914 50%,
+    #2c180b 100%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes scandShimmerPulse {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.scand-skeleton-badge {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  width: 72px;
+  height: 22px;
+  border-radius: 99px;
+  z-index: 2;
+}
+
+.scand-skeleton-pouch {
+  width: 140px;
+  height: 200px;
+  margin: 1.5rem auto 0;
+  border-radius: 12px 12px 6px 6px;
+  opacity: 0.85;
+}
+
+.scand-skeleton-name {
+  height: 22px;
+  width: 85%;
+  margin-bottom: 0.45rem;
+  border-radius: 5px;
+}
+
+.scand-skeleton-name--short {
+  width: 55%;
+  margin-bottom: 0.75rem;
+}
+
+.scand-skeleton-flavor {
+  height: 14px;
+  width: 95%;
+  border-radius: 4px;
+  opacity: 0.7;
+}
+
+.scand-skeleton-price {
+  height: 24px;
+  width: 80px;
+  border-radius: 6px;
+}
+
+.scand-skeleton-btn {
+  height: 42px;
+  width: 105px;
+  border-radius: 99px;
+}
+
 /* ── Empty & Loading States ── */
 .scand-loading-state,
 .scand-empty-state {

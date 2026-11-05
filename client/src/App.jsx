@@ -68,16 +68,9 @@ const LazyOperationalControls = lazy(() => import('./components/Admin/Operationa
 const LazyActiveSessions = lazy(() => import('./components/Admin/ActiveSessionsHardened'));
 const LazyActivityFeed = lazy(() => import('./components/Admin/ActivityLogsHardened'));
 
-const PageLoader = () => (
-  <div className="page-loader">
-    <div className="loader-spinner"></div>
-    <style>{`
-      .page-loader { position: fixed; inset: 0; background: #0B0F1A; display: flex; align-items: center; justify-content: center; z-index: 9999; }
-      .loader-spinner { width: 40px; height: 40px; border: 3px solid rgba(212, 175, 55, 0.1); border-top: 3px solid #D4AF37; border-radius: 50%; animation: spin 1s linear infinite; }
-      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    `}</style>
-  </div>
-);
+import BrandLoader from './components/UI/BrandLoader';
+
+const PageLoader = () => <BrandLoader fullScreen />;
 
 function App() {
   const location = useLocation();
@@ -171,8 +164,6 @@ function App() {
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isPortalRoute = location.pathname.startsWith('/account') || location.pathname.startsWith('/profile');
   const isEmergencyRoute = location.pathname.startsWith('/emergency');
-
-  if (settingsLoading) return <PageLoader />;
 
   if (globalMaintenance && !isAdminRoute && !isAdmin && !isEmergencyRoute) {
     return (

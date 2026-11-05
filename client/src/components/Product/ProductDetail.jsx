@@ -90,7 +90,31 @@ const ProductDetail = () => {
         }
     };
 
-    if (loading) return <div className="loading-full">Brewing your coffee details...</div>;
+    if (loading) {
+        return (
+            <div className="product-detail-page">
+                <div className="container">
+                    <div className="scand-skeleton-name" style={{ width: '130px', height: '20px', marginBottom: '24px' }} />
+                    <div className="product-detail-grid product-detail-grid--skeleton">
+                        <div className="product-images" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <div className="scand-skeleton-pouch" style={{ width: '220px', height: '320px', margin: 0 }} />
+                        </div>
+                        <div className="product-info">
+                            <div className="scand-skeleton-name" style={{ width: '80%', height: '36px', marginBottom: '12px' }} />
+                            <div className="scand-skeleton-flavor" style={{ width: '45%', height: '18px', marginBottom: '24px' }} />
+                            <div className="scand-skeleton-price" style={{ width: '140px', height: '32px', marginBottom: '30px' }} />
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
+                                <div className="scand-skeleton-btn" style={{ width: '70px', height: '36px' }} />
+                                <div className="scand-skeleton-btn" style={{ width: '70px', height: '36px' }} />
+                                <div className="scand-skeleton-btn" style={{ width: '70px', height: '36px' }} />
+                            </div>
+                            <div className="scand-skeleton-btn" style={{ width: '100%', height: '52px', borderRadius: '14px' }} />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
     if (!product) return <div className="not-found">Coffee not found. <Link to="/">Back to shop</Link></div>;
 
     const currentPrice = product.sizes?.find(s => s.size === selectedSize)?.price || 0;

@@ -76,8 +76,21 @@ export function AppProvider({ children }) {
     }
   }, [cart]);
 
-  const [publicSettings, setPublicSettings] = useState(null);
-  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [publicSettings, setPublicSettings] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('rerendet_cached_settings');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [settingsLoading, setSettingsLoading] = useState(() => {
+    try {
+      return !sessionStorage.getItem('rerendet_cached_settings');
+    } catch {
+      return true;
+    }
+  });
   const [globalMaintenance, setGlobalMaintenance] = useState(false);
 
   // Response interceptor to handle auth errors and maintenance
@@ -1250,6 +1263,11 @@ export function AppProvider({ children }) {
       console.log('✅ Public settings fetched:', response.data.success);
       if (response.data.success) {
         setPublicSettings(response.data.data);
+        try {
+          sessionStorage.setItem('rerendet_cached_settings', JSON.stringify(response.data.data));
+        } catch (e) {
+          // ignore quota limits
+        }
         // If settings say enabled, make sure global state matches
         if (response.data.data.maintenance?.enabled) {
           setGlobalMaintenance(true);

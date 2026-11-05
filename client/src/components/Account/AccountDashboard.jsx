@@ -9,6 +9,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getWhatsAppLink } from '../../utils/whatsappHelper';
+import BrandLoader from '../UI/BrandLoader';
 import './AccountDashboard.css';
 
 // Import Tab Components
@@ -127,7 +128,7 @@ function AccountDashboard() {
   if (authLoading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="btn-spinner" style={{ width: '40px', height: '40px', border: '3px solid rgba(212,175,55,0.1)', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+        <BrandLoader minHeight="60vh" subtitle="AUTHENTICATING CUSTOMER PORTAL" />
       </div>
     );
   }
