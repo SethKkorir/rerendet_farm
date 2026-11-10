@@ -14,12 +14,17 @@ import mongoose from 'mongoose';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import sendEmail from '../utils/sendEmail.js';
-import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail, getResetPasswordEmail } from '../utils/emailTemplates.js';
+import { getMaintenanceEmail, getMaintenanceResolvedEmail, getOrderStatusEmail, getResetPasswordEmail, getPaymentConfirmedWithReceiptEmail, getPartialPaymentReceivedCustomerEmail } from '../utils/emailTemplates.js';
+import { sendPaymentConfirmedAdminAlert, sendPartialPaymentAdminAlert } from '../utils/adminNotificationService.js';
+import { generateReceiptPDF, generateReceiptNumber } from '../utils/receiptGenerator.js';
 import nodemailer from 'nodemailer';
 import axios from 'axios';
 import { invalidateCatalog, redisClient, isRedisConnected } from '../config/redis.js';
 import { emailQueue, subscriptionQueue, retryQueue } from '../queues/index.js';
 import SystemHealthLog from '../models/SystemHealthLog.js';
+import PasswordRecovery from '../models/PasswordRecovery.js';
+import CustomerSession from '../models/CustomerSession.js';
+import { checkAdminRecoveryLimits } from '../services/recoveryRateLimiter.js';
 // Optimization: Simple in-memory cache for dashboard stats
 let statsCache = {
   data: null,
@@ -170,12 +175,30 @@ const getOrders = asyncHandler(async (req, res) => {
   // 1. Fulfillment Status Filter
   const effectiveFulfillmentStatus = fulfillmentStatus || status;
   if (effectiveFulfillmentStatus && effectiveFulfillmentStatus !== 'all') {
-    filter.fulfillmentStatus = effectiveFulfillmentStatus;
+    if (effectiveFulfillmentStatus === 'awaiting_payment') {
+      filter.paymentMethod = 'paybill';
+      filter.paymentStatus = { $in: ['pending', 'partially_paid'] };
+    } else if (effectiveFulfillmentStatus === 'payment_queue' || effectiveFulfillmentStatus === 'awaiting_verification') {
+      filter.paymentMethod = 'paybill';
+      filter.paymentStatus = { $in: ['payment_reported', 'pending', 'partially_paid'] };
+      filter.orderStatus = { $ne: 'cancelled' };
+    } else {
+      filter.fulfillmentStatus = effectiveFulfillmentStatus;
+    }
   }
 
   // 2. Payment Status Filter
   if (paymentStatus && paymentStatus !== 'all') {
-    filter.paymentStatus = paymentStatus;
+    if (paymentStatus === 'awaiting_payment') {
+      filter.paymentMethod = 'paybill';
+      filter.paymentStatus = { $in: ['pending', 'partially_paid'] };
+    } else if (paymentStatus === 'payment_queue' || paymentStatus === 'awaiting_verification') {
+      filter.paymentMethod = 'paybill';
+      filter.paymentStatus = { $in: ['payment_reported', 'pending', 'partially_paid'] };
+      filter.orderStatus = { $ne: 'cancelled' };
+    } else {
+      filter.paymentStatus = paymentStatus;
+    }
   }
 
   // 3. Date Range Filter
@@ -211,20 +234,67 @@ const getOrders = asyncHandler(async (req, res) => {
     ];
   }
 
+  const isPaymentQueue = effectiveFulfillmentStatus === 'payment_queue' ||
+    effectiveFulfillmentStatus === 'awaiting_verification' ||
+    paymentStatus === 'payment_queue' ||
+    paymentStatus === 'awaiting_verification';
+
+  const sortCriteria = isPaymentQueue
+    ? { 'paymentReporting.reported': -1, createdAt: -1 }
+    : { createdAt: -1 };
+
   try {
-    const [orders, total] = await Promise.all([
+    const [orders, total, awaitingPaymentCount, paymentReportedCount, partiallyPaidCount, paidCount, awaitingPrepCount] = await Promise.all([
       Order.find(filter)
         .populate('user', 'firstName lastName email phone')
-        .sort({ createdAt: -1 })
+        .sort(sortCriteria)
         .skip(skip)
         .limit(parseInt(limit)),
-      Order.countDocuments(filter)
+      Order.countDocuments(filter),
+      Order.countDocuments({
+        paymentMethod: 'paybill',
+        paymentStatus: 'pending',
+        'paymentReporting.reported': { $ne: true },
+        orderStatus: { $ne: 'cancelled' }
+      }),
+      Order.countDocuments({
+        paymentMethod: 'paybill',
+        orderStatus: { $ne: 'cancelled' },
+        $or: [
+          { paymentStatus: 'payment_reported' },
+          { 'paymentReporting.reported': true, paymentStatus: { $in: ['pending', 'partially_paid'] } }
+        ]
+      }),
+      Order.countDocuments({
+        paymentMethod: 'paybill',
+        paymentStatus: 'partially_paid',
+        orderStatus: { $ne: 'cancelled' }
+      }),
+      Order.countDocuments({
+        paymentStatus: 'paid',
+        orderStatus: { $ne: 'cancelled' }
+      }),
+      Order.countDocuments({
+        fulfillmentStatus: 'unfulfilled',
+        orderStatus: { $ne: 'cancelled' },
+        $or: [
+          { paymentStatus: 'paid' },
+          { paymentMethod: 'cod' }
+        ]
+      })
     ]);
 
     res.json({
       success: true,
       data: {
         orders,
+        counts: {
+          awaitingPayment: awaitingPaymentCount,
+          paymentReported: paymentReportedCount,
+          partiallyPaid: partiallyPaidCount,
+          paid: paidCount,
+          awaitingPrep: awaitingPrepCount
+        },
         pagination: {
           current: parseInt(page),
           page: parseInt(page),
@@ -302,6 +372,12 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   if (fulfillmentStatus && order.fulfillmentStatus !== fulfillmentStatus) {
+    if (['packed', 'shipped'].includes(fulfillmentStatus)) {
+      if (order.paymentMethod === 'paybill' && order.paymentStatus !== 'paid') {
+        res.status(400);
+        throw new Error('Cannot pack or ship a Paybill order until payment has been fully confirmed by an admin.');
+      }
+    }
     if (!Order.validateTransition('fulfillmentStatus', order.fulfillmentStatus, fulfillmentStatus)) {
       res.status(400);
       throw new Error(`Invalid fulfillment status transition from '${order.fulfillmentStatus}' to '${fulfillmentStatus}'.`);
@@ -491,6 +567,8 @@ const createProduct = asyncHandler(async (req, res) => {
     origin,
     flavorNotes,
     badge,
+    compareAtPrice,
+    discountBadge,
     material,
     brand,
     capacity,
@@ -543,6 +621,17 @@ const createProduct = asyncHandler(async (req, res) => {
     }
   }
 
+  // Auto-sync dedicated fields into categoryAttributes if needed
+  if (roastLevel && !parsedCategoryAttributes.roastLevel) {
+    parsedCategoryAttributes.roastLevel = roastLevel.toString().toLowerCase();
+  }
+  if (origin && !parsedCategoryAttributes.origin) {
+    parsedCategoryAttributes.origin = origin.toString().trim();
+  }
+  if (!parsedCategoryAttributes.packageWeight && Array.isArray(sizes) && sizes[0]?.size) {
+    parsedCategoryAttributes.packageWeight = sizes[0].size;
+  }
+
   // Validate required properties in category's attributeSchema
   const missingAttributes = [];
   for (const attr of dbCategory.attributeSchema) {
@@ -581,9 +670,13 @@ const createProduct = asyncHandler(async (req, res) => {
     if (isNaN(price) || price <= 0) {
       throw new Error(`Invalid price for size ${size.size} at position ${index + 1}`);
     }
+    const origPrice = size.originalPrice !== undefined && size.originalPrice !== null && size.originalPrice !== ''
+      ? parseFloat(size.originalPrice)
+      : null;
     return {
       size: size.size,
-      price: price
+      price: price,
+      originalPrice: (origPrice && !isNaN(origPrice) && origPrice > 0) ? origPrice : null
     };
   });
 
@@ -662,6 +755,23 @@ const createProduct = asyncHandler(async (req, res) => {
   // Parse isFeatured
   const parsedIsFeatured = isFeatured === 'true' || isFeatured === true;
 
+  // Parse grind options
+  let parsedGrindOptions = ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'];
+  if (requestBody.grindOptions) {
+    try {
+      if (typeof requestBody.grindOptions === 'string') {
+        if (requestBody.grindOptions.startsWith('[') || requestBody.grindOptions.startsWith('{')) {
+          parsedGrindOptions = JSON.parse(requestBody.grindOptions);
+        } else {
+          parsedGrindOptions = requestBody.grindOptions.split(',').map(g => g.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(requestBody.grindOptions)) {
+        parsedGrindOptions = requestBody.grindOptions;
+      }
+    } catch (_) {}
+  }
+  const defaultGrind = requestBody.defaultGrind?.toString().trim() || (parsedGrindOptions[0] || 'Whole Beans');
+
   // Create product data
   const productData = {
     name: name.toString().trim(),
@@ -674,6 +784,10 @@ const createProduct = asyncHandler(async (req, res) => {
     origin: origin?.toString().trim() || parsedCategoryAttributes['origin']?.toString().trim() || '',
     flavorNotes: parsedFlavorNotes,
     badge: badge?.toString().trim() || '',
+    grindOptions: parsedGrindOptions,
+    defaultGrind: defaultGrind,
+    compareAtPrice: (compareAtPrice && !isNaN(parseFloat(compareAtPrice))) ? parseFloat(compareAtPrice) : undefined,
+    discountBadge: discountBadge?.toString().trim() || undefined,
     material: material?.toString().trim() || undefined,
     brand: brand?.toString().trim() || undefined,
     capacity: capacity?.toString().trim() || undefined,
@@ -758,6 +872,8 @@ const updateProduct = asyncHandler(async (req, res) => {
     origin,
     flavorNotes,
     badge,
+    compareAtPrice,
+    discountBadge,
     material,
     brand,
     capacity,
@@ -806,6 +922,19 @@ const updateProduct = asyncHandler(async (req, res) => {
       }
     }
 
+    // Auto-sync dedicated fields into categoryAttributes if needed
+    const effectiveRoast = roastLevel !== undefined ? roastLevel : product.roastLevel;
+    if (effectiveRoast && !parsedCategoryAttributes.roastLevel) {
+      parsedCategoryAttributes.roastLevel = effectiveRoast.toString().toLowerCase();
+    }
+    const effectiveOrigin = origin !== undefined ? origin : product.origin;
+    if (effectiveOrigin && !parsedCategoryAttributes.origin) {
+      parsedCategoryAttributes.origin = effectiveOrigin.toString().trim();
+    }
+    if (!parsedCategoryAttributes.packageWeight && Array.isArray(sizes) && sizes[0]?.size) {
+      parsedCategoryAttributes.packageWeight = sizes[0].size;
+    }
+
     // Validate attributes
     const missingAttributes = [];
     for (const attr of dbCategory.attributeSchema) {
@@ -842,9 +971,32 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.origin = product.categoryAttributes.get('origin').toString().trim();
   }
   if (badge !== undefined) product.badge = badge.toString().trim();
+  if (compareAtPrice !== undefined) {
+    product.compareAtPrice = (compareAtPrice && !isNaN(parseFloat(compareAtPrice))) ? parseFloat(compareAtPrice) : null;
+  }
+  if (discountBadge !== undefined) {
+    product.discountBadge = discountBadge ? discountBadge.toString().trim() : null;
+  }
 
   if (isFeatured !== undefined) {
     product.isFeatured = isFeatured === 'true' || isFeatured === true;
+  }
+
+  if (requestBody.grindOptions !== undefined) {
+    try {
+      if (typeof requestBody.grindOptions === 'string') {
+        if (requestBody.grindOptions.startsWith('[') || requestBody.grindOptions.startsWith('{')) {
+          product.grindOptions = JSON.parse(requestBody.grindOptions);
+        } else {
+          product.grindOptions = requestBody.grindOptions.split(',').map(g => g.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(requestBody.grindOptions)) {
+        product.grindOptions = requestBody.grindOptions;
+      }
+    } catch (_) {}
+  }
+  if (requestBody.defaultGrind !== undefined) {
+    product.defaultGrind = requestBody.defaultGrind.toString().trim();
   }
 
   if (isActive !== undefined) {
@@ -869,9 +1021,13 @@ const updateProduct = asyncHandler(async (req, res) => {
         if (isNaN(price) || price <= 0) {
           throw new Error(`Invalid price for size ${size.size}`);
         }
+        const origPrice = size.originalPrice !== undefined && size.originalPrice !== null && size.originalPrice !== ''
+          ? parseFloat(size.originalPrice)
+          : null;
         return {
           size: size.size,
-          price: price
+          price: price,
+          originalPrice: (origPrice && !isNaN(origPrice) && origPrice > 0) ? origPrice : null
         };
       });
 
@@ -1011,23 +1167,33 @@ const updateProductStock = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Delete product - FIXED VERSION
+// @desc    Delete product - ROBUST VERSION (bypasses legacy schema validation blocks)
 // @route   DELETE /api/admin/products/:id
 // @access  Private/Admin
 const deleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const { id } = req.params;
+  const product = await Product.findById(id);
 
   if (!product) {
     res.status(404);
     throw new Error('Product not found');
   }
 
-  // Soft delete - set isActive to false
-  product.isActive = false;
-  await product.save();
+  // If permanent delete requested, remove document directly;
+  // Otherwise soft delete using updateOne without runValidators so legacy/incomplete fields never block deletion
+  if (req.query.permanent === 'true') {
+    await Product.deleteOne({ _id: id });
+  } else {
+    await Product.updateOne({ _id: id }, { $set: { isActive: false } }, { runValidators: false });
+  }
   
   // Invalidate product catalog cache
-  await invalidateCatalog();
+  try {
+    if (typeof clearProductCache === 'function') clearProductCache();
+    await invalidateCatalog();
+  } catch (cacheErr) {
+    console.warn('Cache invalidation notice on delete:', cacheErr.message);
+  }
 
   res.json({
     success: true,
@@ -1365,7 +1531,8 @@ const toggleCustomerPasswordUnlock = asyncHandler(async (req, res) => {
   user.allowPasswordChangeOverride = shouldUnlock;
   user.passwordOverrideGrantedAt = shouldUnlock ? new Date() : null;
   user.passwordOverrideGrantedBy = shouldUnlock ? req.user._id : null;
-  user.passwordOverrideReason = shouldUnlock ? (reason || 'Customer requested early password change') : null;
+  user.passwordOverrideExpiresAt = shouldUnlock ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null; // 24-hour expiration
+  user.passwordOverrideReason = shouldUnlock ? (reason?.trim() || 'Customer requested early password change') : null;
 
   await user.save({ validateBeforeSave: false });
 
@@ -1373,21 +1540,26 @@ const toggleCustomerPasswordUnlock = asyncHandler(async (req, res) => {
   logActivity(
     req,
     shouldUnlock ? 'UNLOCK_PASSWORD_COOLDOWN' : 'REVOKE_PASSWORD_COOLDOWN',
-    `Password change cooldown ${shouldUnlock ? 'unlocked' : 'revoked'} for ${user.email}`,
+    `Password change cooldown ${shouldUnlock ? 'unlocked (24h override)' : 'revoked'} for ${user.email}`,
     user._id,
-    { reason: user.passwordOverrideReason, contactId: contact?._id }
+    { 
+      reason: user.passwordOverrideReason, 
+      contactId: contact?._id,
+      expiresAt: user.passwordOverrideExpiresAt 
+    }
   );
 
   res.json({
     success: true,
     message: shouldUnlock
-      ? `Password policy override granted for ${user.firstName || user.email}. They can now change their password immediately in their dashboard.`
+      ? `Password policy override granted for ${user.firstName || user.email} (valid for 24 hours). They can now change their password immediately in their dashboard.`
       : `Password policy override revoked for ${user.firstName || user.email}. 30-day policy restored.`,
     data: {
       userId: user._id,
       email: user.email,
       allowPasswordChangeOverride: user.allowPasswordChangeOverride,
       passwordOverrideReason: user.passwordOverrideReason,
+      passwordOverrideExpiresAt: user.passwordOverrideExpiresAt,
       passwordChangedAt: user.passwordChangedAt
     }
   });
@@ -1637,11 +1809,34 @@ const getSalesAnalytics = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/logs
 // @access  Private/Admin (Super Admin only recommended)
 const getActivityLogs = asyncHandler(async (req, res) => {
-  const pageSize = 20;
-  const page = Number(req.query.pageNumber) || 1;
+  const pageSize = Number(req.query.limit) || Number(req.query.pageSize) || 20;
+  const page = Number(req.query.pageNumber) || Number(req.query.page) || 1;
+  const { actionCategory, startDate, endDate, search, orderId, adminId } = req.query;
 
-  const count = await ActivityLog.countDocuments({});
-  const logs = await ActivityLog.find({})
+  const filter = {};
+  if (adminId) filter.admin = adminId;
+  if (actionCategory) filter['details.actionCategory'] = actionCategory;
+  if (orderId) filter.entityId = orderId;
+  if (search && search.trim()) {
+    const s = search.trim();
+    filter.$or = [
+      { action: { $regex: s, $options: 'i' } },
+      { entityName: { $regex: s, $options: 'i' } },
+      { ipAddress: { $regex: s, $options: 'i' } }
+    ];
+  }
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = new Date(startDate);
+    if (endDate) {
+      const eDate = new Date(endDate);
+      eDate.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = eDate;
+    }
+  }
+
+  const count = await ActivityLog.countDocuments(filter);
+  const logs = await ActivityLog.find(filter)
     .populate('admin', 'firstName lastName email role')
     .sort({ createdAt: -1 })
     .limit(pageSize)
@@ -1651,7 +1846,8 @@ const getActivityLogs = asyncHandler(async (req, res) => {
     success: true,
     data: logs,
     page,
-    pages: Math.ceil(count / pageSize)
+    pages: Math.ceil(count / pageSize) || 1,
+    total: count
   });
 });
 
@@ -1853,6 +2049,13 @@ const resetUserSecurity = asyncHandler(async (req, res) => {
 // @route   POST /api/admin/users/:id/generate-password-reset
 // @access  Private/Admin
 const generateUserPasswordReset = asyncHandler(async (req, res) => {
+  // Enforce admin recovery generation limits (5/15m, 10/h, 20/24h)
+  const limitCheck = await checkAdminRecoveryLimits(req.user._id);
+  if (!limitCheck.allowed) {
+    res.status(429);
+    throw new Error(limitCheck.message);
+  }
+
   const user = await User.findById(req.params.id).select('+password');
 
   if (!user) {
@@ -1860,24 +2063,46 @@ const generateUserPasswordReset = asyncHandler(async (req, res) => {
     throw new Error('User not found');
   }
 
-  // Generate 6-digit numeric OTP code
-  const rawCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Invalidate any existing pending/verified recoveries for this customer
+  await PasswordRecovery.updateMany(
+    { userId: user._id, status: { $in: ['PENDING', 'VERIFIED'] } },
+    { status: 'REVOKED' }
+  );
 
-  // Store SHA-256 hashed code in DB
-  const hashedCode = crypto.createHash('sha256').update(rawCode).digest('hex');
-  user.resetPasswordToken = hashedCode;
-  user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 60 minutes for admin-assisted reset
+  // Generate 6-digit numeric OTP code
+  const rawCode = crypto.randomInt(100000, 1000000).toString();
+  // Generate 32-byte single-use link token
+  const rawLinkToken = crypto.randomBytes(32).toString('hex');
+  const resetTokenHash = PasswordRecovery.hashToken(rawLinkToken);
+
+  const recoveryId = new mongoose.Types.ObjectId();
+  const otpHmac = PasswordRecovery.computeOtpHmac(rawCode, user._id, recoveryId);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes strict
+
+  const recoveryDoc = new PasswordRecovery({
+    _id: recoveryId,
+    userId: user._id,
+    email: user.email.toLowerCase(),
+    method: req.body.method === 'LINK' ? 'LINK' : (req.body.method === 'OTP' ? 'OTP' : 'OTP'),
+    otpHash: otpHmac,
+    resetTokenHash,
+    status: 'PENDING',
+    expiresAt,
+    initiatedBy: 'ADMIN',
+    initiatedByAdminId: req.user._id,
+    resendCooldownUntil: new Date(Date.now() + 60 * 1000),
+    maxAttempts: 5,
+    attempts: 0
+  });
+
+  await recoveryDoc.save();
+
+  // Backward compatibility on User model
+  user.resetPasswordToken = crypto.createHash('sha256').update(rawCode).digest('hex');
+  user.resetPasswordExpires = expiresAt;
   user.loginAttempts = 0;
   user.lockUntil = undefined;
   await user.save({ validateBeforeSave: false });
-
-  // Generate signed stateless recovery token (JWT signed with secret + current password hash)
-  const secretKey = (process.env.JWT_SECRET || 'rerendet_access_secret_fallback') + (user.password || '');
-  const resetToken = jwt.sign(
-    { userId: user._id, tokenVersion: user.tokenVersion || 0, type: 'reset' },
-    secretKey,
-    { expiresIn: '1h' }
-  );
 
   // Construct reset URL
   const originHeader = req.get('origin') || (req.get('referer') ? new URL(req.get('referer')).origin : null);
@@ -1885,7 +2110,7 @@ const generateUserPasswordReset = asyncHandler(async (req, res) => {
     ? originHeader
     : (process.env.FRONTEND_URL || ((process.env.NODE_ENV === 'production' || process.env.VERCEL) ? 'https://rerendet-farm.vercel.app' : 'http://localhost:5173'));
 
-  const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}&code=${rawCode}&email=${encodeURIComponent(user.email)}`;
+  const resetUrl = `${frontendUrl}/reset-password?token=${rawLinkToken}&code=${rawCode}&email=${encodeURIComponent(user.email)}`;
 
   // Attempt email delivery in background (best effort, do not crash if email fails)
   let emailSent = false;
@@ -1912,27 +2137,142 @@ const generateUserPasswordReset = asyncHandler(async (req, res) => {
   // Log activity
   await logActivity(req, 'ADMIN_PASSWORD_RESET_GENERATED', user.email, user._id, {
     affectedUser: user.email,
+    recoveryId: recoveryDoc._id,
     emailSent,
-    expiresIn: '60 minutes'
+    expiresIn: '15 minutes'
   });
 
   res.json({
     success: true,
     message: emailSent
-      ? 'Password reset code and link generated & emailed to customer!'
-      : 'Password reset code and link generated successfully! (Share with customer directly).',
+      ? 'Assisted password recovery generated and emailed to customer (valid 15 minutes).'
+      : 'Assisted password recovery generated successfully. Valid for 15 minutes.',
     data: {
       userId: user._id,
       email: user.email,
       name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
       phone: user.phone || '',
       code: rawCode,
-      resetToken,
+      resetToken: rawLinkToken,
       resetUrl,
-      expiresIn: '60 minutes',
+      expiresIn: '15 minutes',
       emailSent,
       emailError
     }
+  });
+});
+
+// @desc    Revoke active customer password recovery (Admin security control)
+// @route   POST /api/admin/users/:id/revoke-recovery
+// @access  Private/Admin
+const revokeUserPasswordRecovery = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const result = await PasswordRecovery.updateMany(
+    { userId: user._id, status: { $in: ['PENDING', 'VERIFIED'] } },
+    { status: 'REVOKED' }
+  );
+
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save({ validateBeforeSave: false });
+
+  await logActivity(req, 'ADMIN_PASSWORD_RECOVERY_REVOKED', `Revoked active recovery for ${user.email}`, user._id, {
+    affectedUser: user.email,
+    revokedCount: result.modifiedCount
+  });
+
+  res.json({
+    success: true,
+    message: `Active recovery revoked for ${user.email}. Customer cannot use previous recovery codes or links.`,
+    data: { revokedCount: result.modifiedCount }
+  });
+});
+
+// @desc    Get customer recovery history (Admin inspection)
+// @route   GET /api/admin/users/:id/recovery-history
+// @access  Private/Admin
+const getUserRecoveryHistory = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const history = await PasswordRecovery.find({ userId: user._id })
+    .select('-otpHash -resetTokenHash -recoveryAuthTokenHash')
+    .sort({ createdAt: -1 })
+    .limit(20)
+    .lean();
+
+  res.json({
+    success: true,
+    data: history
+  });
+});
+
+// @desc    Get customer active sessions (Admin inspection)
+// @route   GET /api/admin/users/:id/sessions
+// @access  Private/Admin
+const getUserSessions = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  const sessions = await CustomerSession.find({ userId: user._id })
+    .sort({ lastActivity: -1 })
+    .limit(30)
+    .lean();
+
+  res.json({
+    success: true,
+    data: sessions
+  });
+});
+
+// @desc    Revoke customer session(s) (Admin control)
+// @route   DELETE /api/admin/users/:id/sessions/:sessionId
+// @access  Private/Admin
+const revokeUserSession = asyncHandler(async (req, res) => {
+  const { id, sessionId } = req.params;
+  const user = await User.findById(id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (sessionId === 'all') {
+    await CustomerSession.updateMany(
+      { userId: user._id, isRevoked: false },
+      { isRevoked: true, revokedAt: new Date() }
+    );
+    await User.findByIdAndUpdate(user._id, { $inc: { tokenVersion: 1 } });
+    await logActivity(req, 'ADMIN_REVOKE_ALL_SESSIONS', `Revoked all sessions for ${user.email}`, user._id);
+    return res.json({ success: true, message: `All active sessions revoked for ${user.email}` });
+  }
+
+  const session = await CustomerSession.findOneAndUpdate(
+    { _id: sessionId, userId: user._id },
+    { isRevoked: true, revokedAt: new Date() },
+    { new: true }
+  );
+
+  if (!session) {
+    res.status(404);
+    throw new Error('Session not found');
+  }
+
+  await logActivity(req, 'ADMIN_REVOKE_SESSION', `Revoked session ${sessionId} for ${user.email}`, user._id);
+
+  res.json({
+    success: true,
+    message: `Session revoked successfully for ${user.email}`
   });
 });
 
@@ -2540,6 +2880,346 @@ const manualPaymentOverride = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Confirm manual Paybill payment against bank/SMS record
+// @route   POST /api/admin/orders/:id/confirm-payment
+// @access  Private/Admin
+const confirmPayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { mpesaCode, amountReceived } = req.body;
+
+  const order = await Order.findById(id).populate('user', 'firstName lastName email phone');
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found'
+    });
+  }
+
+  // Support marking Cash on Delivery (COD) orders as paid (e.g. upon delivery)
+  if (order.paymentMethod === 'cod') {
+    if (order.orderStatus === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot confirm payment on a cancelled order'
+      });
+    }
+
+    const codAmount = amountReceived !== undefined && amountReceived !== null && amountReceived !== ''
+      ? parseFloat(amountReceived)
+      : order.total;
+
+    if (isNaN(codAmount) || codAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Amount received must be a positive number'
+      });
+    }
+
+    const cleanCode = mpesaCode ? String(mpesaCode).trim().toUpperCase() : undefined;
+    const receiptNumber = order.receipt?.receiptNumber || generateReceiptNumber();
+
+    order.paymentStatus = 'paid';
+    order.paymentConfirmation = {
+      mpesaCode: cleanCode,
+      amountReceived: codAmount,
+      confirmedBy: req.user._id,
+      confirmedAt: new Date()
+    };
+    order.paymentConfirmations.push({
+      mpesaCode: cleanCode || `COD-${order.orderNumber}`,
+      amountReceived: codAmount,
+      confirmedBy: req.user._id,
+      confirmedAt: new Date(),
+      receiptNumber
+    });
+    order.receipt = {
+      receiptNumber,
+      issueDate: new Date(),
+      paymentType: 'full',
+      amountReceived: codAmount,
+      outstandingBalance: 0,
+      generatedAt: new Date()
+    };
+    order.orderEvents.push({
+      status: 'PAYMENT_CONFIRMED',
+      note: `Cash on Delivery payment confirmed by admin ${req.user.email || 'Admin'}. Amount: KES ${codAmount}${cleanCode ? ` (Ref: ${cleanCode})` : ''}. Receipt #${receiptNumber}`,
+      user: req.user._id
+    });
+
+    try {
+      await order.save();
+    } catch (saveErr) {
+      if (saveErr.code === 11000 || saveErr.message?.includes('duplicate key')) {
+        return res.status(409).json({
+          success: false,
+          message: `M-Pesa confirmation code ${cleanCode} is already registered on another order.`
+        });
+      }
+      throw saveErr;
+    }
+
+    await logActivity(req, 'COD_PAYMENT_CONFIRMED', `Confirmed COD payment of KES ${codAmount} for order #${order.orderNumber}`, order._id);
+
+    return res.json({
+      success: true,
+      message: 'Cash on Delivery payment confirmed successfully',
+      data: order
+    });
+  }
+
+  // Validate Paybill order rules
+  if (order.paymentMethod !== 'paybill') {
+    return res.status(400).json({
+      success: false,
+      message: `Order payment method is '${order.paymentMethod}'. Confirm payment is designated for Paybill orders.`
+    });
+  }
+
+  if (order.paymentStatus === 'paid') {
+    return res.status(400).json({
+      success: false,
+      message: 'Order is already marked as paid'
+    });
+  }
+
+  if (order.paymentStatus === 'expired' || order.orderStatus === 'cancelled') {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot confirm payment on an expired or cancelled order'
+    });
+  }
+
+  const cleanCode = (mpesaCode || '').trim().toUpperCase();
+  if (!cleanCode) {
+    return res.status(400).json({
+      success: false,
+      message: 'M-Pesa transaction reference code is required'
+    });
+  }
+
+  const parsedAmount = parseFloat(amountReceived);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Amount received must be a positive number'
+    });
+  }
+
+  // Check if code was already verified on this same order
+  if (order.paymentConfirmations && order.paymentConfirmations.some(c => c.mpesaCode === cleanCode)) {
+    return res.status(409).json({
+      success: false,
+      message: `M-Pesa transaction code ${cleanCode} has already been verified for this order.`
+    });
+  }
+
+  // Pre-check for duplicate M-Pesa code across other orders
+  const duplicateOrder = await Order.findOne({
+    $or: [
+      { 'paymentConfirmation.mpesaCode': cleanCode },
+      { 'paymentConfirmations.mpesaCode': cleanCode }
+    ],
+    _id: { $ne: order._id }
+  });
+
+  if (duplicateOrder) {
+    return res.status(409).json({
+      success: false,
+      message: `M-Pesa reference code ${cleanCode} has already been confirmed on order #${duplicateOrder.orderNumber}`
+    });
+  }
+
+  // Calculate cumulative verified payments
+  const existingPaid = (order.paymentConfirmations || []).reduce((sum, c) => sum + (Number(c.amountReceived) || 0), 0);
+  const totalPaid = existingPaid + parsedAmount;
+  const isFullPayment = totalPaid >= order.total;
+  const outstandingBalance = Math.max(0, order.total - totalPaid);
+
+  const receiptNumber = (isFullPayment && order.receipt?.receiptNumber)
+    ? order.receipt.receiptNumber
+    : generateReceiptNumber();
+
+  const newConfirmation = {
+    mpesaCode: cleanCode,
+    amountReceived: parsedAmount,
+    confirmedBy: req.user._id,
+    confirmedAt: new Date(),
+    receiptNumber,
+    notes: req.body.notes || ''
+  };
+
+  order.paymentConfirmations.push(newConfirmation);
+  order.paymentConfirmation = {
+    mpesaCode: cleanCode,
+    amountReceived: parsedAmount,
+    confirmedBy: req.user._id,
+    confirmedAt: new Date()
+  };
+
+  order.receipt = {
+    receiptNumber,
+    issueDate: new Date(),
+    paymentType: isFullPayment ? 'full' : 'partial',
+    amountReceived: totalPaid,
+    outstandingBalance,
+    generatedAt: new Date()
+  };
+
+  order.paymentStatus = isFullPayment ? 'paid' : 'partially_paid';
+  if (isFullPayment) {
+    order.paymentVerificationStatus = 'verified';
+  }
+
+  order.orderEvents.push({
+    status: isFullPayment ? 'PAYMENT_CONFIRMED' : 'PAYMENT_PARTIAL',
+    note: isFullPayment
+      ? `Paybill full payment confirmed by admin ${req.user.email || 'Admin'}: KES ${parsedAmount} verified (Code: ${cleanCode}). Total paid: KES ${totalPaid}. Receipt #${receiptNumber}`
+      : `Partial payment recorded by admin: KES ${parsedAmount} verified (Code: ${cleanCode}). Total paid: KES ${totalPaid}/${order.total}. Outstanding: KES ${outstandingBalance}. Fulfillment remains blocked.`,
+    user: req.user._id
+  });
+
+  try {
+    await order.save();
+  } catch (saveErr) {
+    if (saveErr.code === 11000 || saveErr.message?.includes('duplicate key')) {
+      return res.status(409).json({
+        success: false,
+        message: `M-Pesa confirmation code ${cleanCode} has already been registered on another order.`
+      });
+    }
+    throw saveErr;
+  }
+
+  // Trigger Notifications & Attach Generated PDF Receipt
+  const customerEmail = order.shippingAddress?.email || order.user?.email;
+  const customerName = order.shippingAddress?.firstName || order.user?.firstName || 'Valued Customer';
+
+  let logoUrl;
+  try {
+    const settings = await Settings.getSettings();
+    logoUrl = settings?.store?.logo;
+  } catch (_) {}
+
+  if (isFullPayment) {
+    // 1. Full Payment Admin Alert
+    try {
+      sendPaymentConfirmedAdminAlert(order).catch(console.error);
+    } catch (alertErr) {
+      console.error('❌ Failed to trigger admin alert on payment confirmation:', alertErr.message);
+    }
+
+    // 2. Full Payment Customer Email with Attached PDF Receipt
+    if (customerEmail) {
+      try {
+        const pdfBuffer = await generateReceiptPDF(order);
+        const emailHtml = getPaymentConfirmedWithReceiptEmail(
+          customerName,
+          order.orderNumber,
+          receiptNumber,
+          totalPaid,
+          logoUrl,
+          order._id.toString()
+        );
+
+        await sendEmail({
+          to: customerEmail,
+          subject: `Payment Confirmed & Receipt - Order #${order.orderNumber} - Rerendet Coffee`,
+          html: emailHtml,
+          attachments: [
+            {
+              filename: `Rerendet-Receipt-${receiptNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            }
+          ]
+        });
+      } catch (emailErr) {
+        console.error('❌ Failed to send receipt confirmation email:', emailErr.message);
+      }
+    }
+  } else {
+    // 1. Partial Payment Admin Alert
+    try {
+      sendPartialPaymentAdminAlert(order, cleanCode, parsedAmount, outstandingBalance).catch(console.error);
+    } catch (alertErr) {
+      console.error('❌ Failed to trigger partial payment admin alert:', alertErr.message);
+    }
+
+    // 2. Partial Payment Customer Email with Partial Acknowledgment
+    if (customerEmail) {
+      try {
+        const pdfBuffer = await generateReceiptPDF(order);
+        const emailHtml = getPartialPaymentReceivedCustomerEmail(
+          customerName,
+          order.orderNumber,
+          parsedAmount,
+          outstandingBalance,
+          receiptNumber,
+          logoUrl,
+          order._id.toString()
+        );
+
+        await sendEmail({
+          to: customerEmail,
+          subject: `Partial Payment Received - Order #${order.orderNumber} (KES ${outstandingBalance} balance)`,
+          html: emailHtml,
+          attachments: [
+            {
+              filename: `Rerendet-Acknowledgment-${receiptNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf'
+            }
+          ]
+        });
+      } catch (emailErr) {
+        console.error('❌ Failed to send partial payment email:', emailErr.message);
+      }
+    }
+  }
+
+  await logActivity(
+    req,
+    isFullPayment ? 'PAYBILL_PAYMENT_CONFIRMED' : 'PAYBILL_PARTIAL_PAYMENT',
+    `Verified KES ${parsedAmount} for order #${order.orderNumber} (Code: ${cleanCode}). Status: ${order.paymentStatus}`,
+    order._id
+  );
+
+  res.json({
+    success: true,
+    message: isFullPayment ? 'Payment confirmed and receipt generated successfully' : `Partial payment of KES ${parsedAmount} recorded. Order remains pending balance.`,
+    data: order
+  });
+});
+
+// @desc    Download Official Digital Payment Receipt (PDF) for Admin
+// @route   GET /api/admin/orders/:id/receipt
+// @access  Private/Admin
+const downloadAdminOrderReceipt = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const order = await Order.findById(id).populate('user', 'firstName lastName email');
+
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found'
+    });
+  }
+
+  const hasVerifiedPayment = order.paymentStatus === 'paid' ||
+    order.paymentStatus === 'partially_paid' ||
+    (order.paymentConfirmations && order.paymentConfirmations.length > 0) ||
+    order.receipt?.receiptNumber;
+
+  if (!hasVerifiedPayment) {
+    return res.status(400).json({
+      success: false,
+      message: 'Receipt is only available after a payment transaction has been verified.'
+    });
+  }
+
+  await generateReceiptPDF(order, res);
+});
+
 // @desc    Initiate dynamic/manual gateway refund
 // @route   POST /api/admin/orders/:id/refund
 // @access  Private/Admin
@@ -3019,8 +3699,14 @@ export {
   updateProductStock,
   resetUserSecurity,
   generateUserPasswordReset,
+  revokeUserPasswordRecovery,
+  getUserRecoveryHistory,
+  getUserSessions,
+  revokeUserSession,
   getPaymentTransactions,
   manualPaymentOverride,
+  confirmPayment,
+  downloadAdminOrderReceipt,
   refundOrder,
   getReconciliationReport,
   getSystemHealth,

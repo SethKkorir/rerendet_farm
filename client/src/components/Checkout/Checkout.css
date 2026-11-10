@@ -479,74 +479,241 @@
   background: #FFFFFF;
 }
 
-/* ── Country Meta Card & Location Enhancements ── */
-.chk-country-meta-card {
+/* ── Searchable Country Combobox (Search directly inside country input) ── */
+.chk-country-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.chk-country-input-flag {
+  position: absolute;
+  left: 0.95rem;
+  font-size: 1.25rem;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 2;
+  user-select: none;
+}
+
+.chk-country-combobox-input {
+  padding-left: 2.85rem !important;
+  padding-right: 3.5rem !important;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: #FFFFFF !important;
+  background: var(--chk-input-bg, #FFFFFF) !important;
+  transition: all 0.2s ease;
+}
+
+.chk-country-input-wrap.focused .chk-country-combobox-input {
+  cursor: text;
+  border-color: var(--chk-input-focus-border);
+  box-shadow: 0 0 0 3px var(--chk-input-focus-glow);
+}
+
+[data-theme='dark'] .chk-country-combobox-input {
+  background-color: #1a0d03 !important;
+  background: var(--chk-input-bg, #1a0d03) !important;
+}
+
+.chk-country-input-actions {
+  position: absolute;
+  right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+
+.chk-country-clear-btn {
+  background: none;
+  border: none;
+  color: var(--chk-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.chk-country-clear-btn:hover {
+  color: var(--chk-text-main);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] .chk-country-clear-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chk-country-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chk-country-trigger-arrow {
+  font-size: 0.75rem;
+  color: var(--chk-text-muted);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.chk-country-trigger-arrow.rotated {
+  transform: rotate(180deg);
+  color: var(--chk-gold);
+}
+
+/* ── Country Dropdown Popover ── */
+.chk-country-dropdown-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1050;
+  background-color: #FFFFFF !important;
+  background: var(--chk-surface, #FFFFFF) !important;
+  border: 1px solid var(--chk-border, #E8E2D9);
+  border-radius: 12px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22), 0 6px 16px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  animation: chkDropdownFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+[data-theme='dark'] .chk-country-dropdown-popover {
+  background-color: #1f1005 !important;
+  background: #1f1005 !important;
+  border-color: rgba(216, 150, 78, 0.35);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7);
+}
+
+@keyframes chkDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chk-country-popover-header {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--chk-border, #E8E2D9);
+  background: var(--chk-surface-subtle, #F8F5EE);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--chk-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+[data-theme='dark'] .chk-country-popover-header {
+  background: #271407;
+  border-bottom-color: rgba(216, 150, 78, 0.22);
+}
+
+.chk-country-options-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 6px 0;
+  overscroll-behavior: contain;
+  background-color: #FFFFFF !important;
+  background: var(--chk-surface, #FFFFFF) !important;
+}
+
+[data-theme='dark'] .chk-country-options-list {
+  background-color: #1f1005 !important;
+  background: #1f1005 !important;
+}
+
+.chk-country-options-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chk-country-options-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chk-country-options-list::-webkit-scrollbar-thumb {
+  background: var(--chk-border);
+  border-radius: 99px;
+}
+
+.chk-country-option-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--chk-surface-subtle);
-  border: 1px solid var(--chk-border);
-  border-radius: 10px;
-  padding: 10px 14px;
-  margin-top: 6px;
-  transition: all 0.2s ease;
+  padding: 10px 16px;
+  cursor: pointer;
+  background: transparent;
+  transition: background 0.15s ease;
 }
 
-[data-theme='dark'] .chk-country-meta-card {
-  background: rgba(216, 150, 78, 0.08);
-  border-color: rgba(216, 150, 78, 0.25);
+.chk-country-option-item:hover {
+  background: #F3ECE1 !important;
 }
 
-.chk-country-meta-left {
+.chk-country-option-item.selected {
+  background: #EDE2CE !important;
+  font-weight: 700;
+}
+
+[data-theme='dark'] .chk-country-option-item:hover {
+  background: rgba(216, 150, 78, 0.18) !important;
+}
+
+[data-theme='dark'] .chk-country-option-item.selected {
+  background: rgba(216, 150, 78, 0.3) !important;
+}
+
+.chk-country-option-info {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.chk-country-flag-large {
-  font-size: 1.55rem;
+.chk-country-option-flag {
+  font-size: 1.15rem;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.chk-country-name {
-  display: block;
+.chk-country-option-name {
   font-size: 0.88rem;
-  font-weight: 700;
   color: var(--chk-text-main);
-  line-height: 1.25;
-}
-
-.chk-country-sub {
-  display: block;
-  font-size: 0.74rem;
-  color: var(--chk-text-muted);
-  line-height: 1.2;
-}
-
-.chk-zone-pill {
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 4px 10px;
-  border-radius: 99px;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chk-country-option-dial {
+  font-size: 0.76rem;
+  color: var(--chk-text-muted);
+  white-space: nowrap;
+}
+
+.chk-country-option-check {
+  font-size: 0.8rem;
+  color: var(--chk-gold);
   flex-shrink: 0;
 }
 
-.chk-zone-pill.domestic {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.chk-zone-pill.international {
-  background: rgba(59, 130, 246, 0.15);
-  color: #60a5fa;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+.chk-country-options-empty {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--chk-text-muted);
 }
 
 /* ── Saved Delivery Addresses Grid in Checkout ── */
@@ -1050,4 +1217,367 @@
   font-weight: 700;
   color: var(--chk-text-main);
   flex-shrink: 0;
+}
+
+
+/* ── Enhanced Card Payment Section ── */
+.card-payment-form-wrap {
+  background: var(--chk-surface);
+  border: 1px solid var(--chk-border);
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.card-payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--chk-border);
+}
+
+.card-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.card-header-heading {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--chk-text-main);
+  letter-spacing: -0.01em;
+}
+
+.card-header-security-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.accepted-cards-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.accepted-card-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--chk-border);
+  background: var(--chk-surface-subtle);
+  color: var(--chk-text-muted);
+}
+
+.accepted-card-pill.visa {
+  color: #1A1F71;
+  background: #ffffff;
+}
+
+.accepted-card-pill.mc {
+  color: #EB001B;
+  background: #ffffff;
+}
+
+.accepted-card-pill.amex {
+  color: #006FCF;
+  background: #ffffff;
+}
+
+[data-theme='dark'] .accepted-card-pill.visa {
+  color: #60A5FA;
+  background: #1B1310;
+}
+
+[data-theme='dark'] .accepted-card-pill.mc {
+  color: #F87171;
+  background: #1B1310;
+}
+
+[data-theme='dark'] .accepted-card-pill.amex {
+  color: #38BDF8;
+  background: #1B1310;
+}
+
+.saved-card-option-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--chk-border);
+  background: var(--chk-surface-subtle);
+  margin-bottom: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saved-card-option-card.selected {
+  border-color: var(--chk-btn-bg);
+  background: var(--chk-card-selected-bg);
+  box-shadow: 0 0 0 1px var(--chk-btn-bg);
+}
+
+.saved-card-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.85rem;
+  color: var(--chk-text-main);
+  cursor: pointer;
+}
+
+.btn-card-edit {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--chk-btn-bg);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.btn-card-edit:hover {
+  text-decoration: underline;
+}
+
+.card-security-reassurance {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1.15rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  font-size: 0.78rem;
+  color: var(--chk-text-muted);
+  line-height: 1.4;
+}
+
+.reassurance-shield {
+  color: #10B981;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.badge-brand.generic {
+  color: var(--chk-text-muted);
+  background: var(--chk-surface-subtle);
+}
+
+.animated-fade-in {
+  animation: chkFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes chkFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* ─── Paybill Post-Checkout Instructions Screen ─────────────────── */
+.paybill-instructions-screen {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 36px 32px;
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.05);
+  text-align: center;
+  margin: 18px 0;
+}
+
+.paybill-success-badge-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  color: #10b981;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.paybill-screen-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.paybill-screen-subtitle {
+  font-size: 15px;
+  color: #64748b;
+  margin: 0 auto 24px;
+  max-width: 520px;
+  line-height: 1.6;
+}
+
+.paybill-steps-card {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 22px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.paybill-steps-heading {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #475569;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paybill-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.paybill-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: 14.5px;
+  color: #1e293b;
+  line-height: 1.5;
+}
+
+.paybill-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.paybill-step-val-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: #0f172a;
+  margin-left: 6px;
+}
+
+.paybill-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  font-size: 13px;
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.paybill-copy-btn:hover {
+  color: #0f172a;
+}
+
+.paybill-amount-badge {
+  font-weight: 800;
+  color: #ea580c;
+  font-size: 18px;
+  margin-left: 6px;
+}
+
+.paybill-whatsapp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #25d366;
+  color: #ffffff !important;
+  text-decoration: none;
+  padding: 16px 36px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.28);
+  transition: transform 0.15s, box-shadow 0.15s;
+  margin-bottom: 20px;
+}
+
+.paybill-whatsapp-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(37, 211, 102, 0.36);
+}
+
+.paybill-notice-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 13.5px;
+  color: #92400e;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.paybill-actions-row {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.paybill-track-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #0f172a;
+  color: #ffffff !important;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 14.5px;
+  transition: opacity 0.15s;
+}
+
+.paybill-track-btn:hover {
+  opacity: 0.9;
 }

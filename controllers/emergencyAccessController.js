@@ -457,3 +457,4 @@ export const getEmergencyStatus = asyncHandler(async (req, res) => {
     }
   });
 });
+

@@ -26,6 +26,7 @@ function AccountDashboard() {
   const {
     user,
     userType,
+    isCustomer,
     authLoading,
     fetchUserOrders,
     orderRefreshTrigger,
@@ -35,28 +36,38 @@ function AccountDashboard() {
 
   const navigate = useNavigate();
 
-  // Redirect unauthenticated users ONLY after auth loading settles
+  // Zero-Trust: Dashboards fetch user details directly from /api/auth/me on mount
+  const [profileUser, setProfileUser] = useState(user);
   useEffect(() => {
-    if (!authLoading && !user) {
+    let isMounted = true;
+    import('../../api/api').then(({ default: API }) => {
+      API.get('/auth/me')
+        .then(res => {
+          if (res.data?.success && res.data?.data && isMounted) {
+            setProfileUser(res.data.data.user || res.data.data);
+          }
+        })
+        .catch(err => console.error('Failed to fetch fresh user profile:', err));
+    });
+    return () => { isMounted = false; };
+  }, []);
+
+  const activeUser = profileUser || user;
+
+  // Only authenticated customers can access the customer portal
+  useEffect(() => {
+    if (!authLoading && (!user || !isCustomer)) {
       navigate('/login?redirect=/account', { replace: true });
     }
-  }, [authLoading, user, navigate]);
-
-  // Block admin users from customer portal
-  const isAdminUser = userType === 'admin' || user?.role === 'admin' || user?.role === 'super-admin';
-  useEffect(() => {
-    if (!authLoading && user && isAdminUser) {
-      navigate('/admin', { replace: true });
-    }
-  }, [authLoading, user, isAdminUser, navigate]);
+  }, [authLoading, user, isCustomer, navigate]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
-  
+
   const setActiveTab = (tabId) => {
     setSearchParams({ tab: tabId });
   };
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Orders State
@@ -133,15 +144,15 @@ function AccountDashboard() {
     );
   }
 
-  if (!user) {
+  if (!user || !isCustomer) {
     return (
       <div className="customer-layout session-expired-layout">
         <div className="session-expired-card">
           <div className="session-expired-icon">
             <FaUser />
           </div>
-          <h2 className="session-expired-title">Session Expired</h2>
-          <p className="session-expired-desc">Your session has timed out or requires authentication. Please sign in to continue.</p>
+          <h2 className="session-expired-title">Customer Sign In Required</h2>
+          <p className="session-expired-desc">Please sign in with your customer account to access the customer portal.</p>
           <button
             type="button"
             className="btn-order-primary session-expired-btn"
@@ -165,21 +176,30 @@ function AccountDashboard() {
         {/* ═══ LUXURY DARK CHOCOLATE SIDEBAR (Matching Image 2) ═══ */}
         <aside className={`portal-sidebar ${isSidebarOpen ? 'open' : ''}`}>
           <div className="sidebar-inner-stack">
-            {/* ── Brand Header (Emblem + Gold Serif) ── */}
+            {/* ── Brand Header ── */}
             <div className="portal-sidebar-brand" onClick={() => setActiveTab('overview')}>
-              <img
-                src={storeLogo}
-                alt={storeName}
-                className="portal-brand-logo-img"
-                onError={(e) => { e.target.src = '/rerendet-logo.png'; }}
-              />
+              <div className="portal-brand-badge">R·C</div>
               <div className="portal-brand-text">
                 <span className="brand-title">Rerendet</span>
-                <span className="brand-subtitle">Coffee</span>
+                <span className="brand-subtitle">COFFEE</span>
               </div>
-              <button className="portal-mobile-close" onClick={() => setIsSidebarOpen(false)}>
+              <button className="portal-mobile-close" onClick={(e) => { e.stopPropagation(); setIsSidebarOpen(false); }}>
                 <FaTimes />
               </button>
+            </div>
+
+            {/* ── User Identity Pill Card (Matching Screenshot Avatar + Name + Gold member) ── */}
+            <div className="portal-sidebar-user-card" onClick={() => setActiveTab('profile')}>
+              <div className="portal-user-avatar">
+                {((activeUser?.firstName?.[0] || 'S') + (activeUser?.lastName?.[0] || 'K')).toUpperCase()}
+              </div>
+              <div className="portal-user-info">
+                <span className="portal-user-name">
+                  {activeUser?.firstName ? `${activeUser.firstName} ${activeUser.lastName || ''}`.trim() : (activeUser?.email || 'Customer')}
+                </span>
+                <span className="portal-user-tier">Gold member</span>
+              </div>
+              <FaChevronDown className="portal-user-chevron" />
             </div>
 
             {/* ── Nav Sections ── */}
@@ -208,6 +228,7 @@ function AccountDashboard() {
                           </span>
                           <span className="pill-label">{item.label}</span>
                           {item.alert && <span className="pill-alert-dot" />}
+                          {isActive && <span className="pill-active-arrow">↗</span>}
                         </button>
                       );
                     })}
@@ -215,27 +236,41 @@ function AccountDashboard() {
                 </div>
               ))}
             </nav>
+
+            {/* ── Protection Note at bottom of sidebar ── */}
+            <div className="portal-sidebar-protection-note">
+              <FaShieldAlt className="protection-icon" />
+              <span>Your details are protected with care.</span>
+            </div>
           </div>
         </aside>
 
         {/* ═══ MAIN CANVAS ═══ */}
         <div className="portal-main-canvas">
-          {/* Mobile-Only Dashboard Subbar */}
-          <div className="portal-mobile-subbar">
-            <button className="portal-mobile-menu-pill" onClick={() => setIsSidebarOpen(true)}>
-              <FaBars />
-              <span>Menu</span>
+          {/* Mobile-Only Dashboard Header */}
+          <div className="portal-mobile-app-header">
+            <div className="portal-mobile-brand-pill" onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }}>
+              <span className="portal-mobile-badge">R·C</span>
+              <span className="portal-mobile-title">
+                {navSections.flatMap(s => s.items).find(i => i.id === activeTab)?.label || 'Overview'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="portal-mobile-avatar-pill"
+              onClick={() => setIsSidebarOpen(prev => !prev)}
+              aria-label="Toggle Full Account Menu"
+            >
+              <span>{((activeUser?.firstName?.[0] || 'S') + (activeUser?.lastName?.[0] || 'K')).toUpperCase()}</span>
+              {!activeUser?.twoFactorEnabled && <span className="portal-avatar-alert-dot" />}
             </button>
-            <span className="portal-mobile-section-name">
-              {navSections.flatMap(s => s.items).find(i => i.id === activeTab)?.label || 'Overview'}
-            </span>
           </div>
 
           {/* ── Active Tab View ── */}
           <main className="portal-content-body modern-main-content">
             {activeTab === 'overview' && (
               <OverviewTab
-                user={user}
+                user={activeUser}
                 orders={orders}
                 onNavigate={setActiveTab}
                 publicSettings={publicSettings}
@@ -245,13 +280,99 @@ function AccountDashboard() {
               <OrdersTab orders={orders} loading={ordersLoading} onRefresh={() => loadOrders(true)} />
             )}
             {activeTab === 'addresses' && <AddressesTab />}
-            {activeTab === 'wallet' && <WalletTab />}
+            {activeTab === 'wallet' && <WalletTab onNavigate={setActiveTab} />}
             {activeTab === 'tickets' && <TicketsTab />}
-            {activeTab === 'profile' && <ProfileTab />}
+            {activeTab === 'profile' && <ProfileTab onNavigate={setActiveTab} />}
             {activeTab === 'security' && <SecurityTab />}
           </main>
+
+          {/* ── Dashboard Canvas Footer ── */}
+          <footer className="portal-canvas-footer">
+            <span className="footer-left">Made with care in Kenya</span>
+            <span className="footer-right">© {new Date().getFullYear()} Rerendet Coffee</span>
+          </footer>
         </div>
       </div>
+
+      {/* ═══ MOBILE BOTTOM APP BAR (Native App Experience) ═══ */}
+      <nav className="portal-mobile-bottom-bar" aria-label="Account Bottom Navigation">
+        <button
+          type="button"
+          className={`portal-bottom-nav-item ${activeTab === 'overview' && !isSidebarOpen ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('overview');
+            setIsSidebarOpen(false);
+          }}
+        >
+          <div className="portal-bottom-nav-icon">
+            <FaHome />
+          </div>
+          <span className="portal-bottom-nav-label">Home</span>
+          {activeTab === 'overview' && !isSidebarOpen && <span className="portal-bottom-nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`portal-bottom-nav-item ${activeTab === 'orders' && !isSidebarOpen ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('orders');
+            setIsSidebarOpen(false);
+          }}
+        >
+          <div className="portal-bottom-nav-icon">
+            <FaShoppingBag />
+            {orders && orders.length > 0 && <span className="portal-bottom-badge">{orders.length}</span>}
+          </div>
+          <span className="portal-bottom-nav-label">Orders</span>
+          {activeTab === 'orders' && !isSidebarOpen && <span className="portal-bottom-nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`portal-bottom-nav-item ${activeTab === 'wallet' && !isSidebarOpen ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('wallet');
+            setIsSidebarOpen(false);
+          }}
+        >
+          <div className="portal-bottom-nav-icon">
+            <FaCreditCard />
+          </div>
+          <span className="portal-bottom-nav-label">M-Pesa</span>
+          {activeTab === 'wallet' && !isSidebarOpen && <span className="portal-bottom-nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`portal-bottom-nav-item ${activeTab === 'tickets' && !isSidebarOpen ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('tickets');
+            setIsSidebarOpen(false);
+          }}
+        >
+          <div className="portal-bottom-nav-icon">
+            <FaHeadset />
+          </div>
+          <span className="portal-bottom-nav-label">Support</span>
+          {activeTab === 'tickets' && !isSidebarOpen && <span className="portal-bottom-nav-dot" />}
+        </button>
+
+        <button
+          type="button"
+          className={`portal-bottom-nav-item ${(['profile', 'addresses', 'security'].includes(activeTab) || isSidebarOpen) ? 'active' : ''}`}
+          onClick={() => setIsSidebarOpen(prev => !prev)}
+          aria-label="Account Menu"
+        >
+          <div className="portal-bottom-nav-icon">
+            <FaUser />
+            {!user?.twoFactorEnabled && <span className="portal-bottom-alert-dot" />}
+          </div>
+          <span className="portal-bottom-nav-label">{isSidebarOpen ? 'Close' : 'Account'}</span>
+          {(['profile', 'addresses', 'security'].includes(activeTab) || isSidebarOpen) && (
+            <span className="portal-bottom-nav-dot" />
+          )}
+        </button>
+      </nav>
     </div>
   );
 }

@@ -23,25 +23,40 @@ const API = axios.create({
 });
 
 // ── In-Memory Token Store ─────────────────────────────────────────────────────
-// Token lives ONLY in JS memory — invisible to XSS and browser DevTools storage
+// Token lives in memory with secure sessionStorage fallback during navigation
 let _accessToken = null;
 
 export const tokenStore = {
-  get: () => _accessToken,
+  get: () => _accessToken || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('__at') : null),
   set: (t) => {
     _accessToken = t || null;
+    if (typeof sessionStorage !== 'undefined') {
+      if (t) {
+        try { sessionStorage.setItem('__at', t); } catch (_) {}
+      } else {
+        try { sessionStorage.removeItem('__at'); } catch (_) {}
+      }
+    }
   },
   clear: () => {
     _accessToken = null;
+    if (typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem('__at'); } catch (_) {}
+    }
   },
 };
 
-// ── Request Interceptor — attach access token from memory ─────────────────────
+// ── Request Interceptor — attach access token from memory & declare scope ─────────────────
 API.interceptors.request.use(
   (config) => {
     const token = tokenStore.get();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // Zero-trust scope header: explicitly declare role-isolated session scope
+    if (typeof window !== 'undefined') {
+      const isAdminRoute = window.location.pathname.startsWith('/admin') || (config.url && config.url.includes('/admin'));
+      config.headers['X-Auth-Scope'] = isAdminRoute ? 'admin' : 'customer';
     }
     return config;
   },
@@ -84,6 +99,13 @@ API.interceptors.response.use(
     const isLoginOrAuth = original.url?.includes('/login') || 
                           original.url?.includes('/auth/customer/login') || 
                           original.url?.includes('/auth/customer/register') ||
+                          original.url?.includes('/auth/customer/verify-2fa') ||
+                          original.url?.includes('/verify-2fa') ||
+                          original.url?.includes('/verify-email') ||
+                          original.url?.includes('/verify-reset-code') ||
+                          original.url?.includes('/resend-verification') ||
+                          original.url?.includes('/resend-reset-code') ||
+                          original.url?.includes('/2fa/verify') ||
                           original.url?.includes('/auth/google') ||
                           original.url?.includes('/auth/forgot-password') ||
                           original.url?.includes('/auth/reset-password') ||
@@ -108,10 +130,15 @@ API.interceptors.response.use(
       try {
         console.log('🔄 Attempting silent token refresh...');
         const refreshEndpoint = apiBaseUrl.endsWith('/') ? `${apiBaseUrl}auth/refresh` : `${apiBaseUrl}/auth/refresh`;
+        const isAdminRoute = typeof window !== 'undefined' && (window.location.pathname.startsWith('/admin') || (original.url && original.url.includes('/admin')));
+        const authScope = isAdminRoute ? 'admin' : 'customer';
 
         const res = await axios.post(refreshEndpoint, {}, { 
           withCredentials: true,
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          headers: { 
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Auth-Scope': authScope
+          }
         });
 
         if (res.data?.success && res.data?.data?.token) {
@@ -130,15 +157,23 @@ API.interceptors.response.use(
         }
       } catch (refreshError) {
         isRefreshing = false;
+        const isDefinitiveAuthFailure = refreshError.response?.status === 401 || refreshError.response?.status === 403;
         const hadActiveSession = Boolean(tokenStore.get());
-        tokenStore.clear();
-        onTokenRefreshFailed(refreshError);
-        
-        // Dispatch session expired only if the user was actually logged in previously
-        if (hadActiveSession && typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('auth-expired', { detail: { error: refreshError } }));
+        const isAdminRoute = typeof window !== 'undefined' && (window.location.pathname.startsWith('/admin') || (original.url && original.url.includes('/admin')));
+        const authScope = isAdminRoute ? 'admin' : 'customer';
+
+        if (isDefinitiveAuthFailure) {
+          tokenStore.clear();
+          onTokenRefreshFailed(refreshError);
+
+          // Dispatch session expired only if server confirmed session is invalid/expired
+          if (hadActiveSession && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth-expired', { detail: { error: refreshError, scope: authScope } }));
+          }
+        } else {
+          onTokenRefreshFailed(refreshError);
         }
-        
+
         return Promise.reject(refreshError);
       }
     }
@@ -153,8 +188,14 @@ export const loginAdmin = (payload) => API.post(`/auth/${import.meta.env.VITE_AD
 export const googleLogin = (payload) => API.post('/auth/google', payload);
 export const register = (payload) => API.post('/auth/customer/register', payload);
 export const logout = () => API.post('/auth/logout');
-export const verifyEmail = (payload) => API.post('/auth/verify-email', payload);
-export const resendVerification = (payload) => API.post('/auth/resend-verification', payload);
+export const verifyEmail = (payload) => {
+  const body = typeof payload === 'string' ? { code: payload } : payload;
+  return API.post('/auth/verify-email', body);
+};
+export const resendVerification = (payload) => {
+  const body = typeof payload === 'string' ? { email: payload } : payload;
+  return API.post('/auth/resend-verification', body);
+};
 export const checkEmail = (params) => {
   const emailParam = typeof params === 'string' ? params : params?.email;
   return API.get('/auth/check-email', { params: { email: emailParam } });
@@ -162,7 +203,14 @@ export const checkEmail = (params) => {
 export const forgotPassword = (payload) => API.post('/auth/forgot-password', payload);
 export const verifyResetCode = (payload) => API.post('/auth/verify-reset-code', payload);
 export const resetPassword = (payload) => API.post('/auth/reset-password', payload);
+export const resendResetCode = (payload) => API.post('/auth/resend-reset-code', payload);
+export const getResetStatus = () => API.get('/auth/reset-status');
 export const verifyPassword = (payload) => API.post('/auth/verify-password', payload);
+
+// ---- Customer Sessions ----
+export const getCustomerSessions = () => API.get('/auth/sessions');
+export const revokeCustomerSession = (jti) => API.delete(`/auth/sessions/${jti}`);
+export const revokeAllOtherSessions = () => API.delete('/auth/sessions/mine/all');
 
 // ---- User Profile & Orders ----
 export const getCurrentUser = () => API.get('/auth/me');
@@ -182,6 +230,9 @@ export const syncCart = (payload) => API.post('/auth/cart', payload);
 export const getDashboardStats = (params) => API.get('/admin/dashboard/stats', { params });
 export const getSalesAnalytics = (params) => API.get('/admin/analytics/sales', { params });
 export const getActivityLogs = (params) => API.get('/admin/logs', { params });
+export const getAdminSessions = () => API.get('/admin/sessions');
+export const revokeAdminSession = (jti) => API.delete(`/admin/sessions/${jti}`);
+export const revokeAllOtherAdminSessions = () => API.delete('/admin/sessions/mine/all');
 export const getAdminUsers = (params) => API.get('/admin/users', { params });
 export const updateUserRole = (id, role) => API.put(`/admin/users/${id}/role`, { role });
 export const deleteUser = (id) => API.delete(`/admin/users/${id}`);

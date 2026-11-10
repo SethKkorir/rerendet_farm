@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../../../context/AppContext';
-import { getInvoices, updateInvoiceStatus } from '../../../api/api';
+import { getInvoices, updateInvoiceStatus, deleteInvoice } from '../../../api/api';
 import {
   FileText,
   Plus,
@@ -10,6 +10,7 @@ import {
   Eye,
   Download,
   Printer,
+  Trash2,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -85,6 +86,27 @@ const InvoicesManagement = () => {
     } catch (err) {
       showAlert('Failed to update invoice status', 'error');
     }
+  };
+
+  const handleDeleteInvoice = async (id, invoiceNumber, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Are you sure you want to delete invoice ${invoiceNumber || ''}?`)) return;
+    try {
+      const res = await deleteInvoice(id);
+      if (res.data?.success) {
+        showAlert('Invoice deleted successfully', 'success');
+        setInvoices(prev => prev.filter(inv => inv._id !== id));
+        fetchInvoicesList(true);
+      }
+    } catch (err) {
+      console.error('Failed to delete invoice:', err);
+      showAlert('Failed to delete invoice', 'error');
+    }
+  };
+
+  const handleDownloadInvoice = (id, e) => {
+    e.stopPropagation();
+    navigate(`/admin/invoices/${id}?print=true`);
   };
 
   const formatCurrency = (val) => `KES ${(Number(val) || 0).toLocaleString()}`;
@@ -282,17 +304,32 @@ const InvoicesManagement = () => {
                       <div className="im-action-btns">
                         <button
                           className="im-action-icon"
-                          title="View Single Invoice"
+                          title="View Invoice"
                           onClick={() => navigate(`/admin/invoices/${inv._id}`)}
                         >
                           <Eye size={15} />
                         </button>
                         <button
                           className="im-action-icon"
-                          title="Print / PDF"
+                          title="Download PDF"
+                          onClick={(e) => handleDownloadInvoice(inv._id, e)}
+                        >
+                          <Download size={15} />
+                        </button>
+                        <button
+                          className="im-action-icon"
+                          title="Print Document"
                           onClick={() => navigate(`/admin/invoices/${inv._id}?print=true`)}
                         >
                           <Printer size={15} />
+                        </button>
+                        <button
+                          className="im-action-icon delete"
+                          title="Delete Invoice"
+                          onClick={(e) => handleDeleteInvoice(inv._id, inv.invoiceNumber, e)}
+                          style={{ color: '#ef4444' }}
+                        >
+                          <Trash2 size={15} />
                         </button>
                         {inv.status !== 'paid' && (
                           <button
@@ -318,3 +355,4 @@ const InvoicesManagement = () => {
 };
 
 export default InvoicesManagement;
+

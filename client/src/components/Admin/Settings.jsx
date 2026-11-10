@@ -77,8 +77,18 @@ const Input = ({ label, hint, required, value, onChange, type = 'text', placehol
 
 // iOS-style toggle
 const Toggle = ({ checked, onChange, size = 'md' }) => (
-  <label className={`st-toggle st-toggle-${size}`}>
-    <input type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} />
+  <label
+    className={`st-toggle st-toggle-${size}`}
+    onClick={e => e.stopPropagation()}
+  >
+    <input
+      type="checkbox"
+      checked={!!checked}
+      onChange={e => {
+        e.stopPropagation();
+        onChange(e.target.checked);
+      }}
+    />
     <span className="st-toggle-track">
       <span className="st-toggle-thumb" />
     </span>
@@ -87,7 +97,13 @@ const Toggle = ({ checked, onChange, size = 'md' }) => (
 
 // Toggle row (label + description on left, toggle on right)
 const ToggleRow = ({ label, description, checked, onChange, danger }) => (
-  <div className={`st-toggle-row ${danger ? 'danger' : ''}`}>
+  <div
+    className={`st-toggle-row ${danger ? 'danger' : ''}`}
+    onClick={(e) => {
+      if (e.target.tagName === 'INPUT' || e.target.closest('.st-toggle')) return;
+      onChange(!checked);
+    }}
+  >
     <div className="st-toggle-info">
       <strong>{label}</strong>
       {description && <span>{description}</span>}
@@ -97,16 +113,28 @@ const ToggleRow = ({ label, description, checked, onChange, danger }) => (
 );
 
 // Payment method card
-const PayCard = ({ icon, label, description, checked, onChange }) => (
-  <div className={`st-pay-card ${checked ? 'active' : ''}`} onClick={() => onChange(!checked)}>
-    <div className="st-pay-top">
-      <span className="st-pay-icon">{icon}</span>
-      <Toggle checked={checked} onChange={onChange} size="sm" />
+const PayCard = ({ icon, label, description, checked, onChange }) => {
+  const isChecked = !!checked;
+  return (
+    <div
+      className={`st-pay-card ${isChecked ? 'active' : ''}`}
+      onClick={(e) => {
+        if (e.target.tagName === 'INPUT' || e.target.closest('.st-toggle')) return;
+        onChange(!isChecked);
+      }}
+      role="button"
+      tabIndex={0}
+      style={{ cursor: 'pointer' }}
+    >
+      <div className="st-pay-top">
+        <span className="st-pay-icon">{icon}</span>
+        <Toggle checked={isChecked} onChange={v => onChange(v)} size="sm" />
+      </div>
+      <strong>{label}</strong>
+      <span>{description}</span>
     </div>
-    <strong>{label}</strong>
-    <span>{description}</span>
-  </div>
-);
+  );
+};
 
 // Password strength meter
 const PasswordStrength = ({ password }) => {
@@ -151,6 +179,10 @@ const Settings = () => {
   const [signaturePreview, setSignaturePreview] = useState('');
   const [heroImageFile, setHeroImageFile] = useState(null);
   const [heroImagePreview, setHeroImagePreview] = useState('');
+  const [heroImageFile2, setHeroImageFile2] = useState(null);
+  const [heroImagePreview2, setHeroImagePreview2] = useState('');
+  const [heroImageFile3, setHeroImageFile3] = useState(null);
+  const [heroImagePreview3, setHeroImagePreview3] = useState('');
   const [aboutImageFile, setAboutImageFile] = useState(null);
   const [aboutImagePreview, setAboutImagePreview] = useState('');
   const [aboutImageFile2, setAboutImageFile2] = useState(null);
@@ -678,6 +710,8 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
         if (data.data.store?.logo) setLogoPreview(data.data.store.logo);
         if (data.data.store?.signature) setSignaturePreview(data.data.store.signature);
         if (data.data.hero?.imageUrl) setHeroImagePreview(data.data.hero.imageUrl);
+        if (data.data.hero?.imageUrl2) setHeroImagePreview2(data.data.hero.imageUrl2);
+        if (data.data.hero?.imageUrl3) setHeroImagePreview3(data.data.hero.imageUrl3);
         if (data.data.about?.imageUrl) setAboutImagePreview(data.data.about.imageUrl);
         if (data.data.about?.imageUrl2) setAboutImagePreview2(data.data.about.imageUrl2);
       }
@@ -706,6 +740,24 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
         const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
         if (r.ok) { const d = await r.json(); updatedSettings.hero = { ...updatedSettings.hero, imageUrl: d.data.url }; }
       }
+      if (heroImageFile2) {
+        const fd = new FormData(); fd.append('image', heroImageFile2);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        if (r.ok) { const d = await r.json(); updatedSettings.hero = { ...updatedSettings.hero, imageUrl2: d.data.url }; }
+      }
+      if (heroImageFile3) {
+        const fd = new FormData(); fd.append('image', heroImageFile3);
+        const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+        if (r.ok) { const d = await r.json(); updatedSettings.hero = { ...updatedSettings.hero, imageUrl3: d.data.url }; }
+      }
+      // Keep images array in sync
+      const heroImgs = [
+        updatedSettings.hero?.imageUrl,
+        updatedSettings.hero?.imageUrl2,
+        updatedSettings.hero?.imageUrl3
+      ].filter(Boolean);
+      updatedSettings.hero = { ...updatedSettings.hero, images: heroImgs };
+
       if (aboutImageFile) {
         const fd = new FormData(); fd.append('image', aboutImageFile);
         const r = await fetch('/api/admin/upload/image', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
@@ -729,7 +781,7 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
         showNotification('Settings saved successfully!', 'success');
         setSettings(data.data); setSavedSettings(data.data);
         await fetchPublicSettings();
-        setLogoFile(null); setHeroImageFile(null); setAboutImageFile(null); setAboutImageFile2(null); setNotifyCustomers(false);
+        setLogoFile(null); setHeroImageFile(null); setHeroImageFile2(null); setHeroImageFile3(null); setAboutImageFile(null); setAboutImageFile2(null); setNotifyCustomers(false);
       }
     } catch { showNotification('Failed to save settings', 'error'); }
     finally { setSaving(false); }
@@ -745,6 +797,16 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
     const f = e.target.files[0]; if (!f) return;
     setHeroImageFile(f);
     const r = new FileReader(); r.onload = e => setHeroImagePreview(e.target.result); r.readAsDataURL(f);
+  };
+  const handleHeroImageChange2 = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setHeroImageFile2(f);
+    const r = new FileReader(); r.onload = e => setHeroImagePreview2(e.target.result); r.readAsDataURL(f);
+  };
+  const handleHeroImageChange3 = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setHeroImageFile3(f);
+    const r = new FileReader(); r.onload = e => setHeroImagePreview3(e.target.result); r.readAsDataURL(f);
   };
   const handleAboutImageChange = e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1098,65 +1160,177 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
               {activeTab === 'hero' && (
                 <>
                   <Section
-                    title="Hero Product Image"
-                    subtitle="Real coffee bag product packaging photo displayed in the storefront hero section"
+                    title="Hero Product Showcase Images (Up to 3 Images)"
+                    subtitle="Real coffee bag product packaging photos displayed in the storefront hero conveyor showcase"
                     icon={<FaImage />}
                     accent="#D4AF37"
                   >
-                    <div className="st-about-img-row">
-                      <div className="st-hero-preview-box" style={{ position: 'relative', width: '220px', height: '220px', background: 'radial-gradient(circle at center, rgba(212, 175, 55, 0.1) 0%, rgba(15, 10, 8, 0.95) 100%), #120c09', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
-                        {heroImagePreview ? (
-                          <img src={heroImagePreview} alt="Hero Product" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.7))' }} />
-                        ) : (
-                          <div className="st-logo-empty"><FaImage /><span>No image chosen</span></div>
-                        )}
-                        {/* Live circular promo badge preview on packaging */}
-                        {s.hero?.promoBadge?.enabled && (
-                          <div style={{ position: 'absolute', top: '10px', right: '10px', width: '56px', height: '56px', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff1b8 0%, #D4AF37 55%, #a6811f 100%)', boxShadow: '0 6px 18px rgba(212, 175, 55, 0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#120b02', lineHeight: 1, border: '1px dashed rgba(20, 12, 0, 0.4)' }}>
-                            <strong style={{ fontSize: '0.88rem', fontWeight: 800 }}>{s.hero?.promoBadge?.percentage || 30}%</strong>
-                            <span style={{ fontSize: '0.45rem', fontWeight: 900, letterSpacing: '0.05em' }}>OFF</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="st-logo-actions" style={{ flex: 1 }}>
-                        <p className="st-hint">Recommended: High-res transparent PNG of coffee bag package or lifestyle pouch (800×800+)</p>
-                        <input
-                          type="file"
-                          id="hero-img-file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={handleHeroImageChange}
-                        />
-                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                          <label htmlFor="hero-img-file" className="btn-outline">
-                            <FaUpload /> Upload Real Coffee Bag Photo
-                          </label>
-                          <button
-                            type="button"
-                            className="btn-outline"
-                            onClick={() => {
-                              setHeroImagePreview('/hero-product.png');
-                              setHeroImageFile(null);
-                              set('hero', 'imageUrl', '/hero-product.png');
-                            }}
-                          >
-                            Use Standard Rerendet Pouch
-                          </button>
+                    <p className="st-hint" style={{ marginBottom: '1.25rem' }}>
+                      Recommended: High-res transparent PNG of coffee bag package or lifestyle pouch (800×800+). You can upload up to 3 coffee bag images. The storefront hero automatically animates smoothly between all uploaded products on a conveyor carousel.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {/* Slot 1: Primary Coffee Bag */}
+                      <div className="st-about-img-row" style={{ borderBottom: '1px dashed var(--border-main)', paddingBottom: '1.25rem' }}>
+                        <div className="st-hero-preview-box" style={{ position: 'relative', width: '200px', height: '200px', background: 'radial-gradient(circle at center, rgba(212, 175, 55, 0.1) 0%, rgba(15, 10, 8, 0.95) 100%), #120c09', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
+                          {heroImagePreview ? (
+                            <img src={heroImagePreview} alt="Hero Product 1" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.7))' }} />
+                          ) : (
+                            <div className="st-logo-empty"><FaImage /><span>Slot 1 Empty</span></div>
+                          )}
+                          <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(212, 175, 55, 0.9)', color: '#000', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>SLOT 1</span>
+                          {/* Live circular promo badge preview on packaging */}
+                          {s.hero?.promoBadge?.enabled && (
+                            <div style={{ position: 'absolute', top: '8px', right: '8px', width: '48px', height: '48px', borderRadius: '50%', background: 'radial-gradient(circle at 35% 35%, #fff1b8 0%, #D4AF37 55%, #a6811f 100%)', boxShadow: '0 6px 18px rgba(212, 175, 55, 0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#120b02', lineHeight: 1, border: '1px dashed rgba(20, 12, 0, 0.4)' }}>
+                              <strong style={{ fontSize: '0.8rem', fontWeight: 800 }}>{s.hero?.promoBadge?.percentage || 30}%</strong>
+                              <span style={{ fontSize: '0.4rem', fontWeight: 900, letterSpacing: '0.05em' }}>OFF</span>
+                            </div>
+                          )}
                         </div>
-                        {heroImagePreview && (
-                          <button
-                            type="button"
-                            className="btn-outline danger"
-                            style={{ marginTop: '0.5rem' }}
-                            onClick={() => {
-                              setHeroImagePreview('');
-                              setHeroImageFile(null);
-                              set('hero', 'imageUrl', '');
-                            }}
-                          >
-                            <FaTimes /> Reset Image
-                          </button>
-                        )}
+                        <div className="st-logo-actions" style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: 'var(--text-main)', fontWeight: 700 }}>Showcase Bag 1: Primary Product (1kg Barista Pack)</h4>
+                          <p className="st-hint">Hero sequence primary lead packaging photo.</p>
+                          <input
+                            type="file"
+                            id="hero-img-file-1"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleHeroImageChange}
+                          />
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                            <label htmlFor="hero-img-file-1" className="btn-outline">
+                              <FaUpload /> Upload Real Coffee Bag Photo
+                            </label>
+                            <button
+                              type="button"
+                              className="btn-outline"
+                              onClick={() => {
+                                setHeroImagePreview('/images/coffee/rerendet-espresso-1kg.png');
+                                setHeroImageFile(null);
+                                set('hero', 'imageUrl', '/images/coffee/rerendet-espresso-1kg.png');
+                              }}
+                            >
+                              Use Standard 1kg Pouch
+                            </button>
+                            {heroImagePreview && (
+                              <button
+                                type="button"
+                                className="btn-outline danger"
+                                onClick={() => {
+                                  setHeroImagePreview('');
+                                  setHeroImageFile(null);
+                                  set('hero', 'imageUrl', '');
+                                }}
+                              >
+                                <FaTimes /> Reset Image
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Slot 2: Secondary Coffee Bag */}
+                      <div className="st-about-img-row" style={{ borderBottom: '1px dashed var(--border-main)', paddingBottom: '1.25rem' }}>
+                        <div className="st-hero-preview-box" style={{ position: 'relative', width: '200px', height: '200px', background: 'radial-gradient(circle at center, rgba(212, 175, 55, 0.1) 0%, rgba(15, 10, 8, 0.95) 100%), #120c09', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
+                          {heroImagePreview2 ? (
+                            <img src={heroImagePreview2} alt="Hero Product 2" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.7))' }} />
+                          ) : (
+                            <div className="st-logo-empty"><FaImage /><span>Slot 2 Empty</span></div>
+                          )}
+                          <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(212, 175, 55, 0.9)', color: '#000', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>SLOT 2</span>
+                        </div>
+                        <div className="st-logo-actions" style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: 'var(--text-main)', fontWeight: 700 }}>Showcase Bag 2: Secondary Product (250g Artisan Bag)</h4>
+                          <p className="st-hint">Hero sequence secondary pouch packaging photo.</p>
+                          <input
+                            type="file"
+                            id="hero-img-file-2"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleHeroImageChange2}
+                          />
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                            <label htmlFor="hero-img-file-2" className="btn-outline">
+                              <FaUpload /> Upload Real Coffee Bag Photo
+                            </label>
+                            <button
+                              type="button"
+                              className="btn-outline"
+                              onClick={() => {
+                                setHeroImagePreview2('/images/coffee/rerendet-espresso-250g.png');
+                                setHeroImageFile2(null);
+                                set('hero', 'imageUrl2', '/images/coffee/rerendet-espresso-250g.png');
+                              }}
+                            >
+                              Use Standard 250g Bag
+                            </button>
+                            {heroImagePreview2 && (
+                              <button
+                                type="button"
+                                className="btn-outline danger"
+                                onClick={() => {
+                                  setHeroImagePreview2('');
+                                  setHeroImageFile2(null);
+                                  set('hero', 'imageUrl2', '');
+                                }}
+                              >
+                                <FaTimes /> Reset Image
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Slot 3: Tertiary Coffee Bag */}
+                      <div className="st-about-img-row">
+                        <div className="st-hero-preview-box" style={{ position: 'relative', width: '200px', height: '200px', background: 'radial-gradient(circle at center, rgba(212, 175, 55, 0.1) 0%, rgba(15, 10, 8, 0.95) 100%), #120c09', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
+                          {heroImagePreview3 ? (
+                            <img src={heroImagePreview3} alt="Hero Product 3" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.7))' }} />
+                          ) : (
+                            <div className="st-logo-empty"><FaImage /><span>Slot 3 (Optional)</span></div>
+                          )}
+                          <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(212, 175, 55, 0.9)', color: '#000', fontSize: '10px', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>SLOT 3</span>
+                        </div>
+                        <div className="st-logo-actions" style={{ flex: 1 }}>
+                          <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: 'var(--text-main)', fontWeight: 700 }}>Showcase Bag 3: Micro-lot / Reserve Pouch (Optional)</h4>
+                          <p className="st-hint">When uploaded, activates the 3-item conveyor sequence in the storefront hero section.</p>
+                          <input
+                            type="file"
+                            id="hero-img-file-3"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleHeroImageChange3}
+                          />
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                            <label htmlFor="hero-img-file-3" className="btn-outline">
+                              <FaUpload /> Upload Real Coffee Bag Photo
+                            </label>
+                            <button
+                              type="button"
+                              className="btn-outline"
+                              onClick={() => {
+                                setHeroImagePreview3('/hero-product.png');
+                                setHeroImageFile3(null);
+                                set('hero', 'imageUrl3', '/hero-product.png');
+                              }}
+                            >
+                              Use Standard Rerendet Pouch
+                            </button>
+                            {heroImagePreview3 && (
+                              <button
+                                type="button"
+                                className="btn-outline danger"
+                                onClick={() => {
+                                  setHeroImagePreview3('');
+                                  setHeroImageFile3(null);
+                                  set('hero', 'imageUrl3', '');
+                                }}
+                              >
+                                <FaTimes /> Reset Image
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </Section>

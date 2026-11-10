@@ -145,9 +145,6 @@ const EmergencySuperGate = () => {
         {/* Header */}
         <div className="esg-brand-header">
           <img src="/rerendet-logo.png" alt="Rerendet Logo" className="esg-logo" />
-          <div className="esg-badge">
-            <FaShieldAlt /> Enterprise Security Protocol
-          </div>
           <h1 className="esg-title">Emergency Super Gate</h1>
           <p className="esg-subtitle">
             Out-of-band storefront maintenance control for authorized SuperAdmins
@@ -330,3 +327,4 @@ const EmergencySuperGate = () => {
 };
 
 export default EmergencySuperGate;
+

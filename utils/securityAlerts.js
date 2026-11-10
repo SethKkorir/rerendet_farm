@@ -13,13 +13,14 @@ const state = {
   lastAlertSentAt: {} // Rate limit alerts to avoid flooding the super-admin
 };
 
-// Dispatch a premium formatted HTML email security alert to zsethkipchumba179@gmail.com
+// Dispatch a premium formatted HTML email security alert to superAdminEmail
 export const dispatchSecurityAlert = async ({
   eventTitle,
   eventDescription,
   ipAddress = 'N/A',
   userAccount = 'N/A',
   severity = 'WARNING', // INFO, WARNING, CRITICAL
+  includeKillswitch = false,
   metadata = {}
 }) => {
   try {
@@ -55,56 +56,62 @@ export const dispatchSecurityAlert = async ({
       severity === 'WARNING' ? '#F59E0B' : '#3B82F6';
 
     const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #0b0f19; color: #f8fafc;">
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 30px auto; padding: 36px 32px; border: 1px solid #EEF2F6; border-radius: 24px; background-color: #FFFFFF; box-shadow: 0 14px 42px rgba(15, 23, 42, 0.05); color: #334155;">
         <!-- Header -->
-        <div style="background-color: #0f172a; padding: 30px; text-align: center; border-bottom: 2px solid ${severityColor};">
-          <div style="display: inline-block; padding: 6px 12px; border-radius: 9999px; background-color: rgba(${severity === 'CRITICAL' ? '239, 68, 68' : '245, 158, 11'}, 0.15); color: ${severityColor}; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-bottom: 12px; border: 1px solid ${severityColor};">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <div style="display: inline-block; padding: 5px 14px; border-radius: 9999px; background-color: ${severity === 'CRITICAL' ? '#FEF2F2' : severity === 'WARNING' ? '#FFFBEB' : '#EFF6FF'}; color: ${severityColor}; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; border: 1px solid ${severityColor}40;">
             ${severity} SECURITY EVENT
           </div>
-          <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.025em;">${eventTitle}</h1>
-          <p style="color: #94a3b8; font-size: 13px; margin: 6px 0 0 0;">Timestamp: ${timestamp}</p>
+          <h1 style="color: #0F2444; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">${eventTitle}</h1>
+          <p style="color: #64748B; font-size: 13px; margin: 6px 0 0 0;">Timestamp: ${timestamp}</p>
         </div>
 
         <!-- Body Content -->
-        <div style="padding: 30px; background-color: #0b0f19;">
-          <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+        <div style="margin-bottom: 24px;">
+          <p style="color: #475569; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
             ${eventDescription}
           </p>
 
           <!-- Metadata Box -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; background-color: #1e293b; border-radius: 8px; overflow: hidden;">
-            <tr>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; font-weight: bold; color: #94a3b8; width: 35%;">IP Address:</td>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; color: #f8fafc; font-family: monospace;">${cleanIp}</td>
-            </tr>
-            <tr>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; font-weight: bold; color: #94a3b8;">User Account:</td>
-              <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; color: #f8fafc;">${userAccount}</td>
-            </tr>
-            ${Object.entries(metadata).map(([key, val]) => `
+          <div style="background-color: #F8FAFC; border: 1px solid #EEF2F6; border-radius: 18px; padding: 16px 20px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
               <tr>
-                <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; font-weight: bold; color: #94a3b8; text-transform: capitalize;">${key}:</td>
-                <td style="padding: 14px 16px; border-bottom: 1px solid #334155; font-size: 14px; color: #f8fafc;">${val}</td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-weight: 700; color: #64748B; width: 35%;">IP Address:</td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; color: #0F2444; font-family: monospace;">${cleanIp}</td>
               </tr>
-            `).join('')}
-          </table>
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-weight: 700; color: #64748B;">User Account:</td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; color: #0F2444;">${userAccount}</td>
+              </tr>
+              ${Object.entries(metadata).map(([key, val]) => `
+                <tr>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; font-weight: 700; color: #64748B; text-transform: capitalize;">${key}:</td>
+                  <td style="padding: 8px 0; border-bottom: 1px solid #EEF2F6; color: #0F2444;">${val}</td>
+                </tr>
+              `).join('')}
+            </table>
+          </div>
 
+          ${(severity === 'CRITICAL' && includeKillswitch) ? `
           <!-- Emergency Action Box -->
-          <div style="border: 1px dashed ${severityColor}; background-color: rgba(${severity === 'CRITICAL' ? '239, 68, 68' : '245, 158, 11'}, 0.05); padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
-            <h3 style="color: #ffffff; margin: 0 0 8px 0; font-size: 15px; font-weight: bold;">🚨 Emergency Threat Containment</h3>
-            <p style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0; line-height: 1.5;">
-              If this activity represents an active compromise, click below to lock down the website out-of-band using your pre-generated magic link.
+          <div style="border: 1.5px dashed ${severityColor}; background-color: #FEF2F2; padding: 20px; border-radius: 18px; text-align: center; margin-top: 24px;">
+            <h3 style="color: #DC2626; margin: 0 0 8px 0; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">🚨 Emergency Threat Containment</h3>
+            <p style="color: #7F1D1D; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+              If this activity represents an active compromise, authorized administrators may lock down the website out-of-band:
             </p>
-            <a href="${emergencyLink}" style="background-color: ${severityColor}; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 12px 24px; border-radius: 6px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);">
+            <a href="${emergencyLink}" style="background-color: ${severityColor}; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; padding: 12px 28px; border-radius: 9999px; display: inline-block; box-shadow: 0 8px 22px rgba(239, 68, 68, 0.28);">
               Toggle Emergency Lockout
             </a>
           </div>
+          ` : ''}
         </div>
 
         <!-- Footer -->
-        <div style="background-color: #0f172a; padding: 20px; text-align: center; border-top: 1px solid #1e293b; font-size: 12px; color: #64748b;">
-          <p style="margin: 0;">This email was dispatched automatically by Rerendet Coffee Security Shield.</p>
-          <p style="margin: 4px 0 0 0;">Do not share this link. It expires in 7 days and rotates automatically.</p>
+        <div style="border-top: 1px solid #EEF2F6; padding-top: 20px; text-align: center; font-size: 12px; color: #94A3B8;">
+          <p style="margin: 0;">This notification was dispatched automatically by Rerendet Security Shield.</p>
+          ${(severity === 'CRITICAL' && includeKillswitch) ? `
+          <p style="margin: 4px 0 0 0;">Do not share the emergency link. It expires in 7 days and rotates automatically.</p>
+          ` : ''}
         </div>
       </div>
     `;

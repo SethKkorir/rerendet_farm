@@ -55,9 +55,8 @@ const CommandPalette = () => {
         { id: 'coupons', label: 'Promotions & Coupons', icon: <FaTicketAlt />, path: '/admin/coupons' },
         { id: 'blogs', label: 'Blog & Articles', icon: <FaPenNib />, path: '/admin/blogs' },
         { id: 'controls', label: 'Operational Controls', icon: <FaCog />, path: '/admin/controls' },
-        { id: 'sessions', label: 'Active Sessions & Security', icon: <FaShieldAlt />, path: '/admin/sessions' },
         { id: 'documentation', label: 'System Documentation', icon: <FaBook />, path: '/admin/documentation' },
-        { id: 'logs', label: 'Security & Audit Logs', icon: <FaShieldAlt />, path: '/admin/logs' },
+        { id: 'logs', label: 'Security, Activity & Sessions', icon: <FaShieldAlt />, path: '/admin/logs' },
         { id: 'settings', label: 'System Settings', icon: <FaCog />, path: '/admin/settings' },
     ];
 

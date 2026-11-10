@@ -3,16 +3,16 @@ import { AppContext } from '../context/AppContext';
 import { getMyOrders } from '../api/api';
 
 function Orders() {
-  const { user } = useContext(AppContext);
+  const { user, isCustomer, isAdmin } = useContext(AppContext);
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-    if (user) {
+    if (isCustomer) {
       getMyOrders().then(res => setOrders(res.data.data)).catch(() => setOrders([]));
     }
-  }, [user]);
+  }, [isCustomer]);
 
-  if (!user) return <div>Please log in to view your orders.</div>;
+  if (!user && !isCustomer) return <div style={{ padding: '4rem 1.5rem', textAlign: 'center' }}>Please log in to view your orders.</div>;
 
   return (
     <div>

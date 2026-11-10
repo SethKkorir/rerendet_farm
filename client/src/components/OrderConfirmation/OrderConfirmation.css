@@ -52,7 +52,8 @@
 .oc-clean-page {
   background: var(--oc-page-bg);
   min-height: calc(100vh - 4.5rem);
-  padding-top: 8.5rem; /* Generous clearance for fixed navbar */
+  padding-top: 8.5rem;
+  /* Generous clearance for fixed navbar */
   padding-bottom: 5.5rem;
   padding-left: 1.25rem;
   padding-right: 1.25rem;
@@ -546,8 +547,8 @@
 
 .oc-receipt-modal {
   width: 100%;
-  max-width: 580px;
-  max-height: 88vh;
+  max-width: 680px;
+  max-height: 90vh;
   background: var(--oc-modal-bg);
   border-radius: 24px;
   border: 1px solid var(--oc-border);
@@ -912,7 +913,9 @@
 }
 
 @keyframes ocSpin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Confetti Burst Animation ── */
@@ -924,9 +927,19 @@
 }
 
 @keyframes ocParticleFall {
-  0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
-  85% { opacity: 0.9; }
-  100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0;
+  }
 }
 
 .oc-confetti-wrap {
@@ -935,4 +948,61 @@
   pointer-events: none;
   z-index: 9999;
   overflow: hidden;
+}
+
+/* ══ Print Stylesheet (Clean A4 Paper Export) ══ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  /* Hide confirmation card, navigation, confetti and modal chrome */
+  .oc-clean-card,
+  .oc-confetti-wrap,
+  .oc-close-btn,
+  .oc-actions-group,
+  .oc-timeline,
+  .oc-notify-callout,
+  .oc-modal-header,
+  .oc-modal-footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .oc-clean-page {
+    padding: 0 !important;
+    background: #FFFFFF !important;
+    min-height: auto !important;
+  }
+
+  .oc-modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .oc-receipt-modal {
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .or-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
 }

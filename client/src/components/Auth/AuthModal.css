@@ -105,7 +105,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding-top: 8.5rem; /* Generous clearance for fixed top navbar (4.5rem height + 4rem spacing) */
+  padding-top: 8.5rem;
+  /* Generous clearance for fixed top navbar (4.5rem height + 4rem spacing) */
   padding-bottom: 5.5rem;
   padding-left: 1.25rem;
   padding-right: 1.25rem;
@@ -117,7 +118,8 @@
 
 @media (max-width: 767px) {
   .auth-page-wrapper {
-    padding-top: 6.5rem; /* 4rem mobile navbar height + 2.5rem spacing */
+    padding-top: 6.5rem;
+    /* 4rem mobile navbar height + 2.5rem spacing */
     padding-bottom: 3.5rem;
     padding-left: 1rem;
     padding-right: 1rem;
@@ -599,6 +601,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -664,6 +667,7 @@
     transform: scale(0.9);
     opacity: 0.8;
   }
+
   100% {
     transform: scale(1.6);
     opacity: 0;

@@ -12,25 +12,32 @@ export default function Auth({ defaultView }) {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useContext(AppContext);
+  const { user, isAuthenticated } = useContext(AppContext);
 
-  const redirectParam = searchParams.get('redirect') || sessionStorage.getItem('authRedirect') || 'account';
+  const redirectParam = searchParams.get('redirect') || sessionStorage.getItem('authRedirect');
 
   const isReset = defaultView === 'reset-password' ||
-                  location.pathname.includes('/reset-password') ||
-                  searchParams.get('view') === 'reset-password' ||
-                  Boolean(searchParams.get('token') || searchParams.get('resetToken') || searchParams.get('code'));
+    location.pathname.includes('/reset-password') ||
+    searchParams.get('view') === 'reset-password' ||
+    Boolean(searchParams.get('token') || searchParams.get('resetToken') || searchParams.get('code'));
 
-  // If already authenticated and NOT in reset flow, redirect to destination
+  // Seamless UX: If already authenticated, redirect immediately to target page or account
   useEffect(() => {
-    if (isAuthenticated && !isReset) {
-      navigate(redirectParam === 'checkout' ? '/checkout' : (redirectParam.startsWith('/') ? redirectParam : `/${redirectParam}`));
+    if (isAuthenticated && user && !isReset) {
+      sessionStorage.removeItem('authRedirect');
+      if (redirectParam) {
+        navigate(redirectParam === 'checkout' ? '/checkout' : (redirectParam.startsWith('/') ? redirectParam : `/${redirectParam}`), { replace: true });
+      } else {
+        const isAdminUser = ['admin', 'super-admin', 'super_admin', 'owner'].includes((user.role || '').toLowerCase()) || user.userType === 'admin';
+        // For storefront visits, go to account or homepage
+        navigate('/account', { replace: true });
+      }
     }
-  }, [isAuthenticated, isReset, navigate, redirectParam]);
+  }, [isAuthenticated, user, isReset, navigate, redirectParam]);
 
   const isSignup = !isReset && (defaultView === 'signup' ||
-                   location.pathname.includes('/signup') ||
-                   searchParams.get('mode') === 'signup');
+    location.pathname.includes('/signup') ||
+    searchParams.get('mode') === 'signup');
 
   return (
     <AuthModal

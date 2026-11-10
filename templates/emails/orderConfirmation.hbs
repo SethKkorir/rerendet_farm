@@ -1,245 +1,96 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation - Rerendet Coffee</title>
-    <style>
-        body {
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            background-color: #6F4E37;
-            padding: 30px;
-            text-align: center;
-            border-radius: 8px 8px 0 0;
-        }
-
-        .header h1 {
-            color: #fff;
-            margin: 0;
-            font-size: 28px;
-            letter-spacing: 1px;
-        }
-
-        .content {
-            background-color: #fff;
-            padding: 40px;
-            border: 1px solid #e1e1e1;
-            border-top: none;
-        }
-
-        .order-info {
-            background-color: #f9f9f9;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border: 1px solid #eee;
-        }
-
-        .order-info h2 {
-            margin-top: 0;
-            color: #6F4E37;
-            font-size: 18px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-
-        .table th {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 2px solid #6F4E37;
-            color: #6F4E37;
-            text-transform: uppercase;
-            font-size: 12px;
-        }
-
-        .table td {
-            padding: 12px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .table .item-info {
-            font-weight: bold;
-            color: #333;
-        }
-
-        .table .item-meta {
-            font-size: 12px;
-            color: #777;
-        }
-
-        .totals {
-            margin-left: auto;
-            width: 250px;
-        }
-
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-        }
-
-        .total-row.grand-total {
-            border-top: 2px solid #6F4E37;
-            margin-top: 10px;
-            padding-top: 15px;
-            font-weight: bold;
-            font-size: 18px;
-            color: #6F4E37;
-        }
-
-        .address-box {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .address {
-            flex: 1;
-            font-size: 14px;
-        }
-
-        .footer {
-            text-align: center;
-            padding: 30px;
-            color: #888;
-            font-size: 12px;
-        }
-
-        .btn {
-            display: inline-block;
-            background-color: #6F4E37;
-            color: #fff;
-            padding: 15px 30px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            margin-top: 20px;
-        }
-
-        @media only screen and (max-width: 480px) {
-            .content {
-                padding: 20px;
-            }
-
-            .address-box {
-                flex-direction: column;
-            }
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Order Receipt - Rerendet Coffee</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F8F9FA; margin: 0; padding: 40px 16px; color: #374151; }
+    .card { max-width: 580px; margin: 0 auto; background-color: #FFFFFF; border-top: 4px solid #1E3D2F; border-radius: 4px; border-left: 1px solid #E5E7EB; border-right: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB; overflow: hidden; padding: 36px 36px 32px; text-align: left; }
+    .hero-title { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 400; color: #1F2937; text-align: center; margin: 0 0 12px; }
+    .hero-subtitle { font-size: 14.5px; color: #6B7280; text-align: center; line-height: 1.6; margin: 0 auto 24px; max-width: 480px; }
+    .btn { display: inline-block; background-color: #1E3D2F; color: #FFFFFF !important; padding: 12px 34px; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .social-pill { display: inline-block; border: 1px solid #D1D5DB; border-radius: 9999px; padding: 7px 22px; color: #374151 !important; text-decoration: none; font-size: 13.5px; font-weight: 600; }
+  </style>
 </head>
-
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="{{logoUrl}}" alt="Rerendet Coffee"
-                style="max-height: 50px; display: block; margin: 0 auto; margin-bottom: 10px;" />
-            <h1>Rerendet Coffee</h1>
-        </div>
-        <div class="content">
-            <h2 style="text-align: center;">Thank You for Your Order!</h2>
-            <p>Hi {{order.shippingAddress.firstName}},</p>
-            <p>We've received your order and are getting it ready for shipment. You'll receive another email with your
-                tracking number as soon as it ships.</p>
-
-            <div class="order-info">
-                <h2>Order Details</h2>
-                <div style="display: flex; justify-content: space-between;">
-                    <span>Order Number:</span>
-                    <strong style="color: #6F4E37;">#{{order.orderNumber}}</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                    <span>Order Date:</span>
-                    <strong>{{order.formattedDate}}</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 10px;">
-                    <span>Payment Method:</span>
-                    <strong>{{order.paymentMethod}}</strong>
-                </div>
-            </div>
-
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Item</th>
-                        <th style="text-align: center;">Qty</th>
-                        <th style="text-align: right;">Price</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{#each order.items}}
-                    <tr>
-                        <td>
-                            <div class="item-info">{{this.name}}</div>
-                            <div class="item-meta">Size: {{this.size}}</div>
-                        </td>
-                        <td style="text-align: center;">{{this.quantity}}</td>
-                        <td style="text-align: right;">KSh {{this.price}}</td>
-                    </tr>
-                    {{/each}}
-                </tbody>
-            </table>
-
-            <div class="totals">
-                <div class="total-row">
-                    <span>Subtotal</span>
-                    <span>KSh {{order.subtotal}}</span>
-                </div>
-                <div class="total-row">
-                    <span>Shipping</span>
-                    <span>KSh {{order.shippingCost}}</span>
-                </div>
-                <div class="total-row">
-                    <span>Tax (16% VAT)</span>
-                    <span>KSh {{order.tax}}</span>
-                </div>
-                <div class="total-row grand-total">
-                    <span>Total</span>
-                    <span>KSh {{order.total}}</span>
-                </div>
-            </div>
-
-            <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
-                <h3>Shipping To:</h3>
-                <p style="font-size: 14px; line-height: 1.4;">
-                    {{order.shippingAddress.firstName}} {{order.shippingAddress.lastName}}<br>
-                    {{order.shippingAddress.address}}<br>
-                    {{order.shippingAddress.city}}, {{order.shippingAddress.county}}<br>
-                    {{order.shippingAddress.country}}<br>
-                    {{order.shippingAddress.phone}}
-                </p>
-            </div>
-
-            <div style="text-align: center;">
-                <a href="{{dashboardUrl}}" class="btn">View Order Status</a>
-            </div>
-        </div>
-        <div class="footer">
-            <p>&copy; 2024 Rerendet Coffee. All rights reserved.</p>
-            <p>Nairobi, Kenya</p>
-            <p>You're receiving this email because you made a purchase at Rerendet Coffee.</p>
-        </div>
+  <div class="card">
+    <!-- Brand Logo -->
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="https://rerendet-farm.vercel.app" target="_blank" style="text-decoration: none;">
+        <img src="https://res.cloudinary.com/dln2pifwf/image/upload/v1779294419/rerendet-coffee/products/pb7indr2rhu7fnhh3jjh.png" alt="Rerendet Coffee" width="140" style="display: block; max-width: 145px; height: auto; margin: 0 auto; border: 0;" />
+      </a>
     </div>
-</body>
 
+    <h1 class="hero-title">Order receipt #{{orderNumber}}.</h1>
+    <p class="hero-subtitle">Thank you, {{firstName}}! We have received your order. Our roastery in Bomet is preparing your fresh highland beans.</p>
+
+    {{#if trackingNumber}}
+    <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 14px 18px; text-align: center; margin-bottom: 22px;">
+      <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Waybill Tracking Number</span>
+      <span style="font-family: monospace; font-size: 20px; font-weight: 700; color: #111827; letter-spacing: 2px;">{{trackingNumber}}</span>
+    </div>
+    {{/if}}
+
+    <div style="border: 1px solid #E5E7EB; border-radius: 8px; padding: 18px 20px; margin: 20px 0;">
+      <span style="font-size: 11.5px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 12px;">Order Summary</span>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 8px;">
+        <span style="font-size: 14.5px; font-weight: 700; color: #111827;">Total Amount</span>
+        <span style="font-size: 18px; font-weight: 700; color: #1E3D2F;">KES {{total}}</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 28px 0 20px;">
+      <a href="{{trackingUrl}}" class="btn">Track Order Live</a>
+    </div>
+
+    <!-- Divider -->
+    <div style="border-top: 1px solid #E5E7EB; margin: 34px 0 24px;"></div>
+
+    <p style="text-align: center; color: #6B7280; font-size: 13.5px; margin: 0 0 32px;">
+      Questions? Reply to this email and we will help.
+    </p>
+
+    <!-- Follow Rerendet Coffee (Instagram Only) -->
+    <div style="text-align: center; margin: 0 0 32px;">
+      <h3 style="font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-size: 21px; font-weight: 500; color: #111827; margin: 0 0 6px;">
+        Follow Rerendet Coffee
+      </h3>
+      <p style="color: #6B7280; font-size: 13.5px; margin: 0 0 16px;">
+        New roasts, brewing tips and offers.
+      </p>
+      <div style="text-align: center;">
+        <a href="https://www.instagram.com/rerendetcoffee" target="_blank" class="social-pill">
+          Instagram
+        </a>
+      </div>
+    </div>
+
+    <!-- Policy Links Section -->
+    <div style="border-top: 1px solid #E5E7EB; padding-top: 20px; text-align: center; margin: 0 0 24px;">
+      <div style="font-size: 12.5px; color: #6B7280; line-height: 2;">
+        <a href="https://rerendet-farm.vercel.app/shipping-policy" target="_blank" style="color: #1E3D2F; text-decoration: underline; font-weight: 600; margin: 0 8px;">Shipping &amp; Delivery</a> &bull;
+        <a href="https://rerendet-farm.vercel.app/refund-policy" target="_blank" style="color: #1E3D2F; text-decoration: underline; font-weight: 600; margin: 0 8px;">Refund Policy</a> &bull;
+        <a href="https://rerendet-farm.vercel.app/terms-conditions" target="_blank" style="color: #1E3D2F; text-decoration: underline; font-weight: 600; margin: 0 8px;">Terms of Service</a> &bull;
+        <a href="https://rerendet-farm.vercel.app/privacy-policy" target="_blank" style="color: #1E3D2F; text-decoration: underline; font-weight: 600; margin: 0 8px;">Privacy Policy</a>
+      </div>
+    </div>
+
+    <!-- Brand Footer (Bomet, Kenya & Phone & Unsubscribe) -->
+    <div style="border-top: 1px solid #E5E7EB; padding-top: 22px; text-align: center; font-size: 12.5px; color: #9CA3AF; line-height: 1.8;">
+      <p style="margin: 0 0 4px; color: #6B7280;">
+        Rerendet Coffee &middot; Bomet, Kenya
+      </p>
+      <p style="margin: 0 0 8px; color: #6B7280;">
+        +254 705 684 984 &middot; <a href="mailto:hello@rerendetcoffee.com" style="color: #6B7280; text-decoration: none;">hello@rerendetcoffee.com</a>
+      </p>
+      <p style="margin: 0;">
+        <a href="https://rerendet-farm.vercel.app/account" style="color: #9CA3AF; text-decoration: underline;">Unsubscribe</a>
+      </p>
+    </div>
+  </div>
+</body>
 </html>

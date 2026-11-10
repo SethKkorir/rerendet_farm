@@ -15,3 +15,4 @@ router.get('/subdivisions/:code', getSubdivisions);
 router.get('/kenya', getKenyaLocations);
 
 export default router;
+

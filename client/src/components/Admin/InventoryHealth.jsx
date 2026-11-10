@@ -158,13 +158,13 @@ export const InventoryHealth = () => {
           prev.map((p) =>
             p._id === id
               ? {
-                  ...p,
-                  inventory: {
-                    ...p.inventory,
-                    physicalStock: editForm.physicalStock,
-                    lowStockThreshold: editForm.lowStockThreshold
-                  }
+                ...p,
+                inventory: {
+                  ...p.inventory,
+                  physicalStock: editForm.physicalStock,
+                  lowStockThreshold: editForm.lowStockThreshold
                 }
+              }
               : p
           )
         );
@@ -187,12 +187,12 @@ export const InventoryHealth = () => {
         prev.map((p) =>
           p._id === id
             ? {
-                ...p,
-                inventory: {
-                  ...p.inventory,
-                  physicalStock: Math.max(0, (p.inventory?.physicalStock || 0) + delta)
-                }
+              ...p,
+              inventory: {
+                ...p.inventory,
+                physicalStock: Math.max(0, (p.inventory?.physicalStock || 0) + delta)
               }
+            }
             : p
         )
       );

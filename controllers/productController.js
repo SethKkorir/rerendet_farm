@@ -319,10 +319,28 @@ const createProduct = asyncHandler(async (req, res) => {
         flavorNotes.split(',').map(note => note.trim()).filter(note => note) :
         flavorNotes) : [],
     badge: badge?.trim() || '',
-    inventory: {
-      stock: parseInt((typeof inventory === 'string' ? JSON.parse(inventory) : inventory)?.stock) || 0,
-      lowStockAlert: parseInt((typeof inventory === 'string' ? JSON.parse(inventory) : inventory)?.lowStockAlert) || 5
-    },
+    grindOptions: (() => {
+      const g = req.body.grindOptions;
+      if (!g) return ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'];
+      if (typeof g === 'string') {
+        try {
+          if (g.startsWith('[') || g.startsWith('{')) return JSON.parse(g);
+          return g.split(',').map(x => x.trim()).filter(Boolean);
+        } catch (_) { return ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso']; }
+      }
+      return Array.isArray(g) ? g : ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'];
+    })(),
+    defaultGrind: req.body.defaultGrind?.trim() || 'Whole Beans',
+    inventory: (() => {
+      const parsed = typeof inventory === 'string' ? JSON.parse(inventory) : (inventory || {});
+      const phys = parseInt(parsed.physicalStock !== undefined ? parsed.physicalStock : parsed.stock) || 0;
+      const alert = parseInt(parsed.lowStockThreshold !== undefined ? parsed.lowStockThreshold : parsed.lowStockAlert) || 5;
+      return {
+        physicalStock: Math.max(0, phys),
+        reservedStock: 0,
+        lowStockThreshold: Math.max(0, alert)
+      };
+    })(),
     tags: tags ?
       (typeof tags === 'string' ?
         tags.split(',').map(tag => tag.trim()).filter(tag => tag) :
@@ -447,6 +465,19 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.origin = product.categoryAttributes.get('origin');
   }
   if (badge !== undefined) product.badge = badge?.trim();
+  if (req.body.grindOptions !== undefined) {
+    const g = req.body.grindOptions;
+    if (typeof g === 'string') {
+      try {
+        product.grindOptions = g.startsWith('[') ? JSON.parse(g) : g.split(',').map(x => x.trim()).filter(Boolean);
+      } catch (_) { product.grindOptions = ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso']; }
+    } else if (Array.isArray(g)) {
+      product.grindOptions = g;
+    }
+  }
+  if (req.body.defaultGrind !== undefined) {
+    product.defaultGrind = req.body.defaultGrind.trim();
+  }
   if (isFeatured !== undefined) {
     product.isFeatured = isFeatured === 'true' || isFeatured === true;
   }
@@ -471,10 +502,20 @@ const updateProduct = asyncHandler(async (req, res) => {
   // Update inventory
   if (inventory) {
     const parsedInventory = typeof inventory === 'string' ? JSON.parse(inventory) : inventory;
-    product.inventory = {
-      stock: parseInt(parsedInventory.stock) || product.inventory.stock,
-      lowStockAlert: parseInt(parsedInventory.lowStockAlert) || product.inventory.lowStockAlert
-    };
+    const currentPhys = product.inventory?.physicalStock ?? 0;
+    const currentThresh = product.inventory?.lowStockThreshold ?? 5;
+    
+    const newPhys = parsedInventory.physicalStock !== undefined ? parseInt(parsedInventory.physicalStock) : 
+                    (parsedInventory.stock !== undefined ? parseInt(parsedInventory.stock) : currentPhys);
+    const newThresh = parsedInventory.lowStockThreshold !== undefined ? parseInt(parsedInventory.lowStockThreshold) : 
+                      (parsedInventory.lowStockAlert !== undefined ? parseInt(parsedInventory.lowStockAlert) : currentThresh);
+
+    if (!product.inventory) {
+      product.inventory = { physicalStock: 0, reservedStock: 0, lowStockThreshold: 5 };
+    }
+    product.inventory.physicalStock = isNaN(newPhys) ? currentPhys : Math.max(0, newPhys);
+    product.inventory.lowStockThreshold = isNaN(newThresh) ? currentThresh : Math.max(0, newThresh);
+    product.inStock = product.availableStock > 0;
   }
 
   // Update arrays
@@ -514,16 +555,21 @@ const updateProduct = asyncHandler(async (req, res) => {
 // @route   DELETE /api/products/:id
 // @access  Private/Admin
 const deleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const { id } = req.params;
+  const product = await Product.findById(id);
 
   if (!product) {
     res.status(404);
     throw new Error('Product not found');
   }
 
-  // Soft delete
-  product.isActive = false;
-  await product.save();
+  // Use updateOne without runValidators to prevent legacy validation errors from blocking deletion
+  if (req.query.permanent === 'true') {
+    await Product.deleteOne({ _id: id });
+  } else {
+    await Product.updateOne({ _id: id }, { $set: { isActive: false } }, { runValidators: false });
+  }
+
   clearProductCache();
   await invalidateCatalog();
 
@@ -537,30 +583,41 @@ const deleteProduct = asyncHandler(async (req, res) => {
 // @route   PATCH /api/products/:id/stock
 // @access  Private/Admin
 const updateProductStock = asyncHandler(async (req, res) => {
-  const { stock } = req.body;
+  const { stock, physicalStock, adjustment, mode, lowStockThreshold } = req.body;
 
-  const product = await Product.findByIdAndUpdate(
-    req.params.id,
-    {
-      'inventory.stock': parseInt(stock),
-      inStock: parseInt(stock) > 0
-    },
-    { new: true }
-  );
-
+  const product = await Product.findById(req.params.id);
   if (!product) {
     res.status(404);
     throw new Error('Product not found');
   }
 
+  if (!product.inventory) {
+    product.inventory = { physicalStock: 0, reservedStock: 0, lowStockThreshold: 5 };
+  }
+
+  if (mode === 'adjust' && adjustment !== undefined) {
+    const delta = parseInt(adjustment) || 0;
+    product.inventory.physicalStock = Math.max(0, (product.inventory.physicalStock || 0) + delta);
+  } else if (physicalStock !== undefined || stock !== undefined) {
+    const newStock = parseInt(physicalStock !== undefined ? physicalStock : stock) || 0;
+    product.inventory.physicalStock = Math.max(0, newStock);
+  }
+
+  if (lowStockThreshold !== undefined) {
+    product.inventory.lowStockThreshold = Math.max(0, parseInt(lowStockThreshold) || 5);
+  }
+
+  product.inStock = product.availableStock > 0;
+  const updatedProduct = await product.save();
+
+  // Invalidate product catalog cache
+  await invalidateCatalog();
+
   res.json({
     success: true,
     message: 'Product stock updated successfully',
-    data: product
+    data: updatedProduct
   });
-  
-  // Invalidate product catalog cache
-  await invalidateCatalog();
 });
 
 // @desc    Upload product images

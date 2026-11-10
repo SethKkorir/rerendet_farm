@@ -11,6 +11,8 @@ import './CartSidebar.css';
 function CartSidebar() {
   const {
     user,
+    isCustomer,
+    isAdmin,
     cart,
     isCartOpen,
     setIsCartOpen,
@@ -74,7 +76,7 @@ function CartSidebar() {
       }
     }
 
-    if (user) {
+    if (user || isCustomer) {
       closeCart();
       navigate('/checkout');
     } else {
@@ -87,14 +89,14 @@ function CartSidebar() {
   const handleQuantityUpdate = (item, delta) => {
     if (isProductOutOfStock(item)) {
       showNotification(`"${item.name}" is out of stock.`, 'error');
-      removeFromCart(item.id || item._id, item.size);
+      removeFromCart(item.id || item._id, item.size, item.grind);
       return;
     }
     const newQuantity = (item.quantity || 1) + delta;
     if (newQuantity <= 0) {
-      removeFromCart(item.id || item._id, item.size);
+      removeFromCart(item.id || item._id, item.size, item.grind);
     } else {
-      updateCartQuantity(item.id || item._id, newQuantity, item.size);
+      updateCartQuantity(item.id || item._id, newQuantity, item.size, item.grind);
     }
   };
 
@@ -206,7 +208,7 @@ function CartSidebar() {
 
                       return (
                         <motion.div
-                          key={`${item._id || item.id || index}-${item.size || 'std'}`}
+                          key={`${item._id || item.id || index}-${item.size || 'std'}-${item.grind || 'wb'}`}
                           className={`p-cart-item ${isOos ? 'p-item-oos' : ''}`}
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -223,16 +225,23 @@ function CartSidebar() {
                               <button
                                 type="button"
                                 className="p-item-del"
-                                onClick={() => removeFromCart(item.id || item._id, item.size)}
+                                onClick={() => removeFromCart(item.id || item._id, item.size, item.grind)}
                                 aria-label="Remove item"
                               >
                                 <FaTrash size={11} />
                               </button>
                             </div>
 
-                            {item.size && item.size !== 'Standard' && (
-                              <span className="p-item-weight">{item.size}</span>
-                            )}
+                            <div className="p-item-specs-row" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem' }}>
+                              {item.size && item.size !== 'Standard' && (
+                                <span className="p-item-weight">{item.size}</span>
+                              )}
+                              {item.grind && (
+                                <span className="p-item-weight" style={{ background: 'rgba(212, 175, 55, 0.15)', color: '#D4AF37', borderColor: 'rgba(212, 175, 55, 0.3)' }}>
+                                  ⚙️ {item.grind}
+                                </span>
+                              )}
+                            </div>
 
                             {isOos && (
                               <span className="p-item-oos-badge">Out of Stock</span>

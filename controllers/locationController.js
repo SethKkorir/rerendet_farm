@@ -21,62 +21,74 @@ async function syncFromRestCountriesV5() {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000); // 6s network timeout
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s network timeout
+    const cleanKey = apiKey.trim();
 
-    const response = await fetch('https://api.restcountries.com/countries/v5?response_fields=names,codes,calling_codes,region,subregion,currencies', {
-      headers: {
-        'Authorization': `Bearer ${apiKey.trim()}`
-      },
-      signal: controller.signal
-    });
+    // Fetch all pages (100 countries/page capped by API plan) to cover all 250+ world countries
+    const pages = [0, 100, 200];
+    const fetchPromises = pages.map(offset =>
+      fetch(`https://restcountries.com/countries/v5?limit=100&offset=${offset}&api_key=${cleanKey}`, {
+        signal: controller.signal
+      }).then(r => r.ok ? r.json() : null).catch(() => null)
+    );
+
+    const results = await Promise.all(fetchPromises);
     clearTimeout(timeout);
 
-    if (!response.ok) {
-      console.warn(`[Location Service] REST Countries v5 returned HTTP ${response.status}. Using cached/fallback data.`);
+    const rawList = [];
+    results.forEach(res => {
+      if (res && res.data && Array.isArray(res.data.objects)) {
+        rawList.push(...res.data.objects);
+      }
+    });
+
+    if (rawList.length === 0) {
+      console.warn('[Location Service] Empty response from REST Countries v5. Using cached/fallback data.');
       return BASE_COUNTRIES;
     }
 
-    const payload = await response.json();
-    const rawList = payload?.data?.objects || (Array.isArray(payload) ? payload : []);
+    // Map and enrich with base metadata
+    const priorityMap = new Map();
+    BASE_COUNTRIES.forEach(b => priorityMap.set(b.code, b));
 
-    if (!rawList || rawList.length === 0) {
-      return BASE_COUNTRIES;
-    }
-
-    // Merge and enrich with base countries
     const enriched = rawList.map(item => {
-      const name = item.names?.common || item.name || 'Unknown';
+      const name = item.names?.common || item.name || '';
       const code = (item.codes?.alpha_2 || item.cca2 || '').toUpperCase();
       const code3 = (item.codes?.alpha_3 || item.cca3 || '').toUpperCase();
       const rawDial = item.calling_codes?.[0] || item.idd?.root;
       let dialCode = '';
       if (rawDial) {
         dialCode = rawDial.startsWith('+') ? rawDial : `+${rawDial}`;
-        if (item.idd?.suffixes?.[0] && !rawDial.includes('+')) {
-          dialCode += item.idd.suffixes[0];
-        }
       }
 
-      const matchBase = BASE_COUNTRIES.find(b => b.code === code || b.name.toLowerCase() === name.toLowerCase());
+      const matchBase = priorityMap.get(code) || BASE_COUNTRIES.find(b => b.name.toLowerCase() === name.toLowerCase());
 
       return {
-        name: name,
+        name,
         officialName: item.names?.official || name,
-        code: code,
-        code3: code3,
+        code,
+        code3,
         dialCode: dialCode || matchBase?.dialCode || '',
-        flag: matchBase?.flag || getFlagEmoji(code),
+        flag: matchBase?.flag || (code.length === 2 ? getFlagEmoji(code) : '🌐'),
+        currency: matchBase?.currency || item.currencies?.[0]?.code || 'USD',
         region: item.region || matchBase?.region || 'International',
         subregion: item.subregion || '',
         priority: matchBase?.priority || 99
       };
-    }).filter(c => c.name && c.code);
+    }).filter(c => c.name && c.code && c.code.length === 2);
+
+    // Deduplicate by ISO alpha-2 code
+    const seen = new Set();
+    const deduped = [];
+    enriched.forEach(c => {
+      if (!seen.has(c.code)) {
+        seen.add(c.code);
+        deduped.push(c);
+      }
+    });
 
     // Ensure Kenya and top regional partners exist and stay prioritized
-    const priorityMap = new Map();
-    BASE_COUNTRIES.forEach(b => priorityMap.set(b.code, b));
-
-    enriched.forEach(c => {
+    deduped.forEach(c => {
       if (priorityMap.has(c.code)) {
         c.priority = priorityMap.get(c.code).priority;
         if (!c.dialCode) c.dialCode = priorityMap.get(c.code).dialCode;
@@ -84,19 +96,21 @@ async function syncFromRestCountriesV5() {
     });
 
     // Sort: prioritized countries first (Kenya #1, East Africa #2-8, etc.), then alphabetically by name
-    enriched.sort((a, b) => {
+    deduped.sort((a, b) => {
       if (a.priority !== b.priority) {
         return a.priority - b.priority;
       }
       return a.name.localeCompare(b.name);
     });
 
-    countriesCache = enriched;
+    countriesCache = deduped;
     lastCacheSync = Date.now();
-    console.log(`[Location Service] Successfully refreshed ${enriched.length} countries from REST Countries API v5.`);
-    return enriched;
+    console.log(`[Location Service] Successfully refreshed all ${deduped.length} world countries from REST Countries API v5.`);
+    return deduped;
   } catch (error) {
     console.warn(`[Location Service] REST Countries API fetch bypassed (${error.message}). Serving local resilient data.`);
+    countriesCache = BASE_COUNTRIES;
+    lastCacheSync = Date.now();
     return BASE_COUNTRIES;
   }
 }
@@ -200,3 +214,4 @@ export const getKenyaLocations = asyncHandler(async (req, res) => {
     locations: KENYA_LOCATIONS
   });
 });
+

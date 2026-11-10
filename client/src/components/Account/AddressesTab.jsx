@@ -1,27 +1,27 @@
 // client/src/components/Account/AddressesTab.jsx — Multi-Address Delivery Manager
 import React, { useState, useContext, useEffect } from 'react';
 import { AppContext } from '../../context/AppContext';
-import { 
-  FaMapMarkerAlt, 
-  FaPlus, 
-  FaCheck, 
-  FaPhone, 
-  FaGlobe, 
-  FaUserAlt, 
-  FaEdit, 
-  FaTrash, 
-  FaHome, 
-  FaBuilding, 
-  FaStar 
+import {
+  FaMapMarkerAlt,
+  FaPlus,
+  FaCheck,
+  FaPhone,
+  FaGlobe,
+  FaUserAlt,
+  FaEdit,
+  FaTrash,
+  FaHome,
+  FaBuilding,
+  FaStar
 } from 'react-icons/fa';
 import { KENYA_LOCATIONS } from '../../utils/kenyaLocations';
 import { COUNTRY_OBJECTS, fetchGlobalCountries, getDialCode, getFlag } from '../../utils/countryList';
-import { 
-  getUserAddresses, 
-  addAddress, 
-  updateAddress, 
-  deleteAddress, 
-  setDefaultAddress 
+import {
+  getUserAddresses,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  setDefaultAddress
 } from '../../api/api';
 
 const QUICK_LABELS = ['Home', 'Office', 'Apartment', 'Farm', 'Other'];
@@ -71,7 +71,7 @@ const AddressesTab = () => {
           updateUserAddresses?.(res.data.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => { isMounted = false; };
   }, [updateUserAddresses]);
 
@@ -256,28 +256,25 @@ const AddressesTab = () => {
   };
 
   return (
-    <div className="ord-luxury-canvas">
-      {/* ══ Editorial Header ══ */}
-      <div className="ord-luxury-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+    <div className="ord-luxury-canvas" style={{ padding: 0 }}>
+      {/* ══ Editorial Header (Matching Image 1) ══ */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
         <div>
-          <span className="ord-luxury-tag">DELIVERY LOCATIONS</span>
-          <h2 className="ord-luxury-title">Saved Addresses</h2>
-          <p className="ord-luxury-sub">
-            Manage your delivery destinations. You can save multiple addresses and set a default for seamless checkout.
-          </p>
+          <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
+          <h2 className="rc-dash-title">Delivery addresses</h2>
+          <p className="rc-dash-sub">Choose where your coffee should arrive.</p>
+          <p className="rc-dash-subnote">Your saved delivery details are only visible to you.</p>
         </div>
         {!isEditing && (
           <button
             type="button"
-            className="ord-action-btn solid"
+            className="rc-btn-gold"
             onClick={handleOpenAdd}
-            style={{ alignSelf: 'center' }}
           >
-            <FaPlus style={{ marginRight: '6px' }} /> Add New Address
+            <FaPlus style={{ fontSize: '0.8rem' }} /> Add address
           </button>
         )}
       </div>
-      <div className="ord-luxury-h-line" />
 
       {/* ══ Form View (Add / Edit) ══ */}
       {isEditing ? (
@@ -382,17 +379,18 @@ const AddressesTab = () => {
                 </label>
                 <select
                   name="country"
-                  value={formData.country}
+                  value={formData.country || 'Kenya'}
                   onChange={handleChange}
                   className="ord-search-minimal-input"
                   style={{ borderRadius: '10px', padding: '0.65rem 1rem' }}
                 >
-                  {allCountries.map(c => {
+                  {allCountries.map((c, idx) => {
                     const cName = typeof c === 'string' ? c : c.name;
+                    const cCode = typeof c === 'object' ? (c.code || c.name) : c;
                     const cFlag = typeof c === 'object' && c.flag ? `${c.flag} ` : '';
                     const cDial = typeof c === 'object' && c.dialCode ? ` (${c.dialCode})` : '';
                     return (
-                      <option key={cName} value={cName}>
+                      <option key={`${cCode}-${idx}`} value={cName}>
                         {cFlag}{cName}{cDial}
                       </option>
                     );
@@ -580,162 +578,116 @@ const AddressesTab = () => {
           </form>
         </div>
       ) : (
-        /* ══ Address Cards Grid ══ */
+        /* ══ Address Cards Grid (Matching Image 1) ══ */
         <div>
           {addresses.length === 0 ? (
-            <div className="ord-clean-empty" style={{ marginTop: '1.5rem' }}>
-              <h3 className="ord-clean-empty-title">No saved addresses</h3>
-              <p className="ord-clean-empty-text">
-                Add your delivery locations in Kenya or abroad for quick and hassle-free checkout.
+            <div className="rc-card-white" style={{ textAlign: 'center', padding: '3.5rem 2rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#FAF6EE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#CAA058', fontSize: '1.4rem' }}>
+                <FaMapMarkerAlt />
+              </div>
+              <h3 style={{ fontFamily: 'var(--font-heading, "Playfair Display", serif)', fontSize: '1.4rem', color: '#1E140E', margin: '0 0 0.5rem' }}>No saved addresses yet</h3>
+              <p style={{ color: '#665548', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto 1.5rem' }}>
+                Add your delivery destination for seamless order fulfillment and swift checkout.
               </p>
               <button
                 type="button"
-                className="ord-action-btn solid"
+                className="rc-btn-gold"
                 onClick={handleOpenAdd}
               >
-                <FaPlus style={{ marginRight: '6px' }} /> Add Your First Address
+                <FaPlus style={{ fontSize: '0.8rem' }} /> Add address
               </button>
             </div>
           ) : (
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', 
-              gap: '1.25rem', 
-              marginTop: '1.5rem' 
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               {addresses.map((addr) => (
                 <div
                   key={addr._id}
-                  className="ord-clean-card"
+                  className="rc-card-white"
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    border: addr.isDefault ? '1.5px solid #842A1C' : '1px solid var(--cust-border, #E5E0D8)',
-                    borderRadius: '12px',
-                    position: 'relative',
-                    transition: 'box-shadow 0.2s ease'
+                    padding: '2rem 2.25rem',
+                    marginBottom: 0
                   }}
                 >
-                  <div>
-                    {/* Card Top: Label & Badges */}
-                    <div className="ord-clean-top" style={{ alignItems: 'center', marginBottom: '0.75rem' }}>
-                      <div className="ord-clean-meta-left" style={{ alignItems: 'center' }}>
-                        <span style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          fontWeight: 700, 
-                          fontSize: '0.9rem', 
-                          color: 'var(--cust-text)' 
-                        }}>
-                          {getLabelIcon(addr.label)}
-                          {addr.label || 'Home'}
-                        </span>
-                      </div>
-
-                      <div className="ord-clean-badges-right">
-                        {addr.isDefault ? (
-                          <span className="ord-clean-status-pill delivered" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <FaCheck style={{ fontSize: '0.65rem' }} /> Default
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="ord-clean-divider" style={{ margin: '0.5rem 0 0.85rem' }} />
-
-                    {/* Recipient Details */}
-                    <div style={{ marginBottom: '0.85rem' }}>
-                      <p style={{ 
-                        fontFamily: 'var(--font-body)', 
-                        fontSize: '1.05rem', 
-                        fontWeight: 600, 
-                        color: 'var(--cust-text)', 
-                        margin: 0 
+                  {/* Card Header: Icon + Title + Default Badge */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: 'rgba(202, 160, 88, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#B58838',
+                        fontSize: '0.85rem'
                       }}>
-                        {addr.recipientName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim()}
-                      </p>
-                      {addr.phone && (
-                        <p style={{ fontSize: '0.82rem', color: 'var(--cust-text-muted)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <FaPhone style={{ fontSize: '0.7rem' }} /> {addr.phone}
-                        </p>
-                      )}
+                        <FaMapMarkerAlt />
+                      </div>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1E140E' }}>
+                        {addr.isDefault ? 'Primary delivery address' : `${addr.label || 'Saved'} delivery address`}
+                      </span>
                     </div>
 
-                    {/* Delivery Destination */}
-                    <div style={{ fontSize: '0.85rem', color: 'var(--cust-text)', lineHeight: 1.45, marginBottom: '0.85rem' }}>
-                      <p style={{ margin: '0 0 4px', fontWeight: 500 }}>
-                        {addr.address}
-                      </p>
-                      <p style={{ margin: '0 0 4px', color: 'var(--cust-text-muted)' }}>
-                        {addr.country === 'Kenya'
-                          ? `${addr.town ? addr.town + ', ' : ''}${addr.county ? addr.county + ' County' : ''}`
-                          : `${addr.city ? addr.city + ', ' : ''}${addr.county ? addr.county + ' ' : ''}${addr.zip ? '(' + addr.zip + ')' : ''}`}
-                      </p>
-                      {addr.landmark && (
-                        <p style={{ margin: '0 0 4px', fontSize: '0.78rem', color: 'var(--cust-text-dim)' }}>
-                          📍 Near: {addr.landmark}
-                        </p>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                        <span style={{ fontSize: '1.1rem' }}>{getFlag(addr.country)}</span>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--cust-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          {addr.country || 'Kenya'}
-                        </span>
-                        <span style={{
-                          fontSize: '0.65rem',
-                          fontWeight: 800,
-                          padding: '2px 7px',
-                          borderRadius: '4px',
-                          background: addr.country === 'Kenya' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(59, 130, 246, 0.12)',
-                          color: addr.country === 'Kenya' ? '#10b981' : '#60a5fa',
-                          letterSpacing: '0.5px'
-                        }}>
-                          {addr.country === 'Kenya' ? 'DOMESTIC' : 'INTERNATIONAL'}
-                        </span>
-                      </div>
-                    </div>
+                    {addr.isDefault && (
+                      <span className="rc-badge-default">
+                        <FaCheck style={{ fontSize: '0.65rem' }} /> DEFAULT
+                      </span>
+                    )}
                   </div>
 
-                  {/* Card Bottom: Actions */}
-                  <div>
-                    <div className="ord-clean-divider" style={{ margin: '0.85rem 0' }} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <div>
-                        {!addr.isDefault && (
-                          <button
-                            type="button"
-                            onClick={() => handleSetDefault(addr._id)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: 'var(--cust-text-muted)',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              padding: 0,
-                              textDecoration: 'underline'
-                            }}
-                          >
-                            Set as Default
-                          </button>
-                        )}
-                        {addr.isDefault && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--cust-text-dim)' }}>
-                            Primary destination
-                          </span>
-                        )}
-                      </div>
+                  {/* Recipient Name in Serif */}
+                  <h3 style={{
+                    fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
+                    fontSize: '1.35rem',
+                    fontWeight: 700,
+                    color: '#1E140E',
+                    margin: '0 0 0.65rem 0'
+                  }}>
+                    {addr.recipientName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Valued Customer'}
+                  </h3>
 
-                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  {/* Address Lines */}
+                  <div style={{ color: '#665548', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                    <p style={{ margin: 0 }}>{addr.address}</p>
+                    <p style={{ margin: 0 }}>
+                      {addr.country === 'Kenya'
+                        ? `${addr.town ? addr.town + ', ' : ''}${addr.county ? addr.county : ''}`
+                        : `${addr.city ? addr.city + ', ' : ''}${addr.county ? addr.county + ' ' : ''}${addr.zip ? '(' + addr.zip + ')' : ''}`}
+                    </p>
+                    <p style={{ margin: 0 }}>{addr.country || 'Kenya'}</p>
+                    {addr.landmark && (
+                      <p style={{ margin: '4px 0 0', fontSize: '0.82rem', color: '#8E7D70' }}>
+                        📍 Near: {addr.landmark}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Phone & Bottom Actions */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #F2ECE3' }}>
+                    <span style={{ fontSize: '0.9rem', color: '#665548', fontWeight: 500 }}>
+                      {addr.phone || user?.phone || '+254 712 345 678'}
+                    </span>
+
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginLeft: 'auto' }}>
+                      {!addr.isDefault && (
                         <button
                           type="button"
-                          className="ord-action-btn outline"
-                          onClick={() => handleOpenEdit(addr)}
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.78rem' }}
+                          onClick={() => handleSetDefault(addr._id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#B58838',
+                            fontSize: '0.82rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '0.4rem 0.6rem'
+                          }}
                         >
-                          <FaEdit style={{ marginRight: '4px' }} /> Edit
+                          Set as Default
                         </button>
+                      )}
+                      {!addr.isDefault && (
                         <button
                           type="button"
                           onClick={() => handleDelete(addr._id, addr.label)}
@@ -743,24 +695,70 @@ const AddressesTab = () => {
                           style={{
                             background: 'none',
                             border: 'none',
-                            color: '#B3261E',
-                            fontSize: '0.78rem',
+                            color: '#9C8A7C',
+                            fontSize: '0.82rem',
                             cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '0.35rem 0.5rem'
+                            padding: '0.4rem 0.6rem'
                           }}
                         >
-                          <FaTrash style={{ fontSize: '0.7rem' }} /> {deletingId === addr._id ? 'Removing…' : 'Delete'}
+                          {deletingId === addr._id ? 'Removing…' : 'Delete'}
                         </button>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        className="rc-btn-white"
+                        onClick={() => handleOpenEdit(addr)}
+                      >
+                        Edit address →
+                      </button>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          {/* ══ Delivery Preferences Section (Matching Image 1) ══ */}
+          <div style={{ marginTop: '2.5rem' }}>
+            <h3 style={{
+              fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
+              fontSize: '1.35rem',
+              fontWeight: 700,
+              color: '#1E140E',
+              margin: '0 0 0.25rem 0'
+            }}>
+              Delivery preferences
+            </h3>
+            <p style={{ color: '#665548', fontSize: '0.88rem', margin: '0 0 1.25rem 0' }}>
+              Small details help every delivery go smoothly.
+            </p>
+
+            <div className="rc-card-white" style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', padding: '1.25rem 1.5rem', marginBottom: 0 }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'rgba(202, 160, 88, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#B58838',
+                fontSize: '0.9rem',
+                flexShrink: 0,
+                marginTop: '2px'
+              }}>
+                <FaCheck />
+              </div>
+              <div>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1E140E', margin: '0 0 0.25rem 0' }}>
+                  Private and protected
+                </h4>
+                <p style={{ fontSize: '0.84rem', color: '#665548', margin: 0, lineHeight: 1.45 }}>
+                  Your address is used only to deliver your Rerendet Coffee orders. You can update it at any time.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

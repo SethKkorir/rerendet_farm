@@ -73,3 +73,4 @@ emergencyAccessSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60
 
 const EmergencyAccess = mongoose.model('EmergencyAccess', emergencyAccessSchema);
 export default EmergencyAccess;
+

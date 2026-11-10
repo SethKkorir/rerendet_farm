@@ -4,25 +4,14 @@ import handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import sendMail from './sendEmail.js';
+import realSendEmail from './realSendEmail.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Configure email transport
- */
-const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
-    port: process.env.EMAIL_PORT,
-    secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD
-    }
-});
-
-/**
- * Send an email using a template
+ * Send an email using a template or raw html via unified sender pipeline
  */
 export const sendEmail = async (options) => {
     try {
@@ -32,31 +21,33 @@ export const sendEmail = async (options) => {
         // Load and compile template if provided
         if (templateName && !html) {
             const templatePath = path.join(__dirname, '../templates/emails', `${templateName}.hbs`);
-            const templateSource = fs.readFileSync(templatePath, 'utf8');
-            const template = handlebars.compile(templateSource);
-            html = template(data);
+            if (fs.existsSync(templatePath)) {
+                const templateSource = fs.readFileSync(templatePath, 'utf8');
+                const template = handlebars.compile(templateSource);
+                html = template(data);
+            }
         }
 
         if (!html) {
             throw new Error('Email HTML content or templateName is required');
         }
 
-        // Email options
-        const mailOptions = {
-            from: `"${process.env.EMAIL_FROM_NAME || 'Rerendet Coffee'}" <${process.env.EMAIL_FROM || 'orders@rerendetcoffee.com'}>`,
+        const mailPayload = {
             to,
             subject,
-            html
+            html,
+            from: `"${process.env.EMAIL_FROM_NAME || 'Rerendet Coffee'}" <${process.env.EMAIL_FROM || 'orders@rerendetcoffee.com'}>`
         };
 
-        // Send email
-        const info = await transporter.sendMail(mailOptions);
-        console.log('📧 Email sent:', info.messageId);
-        return info;
+        // Send via unified email pipeline with direct SMTP fallback
+        try {
+            return await sendMail(mailPayload);
+        } catch (queueErr) {
+            console.warn('⚠️ Unified email queue error, delivering via direct SMTP:', queueErr.message);
+            return await realSendEmail(mailPayload);
+        }
     } catch (error) {
-        console.error('❌ Email sending error:', error);
-        // Don't throw error to avoid breaking the main process (e.g., order creation)
-        // but log it for debugging
+        console.error('❌ Email sending error in emailService:', error.message);
         return null;
     }
 };

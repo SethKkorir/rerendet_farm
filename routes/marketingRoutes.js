@@ -12,13 +12,29 @@ import {
     getSubscribers,
     deleteSubscriber,
     bulkDeleteSubscribers,
-    exportSubscribers
+    exportSubscribers,
+    getAdminTestimonials,
+    getPublicTestimonials,
+    createTestimonial,
+    updateTestimonial,
+    toggleTestimonial,
+    deleteTestimonial
 } from '../controllers/marketingController.js';
 
 const router = express.Router();
 
-// All marketing routes require admin auth
+// ── Public Testimonials Endpoint ───────────────────────
+router.get('/testimonials/public', getPublicTestimonials);
+
+// All subsequent marketing routes require admin auth
 router.use(protect, admin);
+
+// ── Testimonials (Admin Management) ────────────────────
+router.get('/testimonials', getAdminTestimonials);
+router.post('/testimonials', createTestimonial);
+router.put('/testimonials/:id', updateTestimonial);
+router.patch('/testimonials/:id/toggle', toggleTestimonial);
+router.delete('/testimonials/:id', deleteTestimonial);
 
 // ── Campaigns ──────────────────────────────────────────
 router.get('/campaigns', getCampaigns);

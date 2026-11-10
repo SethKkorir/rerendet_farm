@@ -27,6 +27,7 @@ const WhatsAppSupport = lazy(() => import('./components/UI/WhatsAppSupport'));
 const ProductDetail = lazy(() => import('./components/Product/ProductDetail'));
 const AdminLayout = lazy(() => import('./components/Admin/AdminLayout'));
 const AdminRoute = lazy(() => import('./components/Admin/AdminRoute'));
+import CustomerRoute from './components/ProtectedRoute/CustomerRoute';
 const Checkout = lazy(() => import('./components/Checkout/Checkout'));
 const OrderConfirmation = lazy(() => import('./components/OrderConfirmation/OrderConfirmation'));
 const OrderTracking = lazy(() => import('./components/OrderTracking/OrderTracking'));
@@ -65,8 +66,6 @@ const TransactionsManagement = lazy(() => import('./components/Admin/Finance/Tra
 // HARDENED UPGRADE GAPS COMPONENTS
 const LazyInventoryHealth = lazy(() => import('./components/Admin/InventoryHealth'));
 const LazyOperationalControls = lazy(() => import('./components/Admin/OperationalControlsHardened'));
-const LazyActiveSessions = lazy(() => import('./components/Admin/ActiveSessionsHardened'));
-const LazyActivityFeed = lazy(() => import('./components/Admin/ActivityLogsHardened'));
 
 import BrandLoader from './components/UI/BrandLoader';
 
@@ -214,12 +213,13 @@ function App() {
           <Route path="/order-confirmation/:id" element={<OrderConfirmation />} />
           <Route path="/order-receipt/:id" element={<OrderReceipt />} />
           <Route path="/orders" element={<Navigate to="/account?tab=orders" replace />} />
-          <Route path="/profile" element={<AccountDashboard />} />
-          <Route path="/account" element={<AccountDashboard />} />
-          <Route path="/account/*" element={<AccountDashboard />} />
+          <Route path="/profile" element={<CustomerRoute><AccountDashboard /></CustomerRoute>} />
+          <Route path="/account" element={<CustomerRoute><AccountDashboard /></CustomerRoute>} />
+          <Route path="/account/*" element={<CustomerRoute><AccountDashboard /></CustomerRoute>} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/track-order" element={<TrackOrder />} />
+          <Route path="/track-order/:id" element={<OrderTracking />} />
           <Route path="/order-tracking/:id" element={<OrderTracking />} />
           <Route path="/privacy-policy" element={<PolicyPage type="privacyPolicy" title="Privacy Policy" />} />
           <Route path="/terms-conditions" element={<PolicyPage type="termsConditions" title="Terms & Conditions" />} />
@@ -248,14 +248,10 @@ function App() {
                     <Route path="/controls" element={
                       <Suspense fallback={<PageLoader />}><LazyOperationalControls /></Suspense>
                     } />
-                    <Route path="/sessions" element={
-                      <Suspense fallback={<PageLoader />}><LazyActiveSessions /></Suspense>
-                    } />
+                    <Route path="/sessions" element={<Navigate to="/admin/logs?tab=sessions" replace />} />
                     <Route path="/payments" element={<Navigate to="/admin/transactions" replace />} />
                     <Route path="/logs" element={<ActivityLogs />} />
-                    <Route path="/audit-feed" element={
-                      <Suspense fallback={<PageLoader />}><LazyActivityFeed /></Suspense>
-                    } />
+                    <Route path="/audit-feed" element={<Navigate to="/admin/logs?tab=activity" replace />} />
                     <Route path="/contacts" element={<ContactsManagement />} />
                     <Route path="/marketing" element={<Marketing />} />
                     <Route path="/ads" element={<AdsManagement />} />

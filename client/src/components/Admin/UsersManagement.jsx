@@ -235,6 +235,7 @@ const UsersManagement = () => {
               allowPasswordChangeOverride: res.data?.allowPasswordChangeOverride,
               passwordOverrideReason: res.data?.passwordOverrideReason,
               passwordOverrideGrantedAt: res.data?.passwordOverrideGrantedAt,
+              passwordOverrideExpiresAt: res.data?.passwordOverrideExpiresAt,
               passwordChangedAt: res.data?.passwordChangedAt
             };
           }
@@ -247,6 +248,7 @@ const UsersManagement = () => {
             allowPasswordChangeOverride: res.data?.allowPasswordChangeOverride,
             passwordOverrideReason: res.data?.passwordOverrideReason,
             passwordOverrideGrantedAt: res.data?.passwordOverrideGrantedAt,
+            passwordOverrideExpiresAt: res.data?.passwordOverrideExpiresAt,
             passwordChangedAt: res.data?.passwordChangedAt
           }));
         }
@@ -806,6 +808,14 @@ const UserProfileDrawer = ({ user, onClose, onRoleChange, onDelete, onUnlock, on
                   <div className="um-info-row">
                     <span className="um-info-label">Granted On</span>
                     <span className="um-info-value">{formatDate(user.passwordOverrideGrantedAt)}</span>
+                  </div>
+                )}
+                {user.passwordOverrideExpiresAt && (
+                  <div className="um-info-row">
+                    <span className="um-info-label">Override Expiry</span>
+                    <span className="um-info-value" style={{ color: '#10b981', fontWeight: 600 }}>
+                      {formatDate(user.passwordOverrideExpiresAt)} (24h)
+                    </span>
                   </div>
                 )}
               </div>

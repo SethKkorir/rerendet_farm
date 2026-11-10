@@ -27,8 +27,25 @@ const productSchema = new mongoose.Schema({
       type: Number,
       required: true,
       min: [0, 'Price cannot be negative']
+    },
+    originalPrice: {
+      type: Number,
+      default: null,
+      min: [0, 'Original price cannot be negative']
     }
   }],
+
+  // Black November / Promotional compare-at price & discount badges
+  compareAtPrice: {
+    type: Number,
+    default: null,
+    min: [0, 'Compare-at price cannot be negative']
+  },
+  discountBadge: {
+    type: String,
+    trim: true,
+    maxlength: [60, 'Discount badge cannot exceed 60 characters']
+  },
 
   // Images
   images: [{
@@ -53,7 +70,16 @@ const productSchema = new mongoose.Schema({
   },
   roastLevel: {
     type: String,
-    enum: ['light', 'medium-light', 'medium', 'medium-dark', 'dark', 'espresso']
+    trim: true
+  },
+  // Grind Profile options configured for this coffee product
+  grindOptions: {
+    type: [String],
+    default: ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso']
+  },
+  defaultGrind: {
+    type: String,
+    default: 'Whole Beans'
   },
   flavorNotes: [String],
   origin: String,
@@ -165,12 +191,27 @@ const productSchema = new mongoose.Schema({
 
 // Virtual for available stock
 productSchema.virtual('availableStock').get(function () {
-  return this.inventory.physicalStock - this.inventory.reservedStock;
+  const phys = Number(this.inventory?.physicalStock ?? 0);
+  const res = Number(this.inventory?.reservedStock ?? 0);
+  return Math.max(0, phys - res);
 });
+
+// Alias virtual for legacy 'stock' references
+productSchema.virtual('stock')
+  .get(function () {
+    return this.availableStock;
+  })
+  .set(function (val) {
+    if (!this.inventory) {
+      this.inventory = { physicalStock: 0, reservedStock: 0, lowStockThreshold: 5 };
+    }
+    this.inventory.physicalStock = Math.max(0, Number(val) || 0);
+  });
 
 // Virtual for checking if product is low stock
 productSchema.virtual('isLowStock').get(function () {
-  return this.availableStock <= this.inventory.lowStockThreshold;
+  const threshold = Number(this.inventory?.lowStockThreshold ?? 5);
+  return this.availableStock <= threshold;
 });
 
 // Virtual for category
@@ -220,6 +261,21 @@ productSchema.methods.increaseStock = function (quantity = 1) {
   this.inStock = true;
   return this.save();
 };
+
+// Ensure inventory defaults and backwards-compatibility before validation
+productSchema.pre('validate', function (next) {
+  if (!this.inventory) {
+    this.inventory = { physicalStock: 0, reservedStock: 0, lowStockThreshold: 5 };
+  } else {
+    if (this.inventory.physicalStock === undefined && this.inventory.stock !== undefined) {
+      this.inventory.physicalStock = Math.max(0, Number(this.inventory.stock) || 0);
+    }
+    if (this.inventory.lowStockThreshold === undefined && this.inventory.lowStockAlert !== undefined) {
+      this.inventory.lowStockThreshold = Math.max(0, Number(this.inventory.lowStockAlert) || 5);
+    }
+  }
+  next();
+});
 
 // Pre-save middleware to generate slug if not provided
 productSchema.pre('save', async function (next) {

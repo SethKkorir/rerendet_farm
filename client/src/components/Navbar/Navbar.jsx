@@ -16,6 +16,8 @@ function Navbar() {
   const {
     user,
     userType,
+    isAdmin,
+    isCustomer,
     cartCount,
     setIsCartOpen,
     mobileMenuOpen,
@@ -25,8 +27,6 @@ function Navbar() {
     showNotification,
     setAuthView
   } = useContext(AppContext);
-
-  const isAdminUser = userType === 'admin' || user?.role === 'admin' || user?.role === 'super-admin';
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,6 +67,36 @@ function Navbar() {
     document.documentElement.setAttribute('data-theme', newMode ? 'dark' : 'light');
   };
 
+  const handleAccountClick = async (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setMobileMenuOpen(false);
+
+    try {
+      // Server is the root of trust: dynamic zero-trust verification via /api/auth/me
+      const { default: API } = await import('../../api/api');
+      const res = await API.get('/auth/me');
+      if (res.data?.success && res.data?.data) {
+        const verifiedUser = res.data.data.user || res.data.data;
+        const role = (verifiedUser.role || '').toLowerCase();
+        const isAdminUser = ['admin', 'super-admin', 'super_admin', 'owner'].includes(role) || verifiedUser.userType === 'admin';
+
+        if (isAdminUser) {
+          navigate('/admin');
+        } else {
+          navigate('/account');
+        }
+        return;
+      }
+    } catch (err) {
+      // Unauthenticated or invalid token
+    }
+
+    openAuth('login');
+  };
+
   const openAuth = (view = 'login') => {
     setAuthView(view);
     setMobileMenuOpen(false);
@@ -89,6 +119,7 @@ function Navbar() {
     ...(academyEnabled ? [{ name: 'Academy', href: '/blog' }] : []),
     { name: 'About', href: '#about' },
     { name: 'Contact', href: '#contact' },
+    ...(isAdmin ? [{ name: 'Admin', href: '/admin' }] : []),
   ];
 
   const handleNavClick = (link) => {
@@ -159,24 +190,16 @@ function Navbar() {
               </span>
             </button>
 
-            {/* Account */}
+            {/* Customer Account */}
             <button
               type="button"
-              className={`header__action-btn header__account ${user ? 'is-logged' : ''}`}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (user) {
-                  navigate(isAdminUser ? '/admin' : '/profile');
-                } else {
-                  openAuth('login');
-                }
-              }}
-              title={user ? (isAdminUser ? 'Admin Dashboard' : `Account: ${user.name || user.email}`) : 'Sign In'}
-              aria-label={user ? 'User Account' : 'Sign In'}
+              className={`header__action-btn header__account ${isCustomer ? 'is-logged' : ''}`}
+              onClick={handleAccountClick}
+              title={isCustomer ? `Account: ${user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.name || user?.email || 'My Account')}` : 'Sign In'}
+              aria-label={isCustomer ? 'User Account' : 'Sign In'}
             >
               <FaUser size={13} />
-              {user && <span className="header__user-dot" />}
+              {isCustomer && <span className="header__user-dot" />}
             </button>
 
             {/* Cart Button with Animated Bounce Badge */}
@@ -238,16 +261,13 @@ function Navbar() {
                     </button>
                   ))}
                   <div className="header__mobile-divider" />
-                  {user ? (
+                  {isCustomer ? (
                     <>
                       <button
                         className="header__mobile-nav-link header__mobile-nav-link--accent"
-                        onClick={() => {
-                          navigate(isAdminUser ? '/admin' : '/profile');
-                          setMobileMenuOpen(false);
-                        }}
+                        onClick={handleAccountClick}
                       >
-                        <span>{isAdminUser ? 'Admin Panel' : 'My Account'}</span>
+                        <span>My Account</span>
                       </button>
                       <button
                         className="header__mobile-nav-link header__mobile-nav-link--muted"

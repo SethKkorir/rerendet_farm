@@ -3,7 +3,9 @@ import asyncHandler from 'express-async-handler';
 import Campaign from '../models/Campaign.js';
 import Subscriber from '../models/Subscriber.js';
 import User from '../models/User.js';
+import Testimonial from '../models/Testimonial.js';
 import sendEmail from '../utils/sendEmail.js';
+import { getNewsletterEmail } from '../utils/emailTemplates.js';
 
 // ─── Helper: build recipient list ───────────────────────────────
 const buildRecipientList = async (audience = 'all') => {
@@ -163,7 +165,10 @@ export const sendCampaign = asyncHandler(async (req, res) => {
 
     // Send async after response
     try {
-        const { sent, failed } = await sendInBatches(recipients, campaign.subject, campaign.content);
+        const finalHtml = campaign.content.includes('<html') 
+            ? campaign.content 
+            : getNewsletterEmail(campaign.subject || campaign.title, campaign.content);
+        const { sent, failed } = await sendInBatches(recipients, campaign.subject, finalHtml);
         campaign.status = 'sent';
         campaign.sentAt = new Date();
         campaign.stats.totalSent = sent;
@@ -289,4 +294,162 @@ export const exportSubscribers = asyncHandler(async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="subscribers-${Date.now()}.csv"`);
     res.send(csvLines.join('\n'));
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ── TESTIMONIALS / STOREFRONT SOCIAL PROOF ────────────────────
+// ═══════════════════════════════════════════════════════════════
+
+const SEED_TESTIMONIALS = [
+    {
+        author: 'Josephine Chebet',
+        role: 'Verified Buyer',
+        rating: 5,
+        text: 'The floral aroma when opening the bag is remarkable. Brewing this via V60 brings out crisp citrus notes and a lingering honey sweetness.',
+        isActive: true,
+        displayOrder: 1
+    },
+    {
+        author: 'David Mwangi',
+        role: 'Highland Espresso Lover',
+        rating: 5,
+        text: 'The medium roast from the Nandi Highlands has completely elevated my morning ritual. Fresh, aromatic, and delightfully balanced.',
+        isActive: true,
+        displayOrder: 2
+    },
+    {
+        author: 'Sarah Jenkins',
+        role: 'Specialty Coffee Club',
+        rating: 5,
+        text: 'Exceptional bean density and rich golden crema. Hands down the purest single-origin Arabica available in Kenya.',
+        isActive: true,
+        displayOrder: 3
+    },
+    {
+        author: 'Brian Kipkorir',
+        role: 'Home Barista',
+        rating: 5,
+        text: 'Direct trade from local highlands makes all the difference. Smooth sweet finish without bitterness. I order a fresh batch every fortnight.',
+        isActive: true,
+        displayOrder: 4
+    }
+];
+
+export const ensureTestimonialsSeeded = async () => {
+    try {
+        const count = await Testimonial.countDocuments();
+        if (count === 0) {
+            await Testimonial.insertMany(SEED_TESTIMONIALS);
+            console.log('✅ Default marketing testimonials seeded');
+        }
+    } catch (err) {
+        console.error('Failed to seed default testimonials:', err.message);
+    }
+};
+
+// @desc    Get all testimonials (Admin)
+// @route   GET /api/marketing/testimonials
+// @access  Private/Admin
+export const getAdminTestimonials = asyncHandler(async (req, res) => {
+    await ensureTestimonialsSeeded();
+    const { search, status } = req.query;
+    const filter = {};
+    if (status === 'active') filter.isActive = true;
+    if (status === 'inactive') filter.isActive = false;
+    if (search) {
+        filter.$or = [
+            { author: { $regex: search, $options: 'i' } },
+            { role: { $regex: search, $options: 'i' } },
+            { text: { $regex: search, $options: 'i' } }
+        ];
+    }
+    const testimonials = await Testimonial.find(filter).sort({ displayOrder: 1, createdAt: -1 });
+    res.json({ success: true, count: testimonials.length, data: testimonials });
+});
+
+// @desc    Get public active testimonials for storefront
+// @route   GET /api/marketing/testimonials/public
+// @access  Public
+export const getPublicTestimonials = asyncHandler(async (req, res) => {
+    await ensureTestimonialsSeeded();
+    let testimonials = await Testimonial.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
+    if (!testimonials || testimonials.length === 0) {
+        await Testimonial.updateMany({}, { isActive: true });
+        testimonials = await Testimonial.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
+    }
+    res.json({ success: true, count: testimonials.length, data: testimonials });
+});
+
+// @desc    Create a testimonial (Admin)
+// @route   POST /api/marketing/testimonials
+// @access  Private/Admin
+export const createTestimonial = asyncHandler(async (req, res) => {
+    const { author, role, rating = 5, text, avatar, isActive = true, displayOrder = 0 } = req.body;
+    if (!author || !text) {
+        res.status(400);
+        throw new Error('Author name and testimonial text are required');
+    }
+    const testimonial = await Testimonial.create({
+        author: author.trim(),
+        role: (role || 'Verified Buyer').trim(),
+        rating: Math.min(5, Math.max(1, Number(rating) || 5)),
+        text: text.trim(),
+        avatar: avatar ? avatar.trim() : '',
+        isActive: Boolean(isActive),
+        displayOrder: Number(displayOrder) || 0
+    });
+    res.status(201).json({ success: true, message: 'Testimonial created successfully', data: testimonial });
+});
+
+// @desc    Update a testimonial (Admin)
+// @route   PUT /api/marketing/testimonials/:id
+// @access  Private/Admin
+export const updateTestimonial = asyncHandler(async (req, res) => {
+    const testimonial = await Testimonial.findById(req.params.id);
+    if (!testimonial) {
+        res.status(404);
+        throw new Error('Testimonial not found');
+    }
+    const { author, role, rating, text, avatar, isActive, displayOrder } = req.body;
+    if (author !== undefined) testimonial.author = author.trim();
+    if (role !== undefined) testimonial.role = role.trim();
+    if (rating !== undefined) testimonial.rating = Math.min(5, Math.max(1, Number(rating) || 5));
+    if (text !== undefined) testimonial.text = text.trim();
+    if (avatar !== undefined) testimonial.avatar = avatar ? avatar.trim() : '';
+    if (isActive !== undefined) testimonial.isActive = Boolean(isActive);
+    if (displayOrder !== undefined) testimonial.displayOrder = Number(displayOrder) || 0;
+
+    await testimonial.save();
+    res.json({ success: true, message: 'Testimonial updated successfully', data: testimonial });
+});
+
+// @desc    Toggle testimonial active status (Admin)
+// @route   PATCH /api/marketing/testimonials/:id/toggle
+// @access  Private/Admin
+export const toggleTestimonial = asyncHandler(async (req, res) => {
+    const testimonial = await Testimonial.findById(req.params.id);
+    if (!testimonial) {
+        res.status(404);
+        throw new Error('Testimonial not found');
+    }
+    testimonial.isActive = !testimonial.isActive;
+    await testimonial.save();
+    res.json({
+        success: true,
+        message: `Testimonial is now ${testimonial.isActive ? 'visible' : 'hidden'} on storefront`,
+        data: testimonial
+    });
+});
+
+// @desc    Delete a testimonial (Admin)
+// @route   DELETE /api/marketing/testimonials/:id
+// @access  Private/Admin
+export const deleteTestimonial = asyncHandler(async (req, res) => {
+    const testimonial = await Testimonial.findById(req.params.id);
+    if (!testimonial) {
+        res.status(404);
+        throw new Error('Testimonial not found');
+    }
+    await testimonial.deleteOne();
+    res.json({ success: true, message: 'Testimonial deleted successfully' });
 });

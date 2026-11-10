@@ -10,13 +10,14 @@ import {
   FaBullhorn, FaAd, FaSun, FaMoon, FaChevronLeft, 
   FaChevronRight, FaHistory, FaPenNib, FaTicketAlt,
   FaCreditCard, FaBoxOpen, FaBook, FaExternalLinkAlt,
-  FaShieldAlt, FaFileInvoiceDollar, FaReceipt
+  FaShieldAlt, FaFileInvoiceDollar, FaReceipt,
+  FaLock, FaCheckCircle
 } from 'react-icons/fa';
 import './AdminLayout.css';
 import './AdminMobile.css';
 import CommandPalette from './CommandPalette';
 import AlertCenter from './AlertCenter';
-import { getAdminAlerts } from '../../api/api';
+import API, { getAdminAlerts, getAdminSessions, revokeAllOtherAdminSessions } from '../../api/api';
 
 // Bottom nav items (5 most used on mobile)
 const BOTTOM_NAV = [
@@ -65,10 +66,8 @@ const NAV_GROUPS = [
     label: 'System & Security',
     items: [
       { id: 'settings', label: 'Settings', Icon: FaCog, path: '/admin/settings', color: '#94a3b8', bg: 'rgba(148,163,184,0.18)' },
-      { id: 'active-sessions', label: 'Active Sessions', Icon: FaShieldAlt, path: '/admin/sessions', color: '#8b5cf6', bg: 'rgba(139,92,246,0.18)' },
       { id: 'documentation', label: 'Documentation', Icon: FaBook, path: '/admin/documentation', color: '#10b981', bg: 'rgba(16,185,129,0.18)' },
-      { id: 'logs', label: 'Security Logs', Icon: FaHistory, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)', badgeKey: 'criticalAlerts', badgeType: 'crit' },
-      { id: 'audit-feed', label: 'Activity Feed', Icon: FaHistory, path: '/admin/audit-feed', color: '#ef4444', bg: 'rgba(239,68,68,0.18)' },
+      { id: 'logs', label: 'Security & Activity Logs', Icon: FaShieldAlt, path: '/admin/logs', color: '#ef4444', bg: 'rgba(239,68,68,0.18)', badgeKey: 'criticalAlerts', badgeType: 'crit' },
     ],
   },
 ];
@@ -81,10 +80,17 @@ const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth > 1024 : true);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('adminSidebarCollapsed') === 'true');
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [hoveredItem, setHoveredItem] = useState(null);
+
+  // Auto-close mobile sidebar when route changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
 
   // ── Theme ──
   const [adminDark, setAdminDark] = useState(() => localStorage.getItem('darkMode') === 'true');
@@ -115,6 +121,43 @@ const AdminLayout = ({ children }) => {
     criticalAlerts: 0
   });
 
+  // ── Session Telemetry & Mobile App Drawer ──
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [sessionCount, setSessionCount] = useState(1);
+  const [revokingSessions, setRevokingSessions] = useState(false);
+  const [sessionStartTime] = useState(() => {
+    const stored = sessionStorage.getItem('adminSessionStart');
+    if (stored) return Number(stored);
+    const now = Date.now();
+    sessionStorage.setItem('adminSessionStart', now);
+    return now;
+  });
+
+  const fetchSessionsData = async () => {
+    if (!token) return;
+    try {
+      const res = await getAdminSessions();
+      if (res.data?.success) {
+        setSessionCount((res.data.data || []).length || 1);
+      }
+    } catch {}
+  };
+
+  const handleTerminateOtherSessions = async () => {
+    if (!window.confirm('Terminate all other active admin sessions across devices?')) return;
+    setRevokingSessions(true);
+    try {
+      await revokeAllOtherAdminSessions();
+      showNotification('Other active sessions terminated', 'success');
+      fetchSessionsData();
+    } catch (err) {
+      showNotification(err.response?.data?.message || 'Failed to terminate other sessions', 'error');
+    } finally {
+      setRevokingSessions(false);
+    }
+  };
+
   const fetchAlertCounts = async () => {
     if (!token || !user) return;
     const isAdmin = user.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(user.role);
@@ -144,12 +187,9 @@ const AdminLayout = ({ children }) => {
       }
 
       // Check unread contacts
-      const cRes = await fetch('/api/admin/contacts?status=new', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const cData = await cRes.json();
-      if (cData?.total !== undefined) {
-        setNavMetrics(prev => ({ ...prev, unreadContacts: cData.total }));
+      const cRes = await API.get('/admin/contacts?status=new');
+      if (cRes.data?.total !== undefined) {
+        setNavMetrics(prev => ({ ...prev, unreadContacts: cRes.data.total }));
       }
     } catch {}
   };
@@ -380,7 +420,17 @@ const AdminLayout = ({ children }) => {
         {/* ── Header Bar (Clean, Minimal, Quiet Luxury) ── */}
         <header className="admin-header">
           <div className="header-left">
-            <button className="menu-toggle" onClick={() => setSidebarOpen(s => !s)} aria-label="Toggle menu">
+            <button
+              className="menu-toggle"
+              onClick={() => {
+                if (window.innerWidth <= 768) {
+                  setMobileDrawerOpen(true);
+                } else {
+                  setSidebarOpen(s => !s);
+                }
+              }}
+              aria-label="Toggle menu"
+            >
               <FaBars />
             </button>
             <h1 className="page-title">
@@ -389,6 +439,20 @@ const AdminLayout = ({ children }) => {
           </div>
 
           <div className="header-right">
+            {/* Live Session Pill */}
+            <button
+              className="header-session-pill"
+              onClick={() => {
+                fetchSessionsData();
+                setShowSessionModal(true);
+              }}
+              title="Active Admin Session"
+              aria-label="Active Session"
+            >
+              <span className="session-status-dot" />
+              <span className="session-pill-label">Active Session</span>
+            </button>
+
             {/* Direct Storefront link */}
             <a
               href="/"
@@ -411,13 +475,14 @@ const AdminLayout = ({ children }) => {
               {adminDark ? <FaSun className="theme-sun" /> : <FaMoon className="theme-moon" />}
             </button>
 
-            {/* Notification Bell (Clean single-counter badge) */}
+            {/* Notification Bell (Clean single-counter badge & toggle dropdown) */}
             <div className="notification-wrapper">
               <button
-                className="notification-btn"
-                onClick={() => setIsAlertCenterOpen(true)}
+                className={`notification-btn ${isAlertCenterOpen ? 'active' : ''}`}
+                onClick={() => setIsAlertCenterOpen(prev => !prev)}
                 title="Alerts & Notifications"
                 aria-label="Alerts"
+                aria-expanded={isAlertCenterOpen}
               >
                 <FaBell />
                 {totalAlerts > 0 && (
@@ -426,9 +491,9 @@ const AdminLayout = ({ children }) => {
                   </span>
                 )}
               </button>
+              
+              <AlertCenter isOpen={isAlertCenterOpen} onClose={() => setIsAlertCenterOpen(false)} />
             </div>
-            
-            <AlertCenter isOpen={isAlertCenterOpen} onClose={() => setIsAlertCenterOpen(false)} />
           </div>
         </header>
 
@@ -447,7 +512,7 @@ const AdminLayout = ({ children }) => {
               style={{ '--bn-color': item.color, '--bn-bg': item.bg }}
               onClick={() => {
                 if (isMore) {
-                  setSidebarOpen(true);
+                  setMobileDrawerOpen(true);
                 } else {
                   handleMenuClick(item);
                 }
@@ -469,6 +534,205 @@ const AdminLayout = ({ children }) => {
           <span className="bn-label">Logout</span>
         </button>
       </nav>
+
+      {/* ═══ MOBILE APP DRAWER / BOTTOM SHEET (Comes down like an app) ═══ */}
+      <AnimatePresence>
+        {mobileDrawerOpen && (
+          <div className="mobile-drawer-root">
+            <motion.div
+              className="mobile-drawer-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileDrawerOpen(false)}
+            />
+            <motion.div
+              className="mobile-drawer-sheet"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            >
+              {/* Swipe / pull handle */}
+              <div className="mobile-drawer-handle-wrap" onClick={() => setMobileDrawerOpen(false)}>
+                <span className="mobile-drawer-handle-bar" />
+              </div>
+
+              {/* Active Session Card in Mobile Drawer */}
+              <div className="mobile-drawer-session-card">
+                <div className="md-session-top">
+                  <div className="md-session-status">
+                    <span className="session-status-dot" />
+                    <span>Active Session</span>
+                  </div>
+                  <span className="md-session-role-pill">
+                    {user?.role === 'super-admin' ? 'Super Admin' : (user?.role || 'Admin')}
+                  </span>
+                </div>
+                <div className="md-session-body">
+                  <div className="profile-initials-chip">{initials}</div>
+                  <div className="md-session-meta">
+                    <span className="md-session-name">
+                      {user?.firstName ? `${user.firstName} ${user.lastName || ''}` : 'Administrator'}
+                    </span>
+                    <span className="md-session-email">{user?.email || 'admin@rerendet.com'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* App Drawer Navigation Sections */}
+              <div className="mobile-drawer-nav">
+                {NAV_GROUPS.map((group) => (
+                  <div key={group.label} className="md-nav-section">
+                    <span className="md-section-label">{group.label}</span>
+                    <div className="md-section-grid">
+                      {group.items.map((item) => {
+                        const isActive = activeMenu === item.id;
+                        const badgeValue = item.badgeKey ? navMetrics[item.badgeKey] : 0;
+                        return (
+                          <button
+                            key={item.id}
+                            className={`md-item-btn ${isActive ? 'active' : ''}`}
+                            onClick={() => {
+                              handleMenuClick(item);
+                              setMobileDrawerOpen(false);
+                            }}
+                          >
+                            <span className="md-icon-wrap" style={{ color: item.color, background: item.bg }}>
+                              <item.Icon />
+                            </span>
+                            <span className="md-item-text">{item.label}</span>
+                            {badgeValue > 0 && (
+                              <span className={`md-item-badge ${item.badgeType || 'warn'}`}>
+                                {badgeValue}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Drawer Footer Actions */}
+              <div className="mobile-drawer-actions">
+                <a
+                  href="/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="md-action-btn md-action-store"
+                  onClick={() => setMobileDrawerOpen(false)}
+                >
+                  <FaExternalLinkAlt /> Live Storefront
+                </a>
+                <button
+                  className="md-action-btn md-action-logout"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  <FaSignOutAlt /> Sign Out
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ ACTIVE SESSION TELEMETRY MODAL (Desktop & Mobile) ═══ */}
+      <AnimatePresence>
+        {showSessionModal && (
+          <div className="admin-session-modal-root">
+            <motion.div
+              className="admin-session-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSessionModal(false)}
+            />
+            <motion.div
+              className="admin-session-card"
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="admin-session-card-header">
+                <div className="session-modal-title">
+                  <FaShieldAlt className="session-shield-icon" />
+                  <div>
+                    <h3>Admin Session Status</h3>
+                    <p>Cryptographically verified administrative authorization</p>
+                  </div>
+                </div>
+                <button
+                  className="session-modal-close"
+                  onClick={() => setShowSessionModal(false)}
+                  aria-label="Close"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <div className="admin-session-info-grid">
+                <div className="session-info-row">
+                  <span className="session-info-label">Current Identity</span>
+                  <span className="session-info-val">
+                    {user?.firstName} {user?.lastName} ({user?.email})
+                  </span>
+                </div>
+                <div className="session-info-row">
+                  <span className="session-info-label">Role & Privilege</span>
+                  <span className="session-role-pill">
+                    {user?.role === 'super-admin' ? 'Super Administrator' : (user?.role || 'Administrator')}
+                  </span>
+                </div>
+                <div className="session-info-row">
+                  <span className="session-info-label">Connection Status</span>
+                  <span className="session-status-live">
+                    <span className="session-status-dot" /> Secure · Valid Token
+                  </span>
+                </div>
+                <div className="session-info-row">
+                  <span className="session-info-label">Session Established</span>
+                  <span className="session-info-val">
+                    {new Date(sessionStartTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+                <div className="session-info-row">
+                  <span className="session-info-label">Active Concurrent Sessions</span>
+                  <span className="session-info-val">
+                    {sessionCount} active device{sessionCount > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+
+              <div className="admin-session-card-footer">
+                <button
+                  className="btn-revoke-others"
+                  onClick={handleTerminateOtherSessions}
+                  disabled={revokingSessions}
+                >
+                  <FaLock />
+                  <span>{revokingSessions ? 'Revoking…' : 'Revoke All Other Devices'}</span>
+                </button>
+                <button
+                  className="btn-session-signout"
+                  onClick={() => {
+                    setShowSessionModal(false);
+                    handleLogout();
+                  }}
+                >
+                  <FaSignOutAlt />
+                  <span>Sign Out Current</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

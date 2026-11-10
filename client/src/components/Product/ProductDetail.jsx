@@ -14,6 +14,7 @@ const ProductDetail = () => {
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedSize, setSelectedSize] = useState('');
+    const [selectedGrind, setSelectedGrind] = useState('Whole Beans');
     const [addingToCart, setAddingToCart] = useState(false);
     const [restockEmail, setRestockEmail] = useState(user?.email || '');
     const [submittingRestock, setSubmittingRestock] = useState(false);
@@ -31,6 +32,9 @@ const ProductDetail = () => {
                     if (result.data.sizes?.length > 0) {
                         setSelectedSize(result.data.sizes[0].size);
                     }
+                    if (result.data.defaultGrind || result.data.grindOptions?.length > 0) {
+                        setSelectedGrind(result.data.defaultGrind || result.data.grindOptions[0]);
+                    }
                 } else {
                     showAlert('Product not found', 'error');
                 }
@@ -45,6 +49,8 @@ const ProductDetail = () => {
     }, [slug, showAlert]);
 
     const isOutOfStock = isProductOutOfStock(product);
+    const isCoffee = Boolean(product?.roastLevel || (product?.flavorNotes && product.flavorNotes.length > 0) || product?.category === 'coffee-beans' || (product?.grindOptions && product.grindOptions.length > 0));
+    const availableGrinds = product?.grindOptions?.length > 0 ? product.grindOptions : ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'];
 
     const handleAddToCart = async () => {
         if (!selectedSize || !product) return;
@@ -57,7 +63,7 @@ const ProductDetail = () => {
         setAddingToCart(true);
         try {
             const sizeOption = product.sizes.find(s => s.size === selectedSize);
-            await addToCart({ ...product, price: sizeOption.price }, 1, selectedSize);
+            await addToCart({ ...product, price: sizeOption.price }, 1, selectedSize, isCoffee ? selectedGrind : undefined);
         } catch (err) {
             console.error(err);
         } finally {
@@ -117,7 +123,11 @@ const ProductDetail = () => {
     }
     if (!product) return <div className="not-found">Coffee not found. <Link to="/">Back to shop</Link></div>;
 
-    const currentPrice = product.sizes?.find(s => s.size === selectedSize)?.price || 0;
+    const selectedOption = product.sizes?.find(s => s.size === selectedSize) || product.sizes?.[0];
+    const currentPrice = selectedOption?.price || product.price || 0;
+    const originalPrice = selectedOption?.originalPrice || product.compareAtPrice || null;
+    const hasDiscount = originalPrice && Number(originalPrice) > Number(currentPrice);
+    const discountPct = hasDiscount ? Math.round(((Number(originalPrice) - Number(currentPrice)) / Number(originalPrice)) * 100) : 0;
 
     return (
         <motion.div
@@ -136,16 +146,31 @@ const ProductDetail = () => {
 
                     {/* Right: Info */}
                     <div className="product-info">
-                        <div className="product-badges">
-                            {product.isFeatured && <span className="badge featured">Featured</span>}
-                            {product.roastLevel && <span className="badge roast">{product.roastLevel} Roast</span>}
-                        </div>
+                        {product.discountBadge && (
+                            <div className="product-badges">
+                                <span className="badge discount" style={{ background: '#ef4444', color: '#fff', fontWeight: 800 }}>
+                                    🔥 {product.discountBadge}
+                                </span>
+                            </div>
+                        )}
 
                         <h1>{product.name}</h1>
                         <p className="origin">{product.origin}</p>
 
-                        <div className="price-tag">
-                            <span className="currency">KES</span> {currentPrice.toLocaleString()}
+                        <div className="price-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                            {hasDiscount && (
+                                <s style={{ color: '#9ca3af', fontSize: '1.1rem', textDecoration: 'line-through' }}>
+                                    KES {Number(originalPrice).toLocaleString()}
+                                </s>
+                            )}
+                            <span style={{ fontSize: '1.75rem', fontWeight: 900 }}>
+                                <span className="currency">KES</span> {currentPrice.toLocaleString()}
+                            </span>
+                            {hasDiscount && (
+                                <span style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 800 }}>
+                                    Save {discountPct}%
+                                </span>
+                            )}
                         </div>
 
                         <div className="description">
@@ -188,6 +213,35 @@ const ProductDetail = () => {
                                             onClick={() => setSelectedSize(s.size)}
                                         >
                                             {s.size}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {isCoffee && (
+                            <div className="grind-selector" style={{ marginTop: '1.25rem' }}>
+                                <h3 className="desc-heading" style={{ marginBottom: '0.6rem' }}>Select Grind Profile:</h3>
+                                <div className="grind-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.5rem' }}>
+                                    {availableGrinds.map(g => (
+                                        <button
+                                            key={g}
+                                            type="button"
+                                            className={`grind-btn ${selectedGrind === g ? 'active' : ''}`}
+                                            onClick={() => setSelectedGrind(g)}
+                                            style={{
+                                                padding: '0.65rem 0.75rem',
+                                                borderRadius: '8px',
+                                                border: selectedGrind === g ? '2px solid #D4AF37' : '1px solid #e2e8f0',
+                                                background: selectedGrind === g ? 'rgba(212, 175, 55, 0.12)' : '#fff',
+                                                color: selectedGrind === g ? '#8B5A2B' : '#334155',
+                                                fontWeight: selectedGrind === g ? '700' : '500',
+                                                fontSize: '0.88rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease'
+                                            }}
+                                        >
+                                            {g}
                                         </button>
                                     ))}
                                 </div>

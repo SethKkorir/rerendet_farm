@@ -34,7 +34,7 @@ const SystemTelemetry = () => {
     try {
       if (!silent) setLoading(true);
       else setRefreshing(true);
-      
+
       const res = await getSystemHealth();
       if (res.data?.success) {
         setData(res.data.data);
@@ -128,7 +128,7 @@ const SystemTelemetry = () => {
 
   return (
     <div className="system-telemetry">
-      
+
       {/* ─── HEADER BAR ─── */}
       <div className="tel-header">
         <div className="tel-title-group">
@@ -165,7 +165,7 @@ const SystemTelemetry = () => {
 
       {/* ─── TOP EXECUTIVE HEALTH GAUGES ─── */}
       <div className="tel-kpi-grid">
-        
+
         {/* KPI 1: Uptime & Database */}
         <div className="tel-kpi-card">
           <div className="tel-kpi-top">
@@ -246,7 +246,7 @@ const SystemTelemetry = () => {
 
       {/* ─── ROW 2: QUEUE WORKERS & CACHE MANAGEMENT ─── */}
       <div className="tel-split-grid">
-        
+
         {/* LEFT COLUMN: BULLMQ QUEUE WORKERS */}
         <div className="tel-panel">
           <div className="tel-panel-head">
@@ -261,7 +261,7 @@ const SystemTelemetry = () => {
           </div>
 
           <div className="tel-queues-list">
-            
+
             {/* Queue 1: Email Queue */}
             <div className="tel-queue-item">
               <div className="tel-qi-header">
@@ -463,7 +463,7 @@ const SystemTelemetry = () => {
 
       {/* ─── ROW 3: SECURITY PERIMETER & AUDIT FEED ─── */}
       <div className="tel-split-grid">
-        
+
         {/* SECURITY PERIMETER */}
         <div className="tel-panel">
           <div className="tel-panel-head">

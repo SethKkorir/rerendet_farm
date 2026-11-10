@@ -21,7 +21,10 @@ const settingsSchema = new mongoose.Schema({
     headline: { type: String, default: 'Highland Mist, Poured for Perfection.' },
     subheadline: { type: String, default: 'Experience the rich, bold soul of hand-picked Kenyan coffee beans, roasting secrets passed through generations, delivered fresh to your door.' },
     pillText: { type: String, default: '100% Organic Arabica' },
-    imageUrl: { type: String, default: '/hero-product.png' },
+    imageUrl: { type: String, default: '/images/coffee/rerendet-espresso-1kg.png' },
+    imageUrl2: { type: String, default: '/images/coffee/rerendet-espresso-250g.png' },
+    imageUrl3: { type: String, default: '' },
+    images: [{ type: String }],
 
     // Floating badges & tags
     cornerBadgeEnabled: { type: Boolean, default: true },

@@ -116,8 +116,17 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: { type: Date, default: null },
   allowPasswordChangeOverride: { type: Boolean, default: false },
   passwordOverrideGrantedAt: { type: Date, default: null },
+  passwordOverrideExpiresAt: { type: Date, default: null },
   passwordOverrideGrantedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   passwordOverrideReason: { type: String, default: null },
+  passwordHistory: {
+    type: [{
+      hash: { type: String, required: true },
+      changedAt: { type: Date, default: Date.now }
+    }],
+    select: false,
+    default: []
+  },
   twoFactorEnabled: { type: Boolean, default: false },
   twoFactorSecret: { type: String, select: false },
   twoFactorBackupCodes: { type: [String], select: false },
@@ -279,6 +288,7 @@ userSchema.methods.toJSON = function () {
   delete user.resetPasswordExpires;
   delete user.loginAttempts;
   delete user.lockUntil;
+  delete user.passwordHistory;
   return user;
 };
 

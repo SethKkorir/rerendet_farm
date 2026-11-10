@@ -32,9 +32,8 @@ export const getClientIp = (req) => {
  * Normalized to handle loopback/localhost variations in development.
  */
 export const generateFingerprintHash = (ip, userAgent) => {
-  const normalizedIp = ip === '::1' || ip === '127.0.0.1' || ip === '::ffff:127.0.0.1' || ip === 'localhost' ? 'loopback' : (ip || '');
-  const cleanUA = (userAgent || '').trim();
-  return crypto.createHash('sha256').update(`${normalizedIp}:${cleanUA}`).digest('hex');
+  const cleanUA = (userAgent || '').trim().slice(0, 200);
+  return crypto.createHash('sha256').update(cleanUA).digest('hex');
 };
 
 // ── Access Token — short-lived (15 minutes), lives in HttpOnly cookie / auth header ────────────────────
@@ -109,16 +108,23 @@ export const verifyRefreshToken = (token) => {
   return jwt.verify(token, REFRESH_TOKEN_SECRET);
 };
 
+// ── Session Isolation Cookie Names ─────────────────────────────────────────
+export const ADMIN_ACCESS_COOKIE = 'admin_access_token';
+export const ADMIN_REFRESH_COOKIE = 'admin_refresh_token';
+export const CUSTOMER_ACCESS_COOKIE = 'customer_access_token';
+export const CUSTOMER_REFRESH_COOKIE = 'customer_refresh_token';
+
 // ── Cookie Options Helper ──────────────────────────────────────────────────
 export const getAuthCookieOptions = (maxAgeMs) => {
   const isProd = process.env.NODE_ENV === 'production';
-  const sameSitePolicy = process.env.COOKIE_SAME_SITE || (isProd ? 'none' : 'lax');
+  // Use Strict for defense-in-depth, or override via env
+  const sameSitePolicy = process.env.COOKIE_SAME_SITE || 'strict';
   const isSecure = isProd || sameSitePolicy === 'none';
 
   const options = {
     httpOnly: true,          // JS cannot read this — XSS-proof
-    secure: isSecure,        // Enforce HTTPS-only in production or when sameSite=none
-    sameSite: sameSitePolicy,// Configurable CSRF & cross-domain cookie transmission
+    secure: isSecure,        // Enforce HTTPS in production or sameSite=none
+    sameSite: sameSitePolicy,// Strict session isolation against CSRF
     path: '/'                // Global route access
   };
 
@@ -129,9 +135,70 @@ export const getAuthCookieOptions = (maxAgeMs) => {
   return options;
 };
 
-// ── Set Access Token as HttpOnly Cookie ──────────────────────────────────────
+// ── Clear All Auth Cookies Helper ──────────────────────────────────────────
+export const clearAllAuthCookies = (res) => {
+  const opts = getAuthCookieOptions();
+  res.clearCookie(ADMIN_ACCESS_COOKIE, opts);
+  res.clearCookie(ADMIN_REFRESH_COOKIE, opts);
+  res.clearCookie(CUSTOMER_ACCESS_COOKIE, opts);
+  res.clearCookie(CUSTOMER_REFRESH_COOKIE, opts);
+  res.clearCookie('token', opts);
+  res.clearCookie('refreshToken', opts);
+};
+
+// ── Admin Session Cookies ──────────────────────────────────────────────────
+export const setAdminCookies = (res, accessToken, refreshToken) => {
+  // Clear any existing customer session or stale legacy cookies first
+  const opts = getAuthCookieOptions();
+  res.clearCookie(CUSTOMER_ACCESS_COOKIE, opts);
+  res.clearCookie(CUSTOMER_REFRESH_COOKIE, opts);
+  res.clearCookie('token', opts);
+  res.clearCookie('refreshToken', opts);
+
+  const cookieExpireDays = (!process.env.JWT_COOKIE_EXPIRE || isNaN(Number(process.env.JWT_COOKIE_EXPIRE)))
+    ? 7
+    : Number(process.env.JWT_COOKIE_EXPIRE);
+
+  res.cookie(ADMIN_ACCESS_COOKIE, accessToken, getAuthCookieOptions(15 * 60 * 1000));
+  if (refreshToken) {
+    res.cookie(ADMIN_REFRESH_COOKIE, refreshToken, getAuthCookieOptions(cookieExpireDays * 24 * 60 * 60 * 1000));
+  }
+};
+
+export const clearAdminCookies = (res) => {
+  const opts = getAuthCookieOptions();
+  res.clearCookie(ADMIN_ACCESS_COOKIE, opts);
+  res.clearCookie(ADMIN_REFRESH_COOKIE, opts);
+};
+
+// ── Customer Session Cookies ───────────────────────────────────────────────
+export const setCustomerCookies = (res, accessToken, refreshToken) => {
+  // Clear any existing admin session or stale legacy cookies first
+  const opts = getAuthCookieOptions();
+  res.clearCookie(ADMIN_ACCESS_COOKIE, opts);
+  res.clearCookie(ADMIN_REFRESH_COOKIE, opts);
+  res.clearCookie('token', opts);
+  res.clearCookie('refreshToken', opts);
+
+  const cookieExpireDays = (!process.env.JWT_COOKIE_EXPIRE || isNaN(Number(process.env.JWT_COOKIE_EXPIRE)))
+    ? 7
+    : Number(process.env.JWT_COOKIE_EXPIRE);
+
+  res.cookie(CUSTOMER_ACCESS_COOKIE, accessToken, getAuthCookieOptions(15 * 60 * 1000));
+  if (refreshToken) {
+    res.cookie(CUSTOMER_REFRESH_COOKIE, refreshToken, getAuthCookieOptions(cookieExpireDays * 24 * 60 * 60 * 1000));
+  }
+};
+
+export const clearCustomerCookies = (res) => {
+  const opts = getAuthCookieOptions();
+  res.clearCookie(CUSTOMER_ACCESS_COOKIE, opts);
+  res.clearCookie(CUSTOMER_REFRESH_COOKIE, opts);
+};
+
+// ── Set Access Token as HttpOnly Cookie (Legacy Compatibility) ───────────────
 export const setTokenCookie = (res, token) => {
-  res.cookie('token', token, getAuthCookieOptions(15 * 60 * 1000)); // 15 mins matching access token
+  res.cookie('token', token, getAuthCookieOptions(15 * 60 * 1000));
 };
 
 // ── Clear Access Token Cookie ─────────────────────────────────────────────────
@@ -139,7 +206,7 @@ export const clearTokenCookie = (res) => {
   res.clearCookie('token', getAuthCookieOptions());
 };
 
-// ── Set Refresh Token as HttpOnly Cookie ─────────────────────────────────────
+// ── Set Refresh Token as HttpOnly Cookie (Legacy Compatibility) ──────────────
 export const setRefreshTokenCookie = (res, refreshToken) => {
   const cookieExpireDays = (!process.env.JWT_COOKIE_EXPIRE || isNaN(Number(process.env.JWT_COOKIE_EXPIRE)))
     ? 7
@@ -151,6 +218,24 @@ export const setRefreshTokenCookie = (res, refreshToken) => {
 // ── Clear Refresh Token Cookie ────────────────────────────────────────────────
 export const clearRefreshTokenCookie = (res) => {
   res.clearCookie('refreshToken', getAuthCookieOptions());
+};
+
+// ── Recovery Session & Authorization Cookies (Restricted & Independent) ────────
+export const setRecoveryChallengeCookie = (res, recoveryId) => {
+  res.cookie('recovery_challenge', String(recoveryId), getAuthCookieOptions(15 * 60 * 1000));
+};
+
+export const clearRecoveryChallengeCookie = (res) => {
+  res.clearCookie('recovery_challenge', getAuthCookieOptions());
+};
+
+export const setRecoveryAuthCookie = (res, recoveryId, token) => {
+  const value = `${recoveryId}:${token}`;
+  res.cookie('recovery_auth_token', value, getAuthCookieOptions(15 * 60 * 1000));
+};
+
+export const clearRecoveryAuthCookie = (res) => {
+  res.clearCookie('recovery_auth_token', getAuthCookieOptions());
 };
 
 // ── Legacy — kept for compatibility ──────────────────────────────────────────

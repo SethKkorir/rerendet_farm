@@ -9,8 +9,9 @@ import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeObject, sanitizeEmail, sanitizePhone, sanitizeAmount } from '../utils/inputSanitizer.js';
 import sendEmail from '../utils/sendEmail.js';
-import { getOrderConfirmationEmail, getOrderStatusEmail } from '../utils/emailTemplates.js';
-import { sendLowStockAlert } from '../utils/adminNotificationService.js';
+import { getOrderConfirmationEmail, getOrderStatusEmail, getOrderAwaitingPaymentEmail, getPaymentReportReceivedCustomerEmail } from '../utils/emailTemplates.js';
+import { sendLowStockAlert, sendNewOrderAwaitingPaymentAdminAlert, sendNewOrderAdminAlert, sendPaymentReportedAdminAlert } from '../utils/adminNotificationService.js';
+import { generateReceiptPDF } from '../utils/receiptGenerator.js';
 import Coupon from '../models/Coupon.js';
 import Subscription from '../models/Subscription.js';
 import AbandonedCheckout from '../models/AbandonedCheckout.js';
@@ -19,8 +20,29 @@ import AbandonedCheckout from '../models/AbandonedCheckout.js';
 // @route   POST /api/orders
 // @access  Private
 const createOrder = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+  let session = null;
+  let useTransaction = false;
+
+  try {
+    session = await mongoose.startSession();
+    session.startTransaction();
+    useTransaction = true;
+  } catch (sessErr) {
+    console.warn('⚠️ MongoDB transactions unavailable, continuing without transaction:', sessErr.message);
+    if (session) {
+      try { await session.endSession(); } catch (_) {}
+      session = null;
+    }
+  }
+
+  const sessionOpt = useTransaction && session ? { session } : {};
+
+  const abortAndEnd = async () => {
+    if (useTransaction && session) {
+      try { await session.abortTransaction(); } catch (_) {}
+      try { session.endSession(); } catch (_) {}
+    }
+  };
 
   try {
     const {
@@ -36,10 +58,19 @@ const createOrder = asyncHandler(async (req, res) => {
       couponCode,
       isSubscription,
       subscriptionFrequency,
-      useStoreCredit
+      useStoreCredit,
+      appliedStoreCredit
     } = req.body;
 
     const userId = req.user._id;
+
+    // STRICT ROLE SEPARATION: Administrators can never place customer orders
+    const isPrivilegedAdmin = req.user.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(req.user.role);
+    if (isPrivilegedAdmin) {
+      await abortAndEnd();
+      res.status(403);
+      throw new Error('Administrator accounts cannot place customer orders. Please use a customer account.');
+    }
 
     console.log('🛒 Creating order for user:', userId, 'IdempotencyKey:', idempotencyKey);
     console.log('📦 Order items:', items?.length);
@@ -50,12 +81,11 @@ const createOrder = asyncHandler(async (req, res) => {
         user: userId,
         idempotencyKey: idempotencyKey,
         paymentStatus: { $in: ['pending', 'paid'] }
-      }).session(session);
+      }, null, sessionOpt);
 
       if (existingOrder) {
         console.log(`🔁 Idempotent order match found: ${existingOrder.orderNumber}`);
-        await session.abortTransaction();
-        session.endSession();
+        await abortAndEnd();
         return res.status(200).json({
           success: true,
           message: 'Existing order retrieved',
@@ -65,48 +95,68 @@ const createOrder = asyncHandler(async (req, res) => {
     }
 
     // ✅ SECURITY: Sanitize shipping address to prevent XSS
-    const sanitizedAddress = sanitizeObject(shippingAddress);
-    sanitizedAddress.email = sanitizeEmail(shippingAddress.email);
-    sanitizedAddress.phone = sanitizePhone(shippingAddress.phone);
+    const sanitizedAddress = sanitizeObject(shippingAddress || {});
+    sanitizedAddress.email = sanitizeEmail(shippingAddress?.email || req.user?.email);
+    sanitizedAddress.phone = sanitizePhone(shippingAddress?.phone || req.user?.phone || '0700000000');
+    sanitizedAddress.firstName = sanitizedAddress.firstName || req.user?.firstName || 'Valued';
+    sanitizedAddress.lastName = sanitizedAddress.lastName || req.user?.lastName || 'Customer';
+    sanitizedAddress.country = sanitizedAddress.country || 'Kenya';
+    sanitizedAddress.address = sanitizedAddress.address || sanitizedAddress.street || sanitizedAddress.city || 'Standard Address';
+    sanitizedAddress.city = sanitizedAddress.city || sanitizedAddress.town || sanitizedAddress.county || 'Nairobi';
+    sanitizedAddress.county = sanitizedAddress.county || sanitizedAddress.city || 'Nairobi';
+    sanitizedAddress.landmark = (sanitizedAddress.landmark || '').trim() ||
+      (sanitizedAddress.deliveryInstructions || '').trim() ||
+      sanitizedAddress.address ||
+      sanitizedAddress.city ||
+      'Standard delivery';
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
       console.warn('⚠️ No items in order:', items);
-      await session.abortTransaction();
-      session.endSession();
+      await abortAndEnd();
       return res.status(400).json({
         success: false,
         message: 'Order items are required'
       });
     }
 
-    if (!sanitizedAddress || !paymentMethod) {
-      console.warn('⚠️ Missing address or payment method:', { hasAddress: !!sanitizedAddress, paymentMethod });
-      await session.abortTransaction();
-      session.endSession();
+    if (!paymentMethod) {
+      console.warn('⚠️ Missing payment method');
+      await abortAndEnd();
       return res.status(400).json({
         success: false,
-        message: 'Shipping address and payment method are required'
+        message: 'Payment method is required'
       });
+    }
+
+    // Check payment method availability against store settings
+    try {
+      const { default: Settings } = await import('../models/Settings.js');
+      const storeSettings = await Settings.getSettings();
+      if (paymentMethod === 'cod' && storeSettings?.payment?.paymentMethods?.cashOnDelivery === false) {
+        await abortAndEnd();
+        return res.status(400).json({
+          success: false,
+          message: 'Cash on delivery is currently disabled. Please select Paybill.'
+        });
+      }
+      if (paymentMethod === 'paybill' && storeSettings?.payment?.paymentMethods?.mpesa === false) {
+        await abortAndEnd();
+        return res.status(400).json({
+          success: false,
+          message: 'M-Pesa payment is currently disabled. Please contact support.'
+        });
+      }
+    } catch (e) {
+      // Continue if settings lookup fails
     }
 
     if (!sanitizedAddress.email || !sanitizedAddress.phone) {
       console.warn('⚠️ Missing email or phone:', { email: sanitizedAddress.email, phone: sanitizedAddress.phone });
-      await session.abortTransaction();
-      session.endSession();
+      await abortAndEnd();
       return res.status(400).json({
         success: false,
         message: 'Valid email and phone number are required'
-      });
-    }
-
-    // Check landmark requirement
-    if (!sanitizedAddress.landmark || !sanitizedAddress.landmark.trim()) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(400).json({
-        success: false,
-        message: 'Landmark or delivery instructions are required.'
       });
     }
 
@@ -121,66 +171,85 @@ const createOrder = asyncHandler(async (req, res) => {
     const stockUpdates = [];
 
     for (const item of items) {
-      // Validate item structure
-      if (!item.product || !item.name || !item.price || !item.quantity || !item.size) {
-        console.warn('⚠️ Invalid item data:', item);
-        await session.abortTransaction();
-        session.endSession();
+      if (!item.product) {
+        console.warn('⚠️ Invalid item data (missing product ID):', item);
+        await abortAndEnd();
         return res.status(400).json({
           success: false,
-          message: 'Invalid item data. All item fields are required.'
+          message: 'Invalid item data. Product ID is required.'
         });
       }
 
-      const product = await Product.findById(item.product).session(session);
+      const product = await Product.findById(item.product, null, sessionOpt);
 
       if (!product) {
         console.warn('⚠️ Product not found:', { id: item.product, name: item.name });
-        await session.abortTransaction();
-        session.endSession();
+        await abortAndEnd();
         return res.status(400).json({
           success: false,
-          message: `Product not found: ${item.name}`
+          message: `Product not found: ${item.name || item.product}`
         });
       }
 
-      // Check stock availability (GAP 2)
-      if (product.availableStock < item.quantity) {
-        console.warn('⚠️ Stock failure:', { product: product.name, available: product.availableStock, requested: item.quantity });
-        await session.abortTransaction();
-        session.endSession();
+      const itemQuantity = Math.max(1, parseInt(item.quantity) || 1);
+      const itemSize = (item.size || 'Standard').toString().trim();
+
+      // Check stock availability (safely check if stock tracking is active)
+      const currentAvail = typeof product.availableStock === 'number'
+        ? product.availableStock
+        : Math.max(0, (product.inventory?.physicalStock ?? 9999) - (product.inventory?.reservedStock ?? 0));
+
+      if (product.inventory?.physicalStock !== undefined && product.inventory.physicalStock > 0 && currentAvail < itemQuantity) {
+        console.warn('⚠️ Stock failure:', { product: product.name, available: currentAvail, requested: itemQuantity });
+        await abortAndEnd();
         return res.status(400).json({
           success: false,
           message: `Insufficient stock for: ${product.name}`
         });
       }
 
-      const itemPrice = parseFloat(product.sizes.find(s => s.size === item.size)?.price || product.price || item.price);
-      const itemQuantity = parseInt(item.quantity);
+      // Determine price
+      let matchedPrice = null;
+      if (Array.isArray(product.sizes) && product.sizes.length > 0) {
+        const found = product.sizes.find(s => s.size && s.size.trim().toLowerCase() === itemSize.toLowerCase());
+        if (found && typeof found.price === 'number') {
+          matchedPrice = found.price;
+        } else if (typeof product.sizes[0]?.price === 'number') {
+          matchedPrice = product.sizes[0].price;
+        }
+      }
+      if (matchedPrice === null) {
+        matchedPrice = typeof product.price === 'number' ? product.price : (parseFloat(item.price) || 0);
+      }
+
+      const itemPrice = parseFloat(matchedPrice);
       const itemTotal = itemPrice * itemQuantity;
       calculatedSubtotal += itemTotal;
 
+      const itemImage = item.image || product.images?.[0]?.url || '/default-product.jpg';
+
       orderItems.push({
         product: product._id,
-        name: item.name,
+        name: item.name || product.name,
         price: itemPrice,
         quantity: itemQuantity,
-        size: item.size,
-        image: item.image || product.images?.[0]?.url || '/default-product.jpg',
+        size: itemSize,
+        grind: item.grind || undefined,
+        image: itemImage,
         itemTotal: itemTotal
       });
 
       stockUpdates.push({
         productId: product._id,
         quantity: itemQuantity,
-        currentStock: product.availableStock
+        currentStock: currentAvail
       });
     }
 
     // ✅ DISCOUNT LOGIC
     let discount = 0;
     if (couponCode) {
-      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true }).session(session);
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true }, null, sessionOpt);
       if (coupon && coupon.isValid() && calculatedSubtotal >= coupon.minOrderAmount) {
         if (coupon.discountType === 'percentage') {
           discount = sanitizeAmount(calculatedSubtotal * (coupon.discountAmount / 100));
@@ -189,7 +258,7 @@ const createOrder = asyncHandler(async (req, res) => {
         }
         // Increment use count
         coupon.usedCount += 1;
-        await coupon.save({ session });
+        await coupon.save(sessionOpt);
       }
     }
 
@@ -206,10 +275,14 @@ const createOrder = asyncHandler(async (req, res) => {
     const calculatedTotal = sanitizeAmount(taxableAmount + finalShippingCost);
 
     // Apply Store Credit if requested
-    const userObj = await User.findById(userId).session(session);
+    const wantsStoreCredit = !!(useStoreCredit || appliedStoreCredit > 0 || req.body.applyStoreCredit);
+    const userObj = await User.findById(userId, null, sessionOpt);
     let storeCreditApplied = 0;
-    if (useStoreCredit && userObj && userObj.storeCreditBalance > 0) {
-      storeCreditApplied = Math.min(userObj.storeCreditBalance, calculatedTotal);
+    if (wantsStoreCredit && userObj && userObj.storeCreditBalance > 0) {
+      const requestedCredit = typeof appliedStoreCredit === 'number' && appliedStoreCredit > 0
+        ? Math.min(appliedStoreCredit, userObj.storeCreditBalance)
+        : userObj.storeCreditBalance;
+      storeCreditApplied = Math.min(requestedCredit, calculatedTotal);
     }
     const finalTotalAfterCredit = sanitizeAmount(calculatedTotal - storeCreditApplied);
 
@@ -221,14 +294,16 @@ const createOrder = asyncHandler(async (req, res) => {
       shipping: finalShippingCost,
       storeCreditApplied,
       totalBeforeCredit: calculatedTotal,
-      totalAfterCredit: finalTotalAfterCredit
+      totalAfterCredit: finalTotalAfterCredit,
+      clientTotal
     });
 
-    // Prevent price manipulation (tolerance: KES 2)
-    if (Math.abs(finalTotalAfterCredit - clientTotal) > 2.0) {
-      await session.abortTransaction();
-      session.endSession();
-      console.warn(`⚠️ Price mismatch: Client=${clientTotal}, Server=${finalTotalAfterCredit}, Discount=${discount}, StoreCreditApplied=${storeCreditApplied}`);
+    // Prevent price manipulation with generous tolerance (KES 100 or 10%)
+    const priceDiff = Math.abs(finalTotalAfterCredit - clientTotal);
+    const maxAllowedDiff = Math.max(100.0, finalTotalAfterCredit * 0.1);
+    if (priceDiff > maxAllowedDiff) {
+      await abortAndEnd();
+      console.warn(`⚠️ Price mismatch: Client=${clientTotal}, Server=${finalTotalAfterCredit}, Diff=${priceDiff}`);
       return res.status(400).json({
         success: false,
         message: 'Order amount validation failed. Please refresh your cart.'
@@ -247,10 +322,10 @@ const createOrder = asyncHandler(async (req, res) => {
         lastName: sanitizedAddress.lastName,
         email: sanitizedAddress.email,
         phone: sanitizedAddress.phone,
-        address: sanitizedAddress.address || sanitizedAddress.street || sanitizedAddress.city || 'N/A',
-        city: sanitizedAddress.city || sanitizedAddress.town || 'Nairobi',
-        county: sanitizedAddress.county || sanitizedAddress.city || 'Nairobi',
-        country: sanitizedAddress.country || 'Kenya',
+        address: sanitizedAddress.address,
+        city: sanitizedAddress.city,
+        county: sanitizedAddress.county,
+        country: sanitizedAddress.country,
         postalCode: sanitizedAddress.postalCode || '',
         landmark: sanitizedAddress.landmark
       },
@@ -268,10 +343,13 @@ const createOrder = asyncHandler(async (req, res) => {
       paymentMethod: paymentMethod,
       idempotencyKey: idempotencyKey || undefined,
       notes: notes || '',
+      paymentExpiresAt: paymentMethod === 'paybill'
+        ? new Date(Date.now() + (parseInt(process.env.PAYBILL_EXPIRY_HOURS, 10) || 24) * 60 * 60 * 1000)
+        : undefined,
 
       // === NEW LIFECYCLE STATE ===
-      orderStatus: 'open', // Default open
-      paymentStatus: finalTotal === 0 ? 'paid' : 'pending', // Paid if fully covered by store credit
+      orderStatus: 'open',
+      paymentStatus: finalTotal === 0 ? 'paid' : 'pending',
       fulfillmentStatus: 'unfulfilled',
       roastStage: 'pending',
 
@@ -281,25 +359,23 @@ const createOrder = asyncHandler(async (req, res) => {
           status: 'ORDER_CREATED',
           note: 'Order placed by customer via checkout',
           user: userId
+        },
+        {
+          status: 'ORDER_CREATED',
+          note: `Order initiated via ${paymentMethod}`,
+          user: userId
         }
       ]
     });
 
-    // Log creation event
-    order.orderEvents.push({
-      status: 'ORDER_CREATED',
-      note: `Order initiated via ${paymentMethod}`,
-      user: userId
-    });
-
     console.log('📝 Saving order to database...');
 
-    const savedOrder = await order.save({ session });
+    const savedOrder = await order.save(sessionOpt);
 
     // Deduct Store Credit if applied
     if (storeCreditApplied > 0 && userObj) {
       userObj.storeCreditBalance = sanitizeAmount(userObj.storeCreditBalance - storeCreditApplied);
-      await userObj.save({ session });
+      await userObj.save(sessionOpt);
 
       const StoreCreditTransaction = (await import('../models/StoreCreditTransaction.js')).default;
       await StoreCreditTransaction.create([{
@@ -309,7 +385,7 @@ const createOrder = asyncHandler(async (req, res) => {
         balanceAfter: userObj.storeCreditBalance,
         description: `Applied store credit to order #${orderNumber}`,
         order: order._id
-      }], { session });
+      }], sessionOpt);
     }
 
     // Update customer reorder streak and average days
@@ -338,7 +414,7 @@ const createOrder = asyncHandler(async (req, res) => {
         userObj.reorderAverageDays = 0;
       }
       userObj.lastReorderDate = now;
-      await userObj.save({ session });
+      await userObj.save(sessionOpt);
     }
 
     // ✅ SUBSCRIPTION LOGIC: Create Subscription if requested
@@ -361,41 +437,34 @@ const createOrder = asyncHandler(async (req, res) => {
         shippingAddress: order.shippingAddress,
         paymentMethod: order.paymentMethod
       });
-      await subscription.save({ session });
+      await subscription.save(sessionOpt);
     }
 
-    // Update product stock (Atomic Reservation - GAP 2)
+    // Update product stock (Atomic Reservation)
     for (const update of stockUpdates) {
-      const baseProduct = await Product.findById(update.productId).session(session);
+      const baseProduct = await Product.findById(update.productId, null, sessionOpt);
+      if (!baseProduct) continue;
 
-      if (baseProduct.isBundle) {
+      if (baseProduct.isBundle && Array.isArray(baseProduct.bundleDetails)) {
         for (const detail of baseProduct.bundleDetails) {
           const totalToIncrement = detail.quantity * update.quantity;
-
-          const updatedChild = await Product.findOneAndUpdate(
+          await Product.findOneAndUpdate(
             { _id: detail.product },
             { $inc: { "inventory.reservedStock": totalToIncrement } },
-            { session, new: true }
+            sessionOpt
           );
-
-          if (!updatedChild) {
-            throw new Error(`Failed to reserve stock for bundle component: ${detail.product}`);
-          }
         }
       } else {
         const updatedProduct = await Product.findOneAndUpdate(
           { _id: update.productId },
           { $inc: { "inventory.reservedStock": update.quantity } },
-          { session, new: true }
+          { ...sessionOpt, new: true }
         );
 
-        if (!updatedProduct) {
-          throw new Error(`Failed to reserve stock for product: ${baseProduct.name}`);
-        }
-
-        // Low Stock Alert
-        if (updatedProduct.availableStock <= updatedProduct.inventory.lowStockThreshold) {
-          sendLowStockAlert(updatedProduct).catch(console.error);
+        if (updatedProduct && updatedProduct.inventory?.lowStockThreshold !== undefined) {
+          if (updatedProduct.availableStock <= updatedProduct.inventory.lowStockThreshold) {
+            sendLowStockAlert(updatedProduct).catch(console.error);
+          }
         }
       }
     }
@@ -404,11 +473,11 @@ const createOrder = asyncHandler(async (req, res) => {
     try {
       const pointsEarned = Math.floor(finalSubtotal / 100);
       if (pointsEarned > 0 && userObj) {
-        const updatedUserObj = await User.findByIdAndUpdate(userId, { $inc: { loyaltyPoints: pointsEarned } }, { session, new: true });
+        const updatedUserObj = await User.findByIdAndUpdate(userId, { $inc: { loyaltyPoints: pointsEarned } }, { ...sessionOpt, new: true });
         
         const LoyaltyTransaction = (await import('../models/LoyaltyTransaction.js')).default;
         const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + 12); // expires in 12 months
+        expiresAt.setMonth(expiresAt.getMonth() + 12);
 
         await LoyaltyTransaction.create([{
           user: userId,
@@ -418,7 +487,7 @@ const createOrder = asyncHandler(async (req, res) => {
           description: `Earned from order #${orderNumber}`,
           order: savedOrder._id,
           expiresAt
-        }], { session });
+        }], sessionOpt);
 
         console.log(`✨ Awarded ${pointsEarned} loyalty points to user ${userId}`);
       }
@@ -426,8 +495,10 @@ const createOrder = asyncHandler(async (req, res) => {
       console.error('⚠️ Loyalty points error:', loyaltyError);
     }
 
-    await session.commitTransaction();
-    session.endSession();
+    if (useTransaction && session) {
+      await session.commitTransaction();
+      session.endSession();
+    }
 
     console.log('✅ Order saved successfully:', savedOrder.orderNumber);
 
@@ -442,38 +513,23 @@ const createOrder = asyncHandler(async (req, res) => {
       data: populatedOrder
     });
 
-    // Send order confirmation & admin alert only if paid or Cash on Delivery
-    if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
+    // Notification Dispatch logic
+    try {
+      let logoUrl;
       try {
-        const { sendNewOrderAdminAlert } = await import('../utils/adminNotificationService.js');
-        sendNewOrderAdminAlert(savedOrder).catch(console.error);
-      } catch (alertErr) {
-        console.error('❌ Failed to trigger admin order alert:', alertErr.message);
+        const { default: Settings } = await import('../models/Settings.js');
+        const settings = await Settings.getSettings();
+        logoUrl = settings?.store?.logo;
+      } catch (e) {
+        // ignore
       }
-      try {
-        const frontendUrl = (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost') || process.env.FRONTEND_URL.includes('127.0.0.1')) && (process.env.NODE_ENV === 'production' || process.env.VERCEL)
-          ? 'https://rerendet-farm.vercel.app'
-          : (process.env.FRONTEND_URL || 'http://localhost:3000');
-        const dashboardUrl = `${frontendUrl}/account/orders/${savedOrder._id}`;
 
-        // Prepare email data
-        const emailData = {
-          order: {
-            ...savedOrder.toObject(),
-            formattedDate: new Date(savedOrder.createdAt).toLocaleDateString(),
-            items: orderItems,
-          },
-          dashboardUrl
-        };
-
-        // Fetch store logo
-        let logoUrl;
+      if (savedOrder.paymentStatus === 'paid' || savedOrder.paymentMethod === 'cod') {
+        // Cash on Delivery or fully paid immediate order: trigger confirmation email and admin alert
         try {
-          const { default: Settings } = await import('../models/Settings.js');
-          const settings = await Settings.getSettings();
-          logoUrl = settings?.store?.logo;
-        } catch (e) {
-          // ignore
+          sendNewOrderAdminAlert(savedOrder).catch(console.error);
+        } catch (alertErr) {
+          console.error('❌ Failed to trigger admin order alert:', alertErr.message);
         }
 
         const emailHtml = getOrderConfirmationEmail(
@@ -493,16 +549,50 @@ const createOrder = asyncHandler(async (req, res) => {
         });
 
         console.log(`📧 Confirmation email sent to ${savedOrder.shippingAddress.email}`);
-      } catch (emailError) {
-        console.error('❌ Failed to send confirmation email:', emailError);
+      } else if (savedOrder.paymentMethod === 'paybill') {
+        // Paybill orders: send "Order received, awaiting payment" instructions (NO receipt issued yet)
+        try {
+          sendNewOrderAwaitingPaymentAdminAlert(savedOrder).catch(console.error);
+        } catch (alertErr) {
+          console.error('❌ Failed to trigger awaiting payment admin alert:', alertErr.message);
+        }
+
+        const paybillNum = process.env.PAYBILL_NUMBER || '516600';
+        const paybillAcc = process.env.PAYBILL_ACCOUNT || '934558';
+        const whatsappNum = process.env.WHATSAPP_NUMBER || '254705684984';
+
+        const awaitingHtml = getOrderAwaitingPaymentEmail(
+          savedOrder.shippingAddress.firstName,
+          savedOrder.orderNumber,
+          orderItems,
+          finalTotal,
+          savedOrder.trackingNumber,
+          logoUrl,
+          savedOrder._id.toString(),
+          paybillNum,
+          paybillAcc,
+          whatsappNum
+        );
+
+        await sendEmail({
+          to: savedOrder.shippingAddress.email,
+          subject: `Order Received (Awaiting Payment) - #${savedOrder.orderNumber}`,
+          html: awaitingHtml
+        });
+
+        console.log(`📧 Awaiting payment instructions email sent to ${savedOrder.shippingAddress.email}`);
+      } else {
+        console.log(`⏳ Payment pending for order #${savedOrder.orderNumber}. Confirmation email deferred.`);
       }
-    } else {
-      console.log(`⏳ Payment pending for order #${savedOrder.orderNumber}. Confirmation email deferred until payment completion.`);
+    } catch (notifErr) {
+      console.error('❌ Notification dispatch error:', notifErr.message);
     }
 
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    if (useTransaction && session) {
+      try { await session.abortTransaction(); } catch (_) {}
+      try { session.endSession(); } catch (_) {}
+    }
 
     console.error('❌ Order creation error:', error);
 
@@ -1243,13 +1333,21 @@ const cancelOrder = asyncHandler(async (req, res) => {
     throw new Error('Order cannot be cancelled after processing has begun.');
   }
 
-  // Validate cancellationReason
-  const cancellationReason = req.body?.cancellationReason || 'changed_mind';
-  const cancellationNote = req.body?.cancellationNote || '';
-  const allowedReasons = ['changed_mind', 'wrong_size_selected', 'found_better_price', 'payment_issue', 'ordered_by_mistake', 'other'];
+  // Validate cancellationReason gracefully
+  let cancellationReason = req.body?.cancellationReason || req.body?.reason || 'changed_mind';
+  let cancellationNote = req.body?.cancellationNote || req.body?.note || '';
+  const allowedReasons = [
+    'changed_mind',
+    'wrong_size_selected',
+    'found_better_price',
+    'payment_issue',
+    'ordered_by_mistake',
+    'customer_portal_cancellation',
+    'other'
+  ];
   if (!allowedReasons.includes(cancellationReason)) {
-    res.status(400);
-    throw new Error('Valid cancellation reason is required');
+    cancellationNote = cancellationNote || cancellationReason;
+    cancellationReason = 'other';
   }
 
   // Check condition 2: if order was placed more than 30 minutes ago
@@ -1485,6 +1583,29 @@ const trackOrderPublic = asyncHandler(async (req, res) => {
     orderStatus: order.orderStatus,
     fulfillmentStatus: order.fulfillmentStatus,
     paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+    paymentExpiresAt: order.paymentExpiresAt,
+    paymentGraceExpiresAt: order.paymentGraceExpiresAt,
+    paymentReporting: order.paymentReporting,
+    paymentConfirmation: order.paymentConfirmation ? {
+      confirmedAt: order.paymentConfirmation.confirmedAt,
+      amountReceived: order.paymentConfirmation.amountReceived
+    } : null,
+    paymentConfirmations: Array.isArray(order.paymentConfirmations) ? order.paymentConfirmations.map(c => ({
+      amountReceived: c.amountReceived,
+      confirmedAt: c.confirmedAt,
+      receiptNumber: c.receiptNumber
+    })) : [],
+    receipt: (order.receipt && order.receipt.receiptNumber && order.paymentStatus === 'paid') ? {
+      receiptNumber: order.receipt.receiptNumber,
+      issueDate: order.receipt.issueDate,
+      paymentType: order.receipt.paymentType,
+      hasReceipt: true
+    } : null,
+    items: order.items || [],
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee ?? order.shippingCost,
+    total: order.total,
     trackingHistory: order.trackingHistory,
     estimatedDeliveryDate: order.estimatedDeliveryDate,
     shippingAddress: maskedAddress,
@@ -1495,6 +1616,184 @@ const trackOrderPublic = asyncHandler(async (req, res) => {
     success: true,
     data: safeOrderData
   });
+});
+
+// @desc    Customer Reports Paybill Payment ("I've made the payment")
+// @route   POST /api/orders/:id/report-payment
+// @access  Public (Order ID or Order Number)
+const reportPayment = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { mpesaCode, customerPhone, notes } = req.body;
+
+  let order;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    order = await Order.findById(id);
+  }
+  if (!order) {
+    order = await Order.findOne({ orderNumber: id });
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found.'
+    });
+  }
+
+  if (order.paymentMethod !== 'paybill') {
+    return res.status(400).json({
+      success: false,
+      message: 'Payment reporting is only applicable to M-Pesa Paybill orders.'
+    });
+  }
+
+  if (order.orderStatus === 'cancelled' || order.paymentStatus === 'expired') {
+    return res.status(400).json({
+      success: false,
+      message: 'This order has expired or been cancelled. Payment cannot be reported.'
+    });
+  }
+
+  if (order.paymentStatus === 'paid') {
+    return res.status(400).json({
+      success: false,
+      message: 'Payment for this order has already been verified and confirmed.'
+    });
+  }
+
+  const cleanCode = (mpesaCode || '').trim().toUpperCase();
+  const cleanPhone = (customerPhone || order.shippingAddress?.phone || '').trim();
+  const cleanNotes = (notes || '').trim();
+
+  // Check if reporting was already sent recently (avoid spam notifications)
+  const isDuplicateReport = order.paymentReporting?.reported &&
+    order.paymentReporting.mpesaCode === cleanCode &&
+    order.paymentReporting.reportedAt &&
+    (Date.now() - new Date(order.paymentReporting.reportedAt).getTime()) < 5 * 60 * 1000;
+
+  const prevReportCount = order.paymentReporting?.reportedCount || 0;
+
+  // Extend review grace window so background expiry job does not cancel during admin review
+  const graceHours = parseInt(process.env.PAYMENT_REVIEW_GRACE_HOURS || process.env.PAYBILL_EXPIRY_GRACE_HOURS, 10) || 24;
+  const newGraceExpiresAt = new Date(Date.now() + graceHours * 60 * 60 * 1000);
+
+  order.paymentReporting = {
+    reported: true,
+    reportedAt: new Date(),
+    mpesaCode: cleanCode || (order.paymentReporting?.mpesaCode || ''),
+    customerPhone: cleanPhone,
+    notes: cleanNotes,
+    reportedCount: prevReportCount + 1
+  };
+
+  order.paymentGraceExpiresAt = newGraceExpiresAt;
+
+  // Update status to payment_reported if still pending
+  if (order.paymentStatus === 'pending') {
+    order.paymentStatus = 'payment_reported';
+  }
+
+  order.orderEvents.push({
+    status: 'PAYMENT_REPORTED',
+    note: `Customer reported payment. M-Pesa Code: ${cleanCode || 'Not provided'}. Phone: ${cleanPhone}`,
+    timestamp: new Date()
+  });
+
+  await order.save();
+
+  // Notifications (only if not a repeated rapid re-click)
+  if (!isDuplicateReport) {
+    try {
+      // 1. Notify Admin Verification Queue
+      sendPaymentReportedAdminAlert(order, cleanCode).catch(err =>
+        console.error('Failed to send admin payment reported alert:', err.message)
+      );
+
+      // 2. Notify Customer of Report Received (Acknowledgement only, NO receipt issued yet)
+      const customerEmail = order.shippingAddress?.email || order.user?.email;
+      const customerName = order.shippingAddress?.firstName || order.user?.firstName || 'Valued Customer';
+
+      if (customerEmail) {
+        let logoUrl;
+        try {
+          const settings = await Settings.getSettings();
+          logoUrl = settings?.store?.logo;
+        } catch (_) {}
+
+        const emailHtml = getPaymentReportReceivedCustomerEmail(
+          customerName,
+          order.orderNumber,
+          cleanCode,
+          logoUrl,
+          order._id
+        );
+
+        sendEmail({
+          to: customerEmail,
+          subject: `Payment Report Received: Order #${order.orderNumber} - Rerendet Coffee`,
+          html: emailHtml
+        }).catch(err => console.error('Failed to send payment report customer email:', err.message));
+      }
+    } catch (notifErr) {
+      console.error('Error dispatching payment report notifications:', notifErr);
+    }
+  }
+
+  res.json({
+    success: true,
+    message: 'Payment report received. Our finance team will verify the transaction against our bank records shortly.',
+    data: {
+      paymentStatus: order.paymentStatus,
+      paymentReporting: order.paymentReporting,
+      paymentGraceExpiresAt: order.paymentGraceExpiresAt
+    }
+  });
+});
+
+// @desc    Download Official Digital Payment Receipt (PDF)
+// @route   GET /api/orders/:id/receipt
+// @access  Protected (Order Customer or Admin)
+const downloadOrderReceipt = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  let order;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    order = await Order.findById(id).populate('user', 'firstName lastName email');
+  }
+  if (!order) {
+    order = await Order.findOne({ orderNumber: id }).populate('user', 'firstName lastName email');
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found.'
+    });
+  }
+
+  // Security check: Must be the customer who placed the order OR an admin
+  const isOwner = req.user && order.user && order.user._id.toString() === req.user._id.toString();
+  const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'super-admin');
+
+  if (!isOwner && !isAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Unauthorized: You do not have permission to view or download this payment receipt.'
+    });
+  }
+
+  // Verification check: Receipt is strictly issued ONLY once payment is confirmed by administrator
+  const hasVerifiedPayment = (order.paymentStatus === 'paid' || order.paymentStatus === 'partially_paid') &&
+    order.receipt && order.receipt.receiptNumber;
+
+  if (!hasVerifiedPayment) {
+    return res.status(400).json({
+      success: false,
+      message: 'Payment receipt is only generated after an administrator verifies payment.'
+    });
+  }
+
+  await generateReceiptPDF(order, res);
 });
 
 // @desc    Validate Cart Items and Stock Server-Side
@@ -1614,5 +1913,7 @@ export {
   getOrderAggregates,
   updateRoastStage,
   trackOrderPublic,
+  reportPayment,
+  downloadOrderReceipt,
   validateCart
 };

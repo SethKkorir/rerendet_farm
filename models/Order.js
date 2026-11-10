@@ -12,6 +12,7 @@ const orderItemSchema = new mongoose.Schema({
   quantity: { type: Number, required: true, min: 1 },
   image: { type: String, required: true },
   size: { type: String, required: true },
+  grind: { type: String },
   itemTotal: { type: Number, required: true }
 });
 
@@ -68,9 +69,99 @@ const orderSchema = new mongoose.Schema({
   // Payment Lifecycle
   paymentStatus: {
     type: String,
-    enum: ['pending', 'paid', 'failed', 'refunded'],
+    enum: ['pending', 'payment_reported', 'paid', 'partially_paid', 'expired', 'failed', 'refunded'],
     default: 'pending',
     index: true
+  },
+
+  // Customer Payment Reporting (unconfirmed until admin verifies)
+  paymentReporting: {
+    reported: { type: Boolean, default: false },
+    reportedAt: { type: Date },
+    mpesaCode: { type: String, trim: true, uppercase: true },
+    customerPhone: { type: String, trim: true },
+    notes: { type: String, trim: true },
+    reportedCount: { type: Number, default: 0 }
+  },
+
+  // Manual Paybill Confirmation Details (latest/aggregate for backward compatibility)
+  paymentConfirmation: {
+    mpesaCode: {
+      type: String,
+      trim: true,
+      uppercase: true
+    },
+    amountReceived: {
+      type: Number
+    },
+    confirmedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    confirmedAt: {
+      type: Date
+    }
+  },
+
+  // Verified Payment Transactions History (Supports Multiple Partial Payments)
+  paymentConfirmations: [
+    {
+      mpesaCode: {
+        type: String,
+        trim: true,
+        uppercase: true,
+        required: true
+      },
+      amountReceived: {
+        type: Number,
+        required: true
+      },
+      confirmedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      confirmedAt: {
+        type: Date,
+        default: Date.now
+      },
+      receiptNumber: {
+        type: String,
+        trim: true
+      },
+      notes: {
+        type: String,
+        trim: true
+      }
+    }
+  ],
+
+  // Official Digital Payment Receipt
+  receipt: {
+    receiptNumber: { type: String, trim: true },
+    issueDate: { type: Date },
+    paymentType: { type: String, enum: ['full', 'partial'] },
+    amountReceived: { type: Number },
+    outstandingBalance: { type: Number, default: 0 },
+    downloadUrl: { type: String },
+    generatedAt: { type: Date }
+  },
+
+  // Payment Expiration for Paybill Orders
+  paymentExpiresAt: {
+    type: Date,
+    index: true
+  },
+
+  // Extended Grace Expiry after Customer Reports Payment (allows admin review window)
+  paymentGraceExpiresAt: {
+    type: Date,
+    index: true
+  },
+
+  // Stock Reservation Status (for idempotent release)
+  stockReleased: {
+    type: Boolean,
+    default: false
   },
 
   // Fulfillment Lifecycle (Packing & Delivery)
@@ -101,7 +192,12 @@ const orderSchema = new mongoose.Schema({
   },
 
   // Metadata
-  paymentMethod: { type: String, required: true },
+  paymentMethod: {
+    type: String,
+    enum: ['paybill', 'cod', 'mpesa', 'card'],
+    default: 'paybill',
+    required: true
+  },
   idempotencyKey: { type: String, index: true },
   transactionId: { type: String },
   manualTransactionId: { type: String }, // For Paybill/Manual Verification
@@ -131,14 +227,14 @@ const orderSchema = new mongoose.Schema({
   couponCode: { type: String, uppercase: true },
   discountAmount: { type: Number, default: 0 },
 
-  // Inventory Reservation (Auto-expiry)
+  // Inventory Reservation (Auto-expiry timestamp reference)
   expiresAt: {
     type: Date,
     default: function () {
-      // Default: Expires in 30 minutes if unpaid
-      return new Date(Date.now() + 30 * 60 * 1000);
-    },
-    index: { expires: 0 } // Create TTL index but managing logic manually for better control
+      // Default: 24 hours if unpaid
+      const hours = parseInt(process.env.PAYBILL_EXPIRY_HOURS, 10) || 24;
+      return new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
   }
 
 }, {
@@ -180,6 +276,12 @@ orderSchema.pre('save', function (next) {
       this.trackingNumber = `RC${randomPart}`;
     }
 
+    // 3. Set paymentExpiresAt for Paybill orders (default: 24h)
+    if (this.paymentMethod === 'paybill' && !this.paymentExpiresAt) {
+      const hours = parseInt(process.env.PAYBILL_EXPIRY_HOURS, 10) || 24;
+      this.paymentExpiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+
     // Initial Log
     this.orderEvents.push({
       status: 'ORDER_CREATED',
@@ -195,9 +297,12 @@ orderSchema.statics.validateTransition = function (type, currentVal, newVal) {
 
   if (type === 'paymentStatus') {
     const allowed = {
-      pending: ['paid', 'failed'],
-      failed: ['paid'],
+      pending: ['payment_reported', 'paid', 'partially_paid', 'expired', 'failed'],
+      payment_reported: ['paid', 'partially_paid', 'expired', 'pending', 'failed'],
+      partially_paid: ['payment_reported', 'paid', 'failed', 'expired'],
+      failed: ['paid', 'pending', 'payment_reported'],
       paid: ['refunded'],
+      expired: ['paid', 'pending'],
       refunded: []
     };
     return (allowed[currentVal] || []).includes(newVal);
@@ -226,10 +331,14 @@ orderSchema.statics.validateTransition = function (type, currentVal, newVal) {
   return true;
 };
 
-// Add indexes for performance
+// Add indexes for performance & uniqueness
 orderSchema.index({ createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
 orderSchema.index({ user: 1 });
+orderSchema.index({ paymentMethod: 1, paymentStatus: 1, paymentExpiresAt: 1 });
+orderSchema.index({ 'paymentConfirmation.mpesaCode': 1 }, { unique: true, sparse: true });
+orderSchema.index({ 'paymentConfirmations.mpesaCode': 1 }, { unique: true, sparse: true });
+orderSchema.index({ 'receipt.receiptNumber': 1 }, { unique: true, sparse: true });
 
 const Order = mongoose.model('Order', orderSchema, 'orders');
 

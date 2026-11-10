@@ -39,7 +39,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 100px 1.25rem 4rem; /* space to clear navbar */
+  padding: 100px 1.25rem 4rem;
+  /* space to clear navbar */
   font-family: var(--font-body);
   color: var(--auth-text-main);
   position: relative;
@@ -62,8 +63,15 @@
 }
 
 @keyframes authCardEntrance {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .auth-embedded-content {

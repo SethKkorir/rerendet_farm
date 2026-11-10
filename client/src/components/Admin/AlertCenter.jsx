@@ -137,7 +137,7 @@ export const AlertCenter = ({ isOpen, onClose }) => {
     <>
       <div className="alert-center-overlay" onClick={onClose} aria-hidden="true" />
       <aside className="alert-center-drawer" role="dialog" aria-modal="true" aria-label="Alerts & Notifications">
-        
+
         {/* DRAWER HEADER */}
         <div className="ac-header">
           <div className="ac-title-wrap">

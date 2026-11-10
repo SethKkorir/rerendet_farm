@@ -10,7 +10,9 @@ import {
   FaYoutube,
   FaCcVisa,
   FaCcMastercard,
-  FaMoneyBillWave
+  FaMoneyBillWave,
+  FaTruck,
+  FaArrowRight
 } from 'react-icons/fa';
 import { getWhatsAppLink } from '../../utils/whatsappHelper';
 import './Footer.css';
@@ -25,29 +27,35 @@ const Footer = () => {
   return (
     <footer className="footer-minimal">
       <div className="footer-minimal-container">
-        
+
         {/* ══ Symmetrical 3-Column Top Grid ══ */}
         <div className="footer-minimal-top-grid">
 
-          {/* ── Left Wing ── */}
+          {/* ── Left Wing: Navigation Links (About Farm & Contact removed) ── */}
           <div className="footer-wing left">
             <div className="footer-h-line" />
             <nav className="footer-wing-nav">
+              <Link to="/#coffee-shop" className="footer-wing-link">
+                Coffee Shop
+              </Link>
+              <Link to="/shipping-policy" className="footer-wing-link">
+                Shipping Info
+              </Link>
+              <Link to="/refund-policy" className="footer-wing-link">
+                Returns / Exchanges
+              </Link>
               <Link to="/privacy-policy" className="footer-wing-link">
                 Privacy Policy
               </Link>
               <Link to="/terms-conditions" className="footer-wing-link">
                 Terms & Conditions
               </Link>
-              <Link to="/#about" className="footer-wing-link">
-                About
-              </Link>
             </nav>
           </div>
 
-          {/* ── Center Anchor: Big Logo, Brand & Social ── */}
+          {/* ── Center Anchor: Prominent Emblem Logo & Social ── */}
           <div className="footer-center-anchor">
-            <Link to="/" className="footer-logo-link" title={storeName}>
+            <Link to="/" className="footer-logo-link" title={storeName} aria-label={storeName}>
               <img
                 src={store.logo || '/rerendet-logo.png'}
                 alt={storeName}
@@ -110,8 +118,8 @@ const Footer = () => {
                 href={
                   social.whatsapp
                     ? (social.whatsapp.startsWith('http')
-                        ? social.whatsapp
-                        : `https://wa.me/${social.whatsapp.replace(/\D/g, '')}`)
+                      ? social.whatsapp
+                      : `https://wa.me/${social.whatsapp.replace(/\D/g, '')}`)
                     : getWhatsAppLink(publicSettings)
                 }
                 target="_blank"
@@ -136,20 +144,19 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* ── Right Wing ── */}
+          {/* ── Right Wing: Integrated Live Order Tracking (Small info + Button) ── */}
           <div className="footer-wing right">
             <div className="footer-h-line" />
-            <nav className="footer-wing-nav">
-              <Link to="/shipping-policy" className="footer-wing-link">
-                Shipping Info
+            <div className="footer-track-block">
+              <p className="footer-track-caption">
+                Follow your fresh roast delivery in real-time without login.
+              </p>
+              <Link to="/track-order" className="footer-track-btn" title="Track your order without login">
+                <FaTruck className="footer-track-btn-icon" />
+                <span>Track Live Order</span>
+                <FaArrowRight className="footer-track-btn-arrow" />
               </Link>
-              <Link to="/refund-policy" className="footer-wing-link">
-                Returns / Exchanges
-              </Link>
-              <Link to="/contact" className="footer-wing-link">
-                Contact
-              </Link>
-            </nav>
+            </div>
           </div>
 
         </div>
@@ -165,15 +172,17 @@ const Footer = () => {
                 className="mpesa-logo-img"
               />
             </span>
-            <span className="pay-pill" title="Visa">
+            {/* <span className="pay-pill" title="Visa">
               <FaCcVisa className="pay-icon" /> VISA
-            </span>
-            <span className="pay-pill" title="Mastercard">
+            </span> */}
+            {/* <span className="pay-pill" title="Mastercard">
               <FaCcMastercard className="pay-icon" /> MASTERCARD
-            </span>
-            <span className="pay-pill" title="Cash on Delivery">
-              <FaMoneyBillWave className="pay-icon" /> CASH ON DELIVERY
-            </span>
+            </span> */}
+            {/* {publicSettings?.payment?.paymentMethods?.cashOnDelivery === true && (
+              <span className="pay-pill" title="Cash on Delivery">
+                <FaMoneyBillWave className="pay-icon" /> CASH ON DELIVERY
+              </span>
+            )} */}
           </div>
         </div>
 

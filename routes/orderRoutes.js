@@ -15,6 +15,8 @@ import {
   getOrderAggregates,
   updateRoastStage,
   trackOrderPublic,
+  reportPayment,
+  downloadOrderReceipt,
   validateCart
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
@@ -26,6 +28,8 @@ const router = express.Router();
 router.post('/validate-cart', validateCart);
 router.post('/shipping-cost', calculateShippingCost);
 router.get('/track/:id', trackOrderPublic);
+router.post('/track/:id/report-payment', reportPayment);
+router.post('/:id/report-payment', reportPayment);
 
 // Protected routes
 router.use(protect);
@@ -37,6 +41,8 @@ router.post('/', checkoutLimiter, createOrder);
 router.get('/my', getUserOrders);
 router.get('/:id/cancel-warning', getCancelOrderWarning);
 router.post('/:id/cancel', cancelOrder);
+router.put('/:id/cancel', cancelOrder);
+router.get('/:id/receipt', downloadOrderReceipt);
 
 // Admin routes — MUST be before /:id to avoid being swallowed by the wildcard
 router.get('/abandoned', admin, getAbandonedCheckouts);

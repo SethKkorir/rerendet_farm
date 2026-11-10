@@ -39,7 +39,7 @@
 
   /* Light Theme (Default) */
   background-color: #FAF7F2;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 0%, rgba(212, 167, 55, 0.08) 0%, transparent 50%),
     radial-gradient(circle at 90% 90%, rgba(111, 78, 55, 0.05) 0%, transparent 45%);
   border-right: 1px solid rgba(111, 78, 55, 0.12);
@@ -48,7 +48,7 @@
 
 [data-theme='dark'] .admin-sidebar {
   background-color: #150e08;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 0%, rgba(216, 150, 78, 0.1) 0%, transparent 60%),
     radial-gradient(circle at 90% 80%, rgba(122, 77, 41, 0.12) 0%, transparent 50%),
     linear-gradient(180deg, #150e08 0%, #1a1109 100%);
@@ -243,6 +243,7 @@
   .sidebar-toggle {
     display: flex;
   }
+
   .sb-collapse-btn {
     display: none;
   }
@@ -560,9 +561,20 @@
   border-radius: 99px;
 }
 
-.sb-tip-badge.warn { background: #f59e0b; color: #1a0d03; }
-.sb-tip-badge.crit { background: #ef4444; color: #ffffff; }
-.sb-tip-badge.info { background: #8b5cf6; color: #ffffff; }
+.sb-tip-badge.warn {
+  background: #f59e0b;
+  color: #1a0d03;
+}
+
+.sb-tip-badge.crit {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.sb-tip-badge.info {
+  background: #8b5cf6;
+  color: #ffffff;
+}
 
 .sb-tooltip::before {
   content: '';
@@ -938,8 +950,13 @@
   transform: scale(1.05);
 }
 
-.theme-sun { color: #f59e0b; }
-.theme-moon { color: #8b5cf6; }
+.theme-sun {
+  color: #f59e0b;
+}
+
+.theme-moon {
+  color: #8b5cf6;
+}
 
 /* Notification Bell */
 .notification-wrapper {
@@ -1011,7 +1028,237 @@
   .admin-header {
     padding: 0 1rem;
   }
+
   .admin-content {
     padding: 1rem 1rem 5rem;
   }
+}
+
+/* ══ ACTIVE SESSION PILL & TELEMETRY MODAL ══ */
+.header-session-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 99px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.header-session-pill:hover {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: #10b981;
+  transform: translateY(-1px);
+}
+
+.session-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  animation: pulseDot 2s infinite ease-in-out;
+  flex-shrink: 0;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.admin-session-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.admin-session-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 5, 2, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 2501;
+}
+
+.admin-session-card {
+  position: relative;
+  z-index: 2502;
+  background: #FAF7F2;
+  border: 1px solid rgba(111, 78, 55, 0.15);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+[data-theme='dark'] .admin-session-card {
+  background: #181008;
+  border-color: rgba(216, 150, 78, 0.25);
+}
+
+.admin-session-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(111, 78, 55, 0.1);
+}
+
+[data-theme='dark'] .admin-session-card-header {
+  border-bottom-color: rgba(216, 150, 78, 0.15);
+}
+
+.session-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.session-shield-icon {
+  font-size: 1.4rem;
+  color: #10b981;
+}
+
+.session-modal-title h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main, #1D1510);
+  margin: 0 0 0.15rem;
+}
+
+[data-theme='dark'] .session-modal-title h3 {
+  color: #FAF6F0;
+}
+
+.session-modal-title p {
+  font-size: 0.75rem;
+  color: var(--text-muted, #786b59);
+  margin: 0;
+}
+
+.session-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  color: var(--text-muted, #786b59);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.admin-session-info-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.session-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed rgba(111, 78, 55, 0.1);
+  font-size: 0.82rem;
+}
+
+[data-theme='dark'] .session-info-row {
+  border-bottom-color: rgba(216, 150, 78, 0.12);
+}
+
+.session-info-label {
+  color: var(--text-muted, #786b59);
+  font-weight: 600;
+}
+
+.session-info-val {
+  font-weight: 700;
+  color: var(--text-main, #1D1510);
+}
+
+[data-theme='dark'] .session-info-val {
+  color: #FAF6F0;
+}
+
+.session-role-pill {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(212, 175, 55, 0.15);
+  color: #D4AF37;
+}
+
+.session-status-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #10b981;
+  font-weight: 700;
+}
+
+.admin-session-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(111, 78, 55, 0.1);
+}
+
+[data-theme='dark'] .admin-session-card-footer {
+  border-top-color: rgba(216, 150, 78, 0.15);
+}
+
+.btn-revoke-others {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-revoke-others:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: #ef4444;
+}
+
+.btn-session-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.05rem;
+  border-radius: 10px;
+  border: none;
+  background: #ef4444;
+  color: #FFFFFF;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-session-signout:hover {
+  background: #dc2626;
 }

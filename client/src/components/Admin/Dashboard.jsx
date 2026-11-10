@@ -1,9 +1,10 @@
 // Dashboard.jsx — Premium Command Center Rebuild
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ActivityLogs from './ActivityLogs';
 import SystemTelemetry from './SystemTelemetry';
 import { AppContext } from '../../context/AppContext';
+import { getActivityLogs } from '../../api/api';
 import {
   FaShoppingBag, FaDollarSign, FaUsers, FaBox,
   FaArrowUp, FaArrowDown, FaEye, FaChartLine,
@@ -11,7 +12,7 @@ import {
   FaShippingFast, FaExclamationTriangle, FaFire,
   FaClock, FaBell, FaClipboardList, FaThList,
   FaChartBar, FaTruck, FaCreditCard, FaMobileAlt,
-  FaLeaf, FaServer
+  FaLeaf, FaServer, FaCalendarAlt, FaUserCheck, FaHistory
 } from 'react-icons/fa';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -83,6 +84,37 @@ const Dashboard = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [timeframe, setTimeframe] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Activity History State
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyCategory, setHistoryCategory] = useState('');
+
+  const fetchHistory = useCallback(async (page = 1, category = '') => {
+    setHistoryLoading(true);
+    try {
+      const params = { page, limit: 15 };
+      if (category) params.actionCategory = category;
+      const res = await getActivityLogs(params);
+      if (res.data?.success) {
+        setHistoryLogs(res.data.data || []);
+        setHistoryTotal(res.data.total || 0);
+        setHistoryPage(page);
+      }
+    } catch (err) {
+      console.error('Failed to fetch activity history:', err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchHistory(1, historyCategory);
+    }
+  }, [activeTab, historyCategory, fetchHistory]);
 
   // Theme colors for Recharts
   const [tc, setTc] = useState({ primary: '#D4AF37', text: '#94a3b8', grid: '#e2e8f0', bg: '#ffffff' });
@@ -189,7 +221,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
 
-      {/* ── HEADER (Clean, Minimalist, Premium) ── */}
+      {/* ── HEADER (Clean, Minimalist, Quiet Luxury) ── */}
       <header className="db-header">
         <div className="db-header-left">
           <h1 className="db-title">Overview</h1>
@@ -201,29 +233,14 @@ const Dashboard = () => {
         </div>
 
         <div className="db-header-right">
-          {/* Timeframe selector */}
-          <div className="db-tf-pills" role="group" aria-label="Timeframe">
-            {[['7d', '7D'], ['30d', '30D'], ['90d', '90D'], ['1y', '1Y'], ['all', 'ALL']].map(([val, lbl]) => (
-              <button
-                key={val}
-                className={`db-tf-pill ${timeframe === val ? 'active' : ''}`}
-                onClick={() => setTimeframe(val)}
-              >
-                {lbl}
-              </button>
-            ))}
-          </div>
-
-          <div className="db-toolbar-divider" />
-
-          {/* Section tabs */}
+          {/* Section tabs - pure typography, no icon clutter */}
           <div className="db-tabs" role="tablist">
             {[
-              { id: 'overview', label: 'Metrics', icon: <FaChartLine /> },
-              { id: 'reports', label: 'Reports', icon: <FaChartBar /> },
-              { id: 'telemetry', label: 'Telemetry', icon: <FaServer /> },
-              isSuperAdmin && { id: 'logs', label: 'Logs', icon: <FaThList /> },
-            ].filter(Boolean).map(t => (
+              { id: 'overview', label: 'Metrics' },
+              { id: 'reports', label: 'Reports' },
+              { id: 'history', label: 'History' },
+              { id: 'telemetry', label: 'System' },
+            ].map(t => (
               <button
                 key={t.id}
                 role="tab"
@@ -231,7 +248,7 @@ const Dashboard = () => {
                 className={`db-tab ${activeTab === t.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(t.id)}
               >
-                {t.icon} <span>{t.label}</span>
+                {t.label}
               </button>
             ))}
           </div>
@@ -239,12 +256,18 @@ const Dashboard = () => {
           {/* Refresh button */}
           <button
             className="db-refresh-btn"
-            onClick={() => fetchAll(true)}
-            disabled={refreshing}
+            onClick={() => {
+              if (activeTab === 'history') {
+                fetchHistory(1, historyCategory);
+              } else {
+                fetchAll(true);
+              }
+            }}
+            disabled={refreshing || historyLoading}
             title="Refresh Data"
             aria-label="Refresh Data"
           >
-            <FaSync className={refreshing ? 'db-spin' : ''} />
+            <FaSync className={(refreshing || historyLoading) ? 'db-spin' : ''} />
           </button>
         </div>
       </header>
@@ -626,16 +649,129 @@ const Dashboard = () => {
         )}
 
         {/* ══════════════════════════════════
-            LOGS TAB (SUPER ADMIN ONLY)
+            HISTORY TAB (Live Update History with Exact Date & Time)
          ══════════════════════════════════ */}
-        {activeTab === 'logs' && isSuperAdmin && (
-          <motion.div key="logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <ActivityLogs />
+        {activeTab === 'history' && (
+          <motion.div
+            key="history"
+            className="db-history-view"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="db-history-header">
+              <div className="db-history-header-left">
+                <h3>Store & System Update History</h3>
+                <p>Live chronological record with exact timestamp of each update, product edit, and stock movement.</p>
+              </div>
+              <div className="db-history-filter-pills">
+                {['', 'PRODUCT', 'ORDER', 'INVENTORY', 'AUTH', 'SETTING'].map((cat) => (
+                  <button
+                    key={cat}
+                    className={`db-hfilter-btn ${historyCategory === cat ? 'active' : ''}`}
+                    onClick={() => setHistoryCategory(cat)}
+                  >
+                    {cat || 'All Updates'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {historyLoading ? (
+              <div className="db-history-loading">
+                <FaCoffee className="db-spin" />
+                <p>Loading update history…</p>
+              </div>
+            ) : historyLogs.length === 0 ? (
+              <div className="db-empty-state">
+                <p>No recorded updates found for this filter.</p>
+              </div>
+            ) : (
+              <div className="db-history-table-wrap">
+                <table className="db-history-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '190px' }}>Date & Time</th>
+                      <th>Action / Event</th>
+                      <th>Category</th>
+                      <th>Updated By</th>
+                      <th>IP / Origin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyLogs.map((log) => {
+                      const dt = new Date(log.createdAt || Date.now());
+                      const dateStr = dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                      const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+
+                      const actorName = log.admin?.firstName
+                        ? `${log.admin.firstName} ${log.admin.lastName || ''}`.trim()
+                        : (log.user?.email || 'System Automation');
+
+                      const cat = log.details?.actionCategory || log.actionCategory || 'SYSTEM';
+
+                      return (
+                        <tr key={log._id || Math.random()}>
+                          <td className="db-ht-time-cell">
+                            <span className="db-ht-date">{dateStr}</span>
+                            <span className="db-ht-time">{timeStr}</span>
+                          </td>
+                          <td className="db-ht-action-cell">
+                            <div className="db-ht-action-title">{log.action?.replace(/_/g, ' ') || 'Update Event'}</div>
+                            {log.details?.description && (
+                              <div className="db-ht-action-desc">{log.details.description}</div>
+                            )}
+                            {log.entityName && (
+                              <div className="db-ht-entity-tag">{log.entityName}</div>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`db-ht-cat-pill cat-${cat.toLowerCase()}`}>
+                              {cat}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="db-ht-actor">{actorName}</span>
+                            {log.admin?.role && (
+                              <span className="db-ht-role-sub">{log.admin.role}</span>
+                            )}
+                          </td>
+                          <td className="db-ht-ip">
+                            <code>{log.ipAddress || 'Internal'}</code>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {/* History Pagination */}
+                <div className="db-history-pagination">
+                  <span>Showing page {historyPage} of {Math.ceil(historyTotal / 15) || 1} ({historyTotal} events)</span>
+                  <div className="db-hpag-btns">
+                    <button
+                      className="db-hpag-btn"
+                      disabled={historyPage <= 1}
+                      onClick={() => fetchHistory(historyPage - 1, historyCategory)}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      className="db-hpag-btn"
+                      disabled={historyPage >= Math.ceil(historyTotal / 15)}
+                      onClick={() => fetchHistory(historyPage + 1, historyCategory)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
         {/* ══════════════════════════════════
-            TELEMETRY TAB
+            TELEMETRY / SYSTEM TAB
          ══════════════════════════════════ */}
         {activeTab === 'telemetry' && (
           <motion.div key="telemetry" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

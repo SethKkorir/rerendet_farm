@@ -1,10 +1,11 @@
 import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
 import {
   FaLock, FaCreditCard, FaMoneyBillWave, FaPhone,
   FaTruck, FaUser, FaInfoCircle, FaShieldAlt,
-  FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaEnvelope, FaExclamationCircle, FaPercent, FaSync, FaGlobe, FaCheckCircle
+  FaArrowRight, FaArrowLeft, FaMapMarkerAlt, FaEnvelope, FaExclamationCircle, FaPercent, FaSync, FaGlobe, FaCheckCircle,
+  FaSearch, FaChevronDown, FaCheck, FaTimes, FaWhatsapp, FaCopy, FaClock
 } from 'react-icons/fa';
 import PaymentProcessingModal from '../PaymentProcessingModal/PaymentProcessingModal';
 import BrandLoader from '../UI/BrandLoader';
@@ -24,8 +25,11 @@ function Checkout() {
     token,
     authLoading,
     isAuthenticated,
+    isCustomer,
+    isAdmin,
     publicSettings,
-    logAbandonedCheckout
+    logAbandonedCheckout,
+    logout
   } = useContext(AppContext);
 
   const navigate = useNavigate();
@@ -33,7 +37,31 @@ function Checkout() {
   // Step 1: SHIPPING | Step 2: PAYMENT | Step 3: REVIEW & CONFIRMATION
   const [currentStep, setCurrentStep] = useState(1);
   const [useSameAddress, setUseSameAddress] = useState(true);
-  const [selectedCardType, setSelectedCardType] = useState('new'); // 'saved' or 'new'
+
+  // Saved card detection (only if customer actually has card on file)
+  const savedCard = useMemo(() => {
+    const cardData = user?.wallet?.card || user?.card;
+    if (!cardData) return null;
+    const last4 = cardData.last4 || (cardData.numberMasked ? cardData.numberMasked.replace(/\s+/g, '').slice(-4) : null);
+    if (!last4) return null;
+    return {
+      brand: cardData.brand || 'Visa',
+      last4,
+      holderName: cardData.holderName || (user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : ''),
+      expiryDate: cardData.expiryDate || ''
+    };
+  }, [user]);
+
+  const hasSavedCard = Boolean(savedCard);
+  const [selectedCardType, setSelectedCardType] = useState(() => (hasSavedCard ? 'saved' : 'new'));
+
+  useEffect(() => {
+    if (hasSavedCard) {
+      setSelectedCardType('saved');
+    } else {
+      setSelectedCardType('new');
+    }
+  }, [hasSavedCard]);
 
   const [shippingInfo, setShippingInfo] = useState({
     firstName: user?.shippingInfo?.firstName || user?.firstName || '',
@@ -51,14 +79,63 @@ function Checkout() {
 
   const [applyStoreCredit, setApplyStoreCredit] = useState(false);
   const [deliveryEstimate, setDeliveryEstimate] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('card'); // default to card as in target mockup
-  const [selectedAddressId, setSelectedAddressId] = useState(() => {
+  const [paymentMethod, setPaymentMethod] = useState('paybill'); // Pay via Paybill (guided on WhatsApp) is default
+  const [createdPaybillOrder, setCreatedPaybillOrder] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const [showReportForm, setShowReportForm] = useState(false);
+  const [reportMpesaCode, setReportMpesaCode] = useState('');
+  const [reportNotes, setReportNotes] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
+  const handleReportPayment = async (e) => {
+    e?.preventDefault();
+    if (!createdPaybillOrder) return;
+    setSubmittingReport(true);
+    try {
+      const orderId = createdPaybillOrder._id || createdPaybillOrder.orderNumber;
+      const res = await fetch(`/api/orders/${orderId}/report-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          mpesaCode: reportMpesaCode,
+          customerPhone: shippingInfo.phone,
+          notes: reportNotes
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReportSubmitted(true);
+        showNotification?.(data.message || 'Payment reported successfully! Awaiting verification.', 'success');
+      } else {
+        showNotification?.(data.message || 'Failed to submit payment report', 'error');
+      }
+    } catch {
+      showNotification?.('Network error submitting payment report', 'error');
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
+
+  const copyText = (text, field) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
+
+  const selectedAddressIdState = useState(() => {
     if (user?.addresses && user.addresses.length > 0) {
       const def = user.addresses.find(a => a.isDefault);
       return def ? def._id : user.addresses[0]._id;
     }
     return null;
   });
+  const [selectedAddressId, setSelectedAddressId] = selectedAddressIdState;
 
   const handleSelectSavedAddress = (addr) => {
     if (!addr) return;
@@ -81,15 +158,13 @@ function Checkout() {
     }));
   };
 
-  // Auto-select first available payment method from settings
+  // Keep payment method within allowed options
   useEffect(() => {
-    if (publicSettings?.payment?.paymentMethods) {
-      const methods = publicSettings.payment.paymentMethods;
-      if (methods.card) setPaymentMethod('card');
-      else if (methods.mpesa) setPaymentMethod('mpesa');
-      else if (methods.cashOnDelivery) setPaymentMethod('cod');
+    const isCodActive = publicSettings?.payment?.paymentMethods?.cashOnDelivery === true;
+    if (paymentMethod === 'cod' && !isCodActive) {
+      setPaymentMethod('paybill');
     }
-  }, [publicSettings]);
+  }, [publicSettings?.payment?.paymentMethods?.cashOnDelivery, paymentMethod]);
 
   const [loading, setLoading] = useState(false);
   const [calculatingShipping, setCalculatingShipping] = useState(false);
@@ -103,6 +178,11 @@ function Checkout() {
   const [subdivisions, setSubdivisions] = useState(KENYAN_COUNTIES);
   const [subdivisionType, setSubdivisionType] = useState('County');
 
+  const paybillNumber = publicSettings?.payment?.paybillNumber || import.meta.env.VITE_PAYBILL_NUMBER || '516600';
+  const paybillAccount = publicSettings?.payment?.paybillAccount || import.meta.env.VITE_PAYBILL_ACCOUNT || '934558';
+  const whatsappNumber = publicSettings?.payment?.whatsappNumber || import.meta.env.VITE_WHATSAPP_NUMBER || '254705684984';
+  const expiryHours = publicSettings?.payment?.paybillExpiryHours || 24;
+
   // Fetch updated countries from backend location API (with REST Countries v5)
   useEffect(() => {
     let isMounted = true;
@@ -113,6 +193,141 @@ function Checkout() {
     });
     return () => { isMounted = false; };
   }, []);
+
+  // Canonical country name matched against allCountries (case-insensitive & code-aware)
+  const selectedCountryName = useMemo(() => {
+    const raw = (shippingInfo.country || 'Kenya').trim();
+    const found = allCountries.find(c => {
+      const name = typeof c === 'string' ? c : c.name;
+      const code = typeof c === 'object' ? c.code : null;
+      return name.toLowerCase() === raw.toLowerCase() || (code && code.toLowerCase() === raw.toLowerCase());
+    });
+    if (found) {
+      return typeof found === 'string' ? found : found.name;
+    }
+    return raw || 'Kenya';
+  }, [shippingInfo.country, allCountries]);
+
+  // Keep shippingInfo.country strictly synchronized with canonical country name
+  useEffect(() => {
+    if (selectedCountryName && shippingInfo.country !== selectedCountryName) {
+      setShippingInfo(prev => ({ ...prev, country: selectedCountryName }));
+    }
+  }, [selectedCountryName, shippingInfo.country]);
+
+  // Searchable Country Combobox (Dropdown shows ALL countries with live inline search)
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [countrySearchText, setCountrySearchText] = useState('');
+  const [isSearchingCountry, setIsSearchingCountry] = useState(false);
+  const countryDropdownRef = useRef(null);
+  const countryInputRef = useRef(null);
+
+  const selectedCountryObj = useMemo(() => {
+    return allCountries.find(c => {
+      const name = typeof c === 'string' ? c : c.name;
+      return name.toLowerCase() === selectedCountryName.toLowerCase();
+    }) || { name: selectedCountryName, flag: getFlag(selectedCountryName), dialCode: getDialCode(selectedCountryName) };
+  }, [allCountries, selectedCountryName]);
+
+  const handleOpenCountryDropdown = () => {
+    setIsCountryDropdownOpen(true);
+    setIsSearchingCountry(true);
+    setCountrySearchText('');
+  };
+
+  const handleCloseCountryDropdown = () => {
+    setIsCountryDropdownOpen(false);
+    setIsSearchingCountry(false);
+    setCountrySearchText('');
+  };
+
+  // Close dropdown on click outside & reset unselected input text
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (countryDropdownRef.current && !countryDropdownRef.current.contains(e.target)) {
+        handleCloseCountryDropdown();
+      }
+    };
+    if (isCountryDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCountryDropdownOpen]);
+
+  // Filter countries: when countrySearchText is empty, show ALL countries!
+  const filteredCountries = useMemo(() => {
+    if (!countrySearchText.trim()) return allCountries;
+    const q = countrySearchText.toLowerCase().trim();
+    return allCountries.filter(c => {
+      const name = (typeof c === 'string' ? c : c.name || '').toLowerCase();
+      const code = (typeof c === 'object' ? c.code || '' : '').toLowerCase();
+      const dial = (typeof c === 'object' ? c.dialCode || '' : '').toLowerCase();
+      return name.includes(q) || code.includes(q) || dial.includes(q);
+    });
+  }, [allCountries, countrySearchText]);
+
+  const handleSelectCountry = (countryName) => {
+    handleInputChange('country', countryName);
+    handleCloseCountryDropdown();
+  };
+
+  // Searchable County Combobox state (Dropdown shows ALL 47 counties with live search)
+  const [isCountyDropdownOpen, setIsCountyDropdownOpen] = useState(false);
+  const [countySearchText, setCountySearchText] = useState('');
+  const [isSearchingCounty, setIsSearchingCounty] = useState(false);
+  const countyDropdownRef = useRef(null);
+  const countyInputRef = useRef(null);
+
+  const handleOpenCountyDropdown = () => {
+    setIsCountyDropdownOpen(true);
+    setIsSearchingCounty(true);
+    setCountySearchText('');
+  };
+
+  const handleCloseCountyDropdown = () => {
+    setIsCountyDropdownOpen(false);
+    setIsSearchingCounty(false);
+    setCountySearchText('');
+  };
+
+  // Close county dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (countyDropdownRef.current && !countyDropdownRef.current.contains(e.target)) {
+        handleCloseCountyDropdown();
+      }
+    };
+    if (isCountyDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isCountyDropdownOpen]);
+
+  // List of available counties/subdivisions for current country
+  const currentCountyList = useMemo(() => {
+    const isKenya = (shippingInfo.country || 'Kenya').toLowerCase() === 'kenya';
+    return isKenya ? KENYAN_COUNTIES : subdivisions;
+  }, [shippingInfo.country, subdivisions]);
+
+  // Filtered counties based on user search
+  const filteredCounties = useMemo(() => {
+    if (!countySearchText.trim()) return currentCountyList;
+    const q = countySearchText.toLowerCase().trim();
+    return currentCountyList.filter(c => c.toLowerCase().includes(q));
+  }, [currentCountyList, countySearchText]);
+
+  const handleSelectCounty = (countyName) => {
+    handleInputChange('county', countyName);
+    handleCloseCountyDropdown();
+  };
 
   // Sync subdivisions (counties/states/provinces) when country changes
   useEffect(() => {
@@ -188,24 +403,49 @@ function Checkout() {
   const appliedStoreCredit = applyStoreCredit ? Math.min(storeCreditAvailable, subtotal - discount + shippingCost) : 0;
   const total = Math.max(0, subtotal - discount + shippingCost - appliedStoreCredit);
 
+  // Derived values for order summary display (handles both active cart and post-checkout createdPaybillOrder)
+  const summaryItems = createdPaybillOrder?.items && createdPaybillOrder.items.length > 0
+    ? createdPaybillOrder.items
+    : cart;
+
+  const displaySubtotal = createdPaybillOrder
+    ? (createdPaybillOrder.subtotal ?? (createdPaybillOrder.items?.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0) || 0))
+    : subtotal;
+
+  const displayShipping = createdPaybillOrder
+    ? (createdPaybillOrder.shippingCost ?? 0)
+    : shippingCost;
+
+  const displayDiscount = createdPaybillOrder
+    ? (createdPaybillOrder.discount ?? 0)
+    : discount;
+
+  const displayStoreCredit = createdPaybillOrder
+    ? (createdPaybillOrder.storeCreditApplied ?? createdPaybillOrder.appliedStoreCredit ?? 0)
+    : appliedStoreCredit;
+
+  const displayTotal = createdPaybillOrder
+    ? (createdPaybillOrder.totalAmount ?? createdPaybillOrder.total ?? total)
+    : total;
+
   // Per-checkout idempotency key to prevent duplicate charges
   const idempotencyKeyRef = useRef(null);
   if (!idempotencyKeyRef.current) {
     idempotencyKeyRef.current = `IDEM_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  // Redirect to login if not authenticated (after persistent auth initialization finishes)
+  // Allow authenticated users to proceed with checkout
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (!authLoading && !user) {
       showNotification('Please log in to proceed with checkout', 'info');
       sessionStorage.setItem('authRedirect', '/checkout');
       navigate('/login?redirect=checkout');
     }
-  }, [authLoading, isAuthenticated, navigate, showNotification]);
+  }, [authLoading, user, navigate, showNotification]);
 
-  // Sync user profile shipping details
+  // Sync user profile shipping details ONLY for customers
   useEffect(() => {
-    if (user) {
+    if (isCustomer && user) {
       if (user.addresses && user.addresses.length > 0) {
         const def = user.addresses.find(a => a.isDefault) || user.addresses[0];
         if (def && !selectedAddressId) {
@@ -325,10 +565,11 @@ function Checkout() {
 
   const getCardBrandBadge = (num) => {
     const clean = (num || '').replace(/\s+/g, '');
+    if (!clean) return <FaCreditCard className="badge-brand-icon" />;
     if (/^4/.test(clean)) return <span className="badge-brand visa">VISA</span>;
     if (/^5[1-5]/.test(clean)) return <span className="badge-brand mc">Mastercard</span>;
     if (/^3[47]/.test(clean)) return <span className="badge-brand amex">AMEX</span>;
-    return <span className="badge-brand visa">VISA</span>;
+    return <span className="badge-brand generic">CARD</span>;
   };
 
   const logFailure = async (reason) => {
@@ -382,7 +623,7 @@ function Checkout() {
     if (!shippingInfo.email?.trim()) newErrors.email = 'Email address is required';
     if (!shippingInfo.address?.trim()) newErrors.address = 'Street/Building address is required';
     if (!shippingInfo.phone?.trim() || shippingInfo.phone.replace(/[\s\+\-]/g, '').length < 6) {
-      newErrors.phone = 'Valid phone number is required for courier dispatch';
+      newErrors.phone = 'Valid phone number is required';
     }
 
     const isKenya = (shippingInfo.country || 'Kenya').toLowerCase() === 'kenya';
@@ -415,83 +656,10 @@ function Checkout() {
 
   const validatePayment = () => {
     const newErrors = {};
-    if (paymentMethod === 'card' && selectedCardType === 'new') {
-      if (!cardInfo.number.trim() || cardInfo.number.replace(/\s+/g, '').length < 15) {
-        newErrors.cardNo = 'Valid card number is required';
-      }
-      if (!cardInfo.expiry.trim() || !cardInfo.expiry.includes('/')) {
-        newErrors.cardExp = 'Valid expiry (MM / YY) is required';
-      }
-      if (!cardInfo.cvv.trim() || cardInfo.cvv.length < 3) {
-        newErrors.cardCvv = 'Security code (CVC) is required';
-      }
-      if (!cardInfo.name.trim()) {
-        newErrors.cardName = 'Cardholder name is required';
-      }
-    }
-
-    if (paymentMethod === 'mpesa') {
-      const cleanPhone = mpesaPhone.replace(/[\s\-\+]/g, '');
-      if (!cleanPhone || cleanPhone.length < 9) {
-        newErrors.mpesa = 'Please enter a valid M-Pesa phone number';
-      }
-    }
-
     if (paymentMethod === 'cod' && !codConfirmed) {
       newErrors.cod = 'Please confirm authorization for Cash on Delivery';
     }
-
     return newErrors;
-  };
-
-  const savePendingOrder = async () => {
-    try {
-      const orderData = {
-        shippingAddress: {
-          ...shippingInfo,
-          phone: shippingInfo.phone?.trim() && shippingInfo.phone.trim() !== '+254' && shippingInfo.phone.trim() !== '+254 '
-            ? shippingInfo.phone
-            : (user?.phone || mpesaPhone || '+254 700 000 000'),
-          city: shippingInfo.country === 'Kenya' ? shippingInfo.county : shippingInfo.city
-        },
-        paymentMethod,
-        items: cart.map(item => ({
-          product: item.productId || item._id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          size: item.size,
-          image: item.images?.[0]?.url || item.image || '/default-product.jpg'
-        })),
-        subtotal,
-        shippingCost,
-        totalAmount: total,
-        appliedStoreCredit,
-        couponCode: couponData?.code,
-        isSubscription,
-        subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined,
-        idempotencyKey: idempotencyKeyRef.current
-      };
-
-      const response = await fetch('/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(orderData)
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        return result.data;
-      } else {
-        throw new Error(result.message || 'Order failed');
-      }
-    } catch (error) {
-      showNotification(error.message, 'error');
-      return null;
-    }
   };
 
   const handlePlaceOrder = async () => {
@@ -517,22 +685,11 @@ function Checkout() {
     }
 
     if (paymentMethod === 'cod' && total > 20000) {
-      showNotification('Cash on delivery is limited to KSh 20,000. Please select M-Pesa or Card.', 'error');
+      showNotification('Cash on delivery is limited to KSh 20,000. Please select Paybill.', 'error');
       return false;
     }
 
-    if (paymentMethod === 'mpesa' || paymentMethod === 'card') {
-      setLoading(true);
-      const pendingOrder = await savePendingOrder();
-      setLoading(false);
-      if (!pendingOrder) return false;
-
-      setCreatedOrderId(pendingOrder._id || pendingOrder.id);
-      setCreatedOrderNumber(pendingOrder.orderNumber);
-      setShowPaymentModal(true);
-    } else {
-      await processOrder();
-    }
+    await processOrder();
     return true;
   };
 
@@ -544,27 +701,28 @@ function Checkout() {
           ...shippingInfo,
           phone: shippingInfo.phone?.trim() && shippingInfo.phone.trim() !== '+254' && shippingInfo.phone.trim() !== '+254 '
             ? shippingInfo.phone
-            : (user?.phone || mpesaPhone || '+254 700 000 000'),
+            : (user?.phone || '+254 700 000 000'),
           city: shippingInfo.country === 'Kenya' ? shippingInfo.county : shippingInfo.city
         },
         paymentMethod,
         items: cart.map(item => ({
-          product: item.productId || item._id,
+          product: item.productId || item._id || item.id,
           name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          size: item.size,
+          price: typeof item.price === 'number' ? item.price : parseFloat(item.price || 0),
+          quantity: Math.max(1, parseInt(item.quantity) || 1),
+          size: item.size || 'Standard',
           image: item.images?.[0]?.url || item.image || '/default-product.jpg'
         })),
         subtotal,
         shippingCost,
         totalAmount: total,
+        useStoreCredit: !!appliedStoreCredit || applyStoreCredit,
         appliedStoreCredit,
         couponCode: couponData?.code,
         isSubscription,
         subscriptionFrequency: isSubscription ? subscriptionFrequency : undefined,
         idempotencyKey: idempotencyKeyRef.current,
-        paymentData: paymentData || (paymentMethod === 'card' ? { ...cardInfo } : null)
+        paymentData: paymentData || null
       };
 
       const response = await fetch('/api/orders', {
@@ -579,8 +737,15 @@ function Checkout() {
       const result = await response.json();
       if (result.success) {
         clearCart();
-        showNotification('Order success! Asante sana.', 'success');
-        navigate(`/order-confirmation/${result.data._id || result.data.id}`);
+        if (paymentMethod === 'paybill') {
+          setCreatedPaybillOrder(result.data);
+          setCurrentStep(3);
+          showNotification('Order placed! Complete payment via M-Pesa Paybill below.', 'success');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          showNotification('Order success! Asante sana.', 'success');
+          navigate(`/order-confirmation/${result.data._id || result.data.id}`);
+        }
       } else {
         throw new Error(result.message || 'Order placement failed');
       }
@@ -615,37 +780,39 @@ function Checkout() {
           <div className="checkout-stepper">
             {/* Step 1: SHIPPING */}
             <div
-              className={`stepper-step ${currentStep > 1 ? 'completed' : currentStep === 1 ? 'active' : ''}`}
-              onClick={() => currentStep > 1 && setCurrentStep(1)}
-              title="Edit Delivery Protocol"
+              className={`stepper-step ${createdPaybillOrder || currentStep > 1 ? 'completed' : currentStep === 1 ? 'active' : ''}`}
+              onClick={() => !createdPaybillOrder && currentStep > 1 && setCurrentStep(1)}
+              title={createdPaybillOrder ? undefined : "Edit Delivery Protocol"}
+              style={createdPaybillOrder ? { cursor: 'default' } : undefined}
             >
               <div className="stepper-circle">
-                {currentStep > 1 ? '✓' : '1'}
+                {createdPaybillOrder || currentStep > 1 ? '✓' : '1'}
               </div>
               <span className="stepper-label">SHIPPING</span>
             </div>
 
-            <div className={`stepper-line ${currentStep >= 2 ? 'active' : ''}`} />
+            <div className={`stepper-line ${createdPaybillOrder || currentStep >= 2 ? 'active' : ''}`} />
 
             {/* Step 2: PAYMENT */}
             <div
-              className={`stepper-step ${currentStep > 2 ? 'completed' : currentStep === 2 ? 'active' : ''}`}
+              className={`stepper-step ${createdPaybillOrder || currentStep > 2 ? 'completed' : currentStep === 2 ? 'active' : ''}`}
               onClick={() => {
-                if (currentStep === 1) handleContinueToPayment();
+                if (!createdPaybillOrder && currentStep === 1) handleContinueToPayment();
               }}
+              style={createdPaybillOrder ? { cursor: 'default' } : undefined}
             >
               <div className="stepper-circle">
-                {currentStep > 2 ? '✓' : '2'}
+                {createdPaybillOrder || currentStep > 2 ? '✓' : '2'}
               </div>
               <span className="stepper-label">PAYMENT</span>
             </div>
 
-            <div className={`stepper-line ${currentStep >= 3 ? 'active' : ''}`} />
+            <div className={`stepper-line ${createdPaybillOrder || currentStep >= 3 ? 'active' : ''}`} />
 
             {/* Step 3: REVIEW & CONFIRMATION */}
-            <div className={`stepper-step disabled ${currentStep === 3 ? 'active' : ''}`}>
-              <div className="stepper-circle">3</div>
-              <span className="stepper-label">REVIEW & CONFIRMATION</span>
+            <div className={`stepper-step ${createdPaybillOrder ? 'completed active' : currentStep === 3 ? 'active' : 'disabled'}`}>
+              <div className="stepper-circle">{createdPaybillOrder ? '✓' : '3'}</div>
+              <span className="stepper-label">{createdPaybillOrder ? 'AWAITING PAYMENT' : 'CONFIRMATION'}</span>
             </div>
           </div>
         </div>
@@ -682,7 +849,7 @@ function Checkout() {
           <div className="checkout-left-column">
 
             {/* STEP 1: SHIPPING PROTOCOL */}
-            {currentStep === 1 && (
+            {!createdPaybillOrder && currentStep === 1 && (
               <div className="checkout-step-content animated-fade-in">
                 <h2 className="checkout-section-title">Delivery Details</h2>
 
@@ -769,60 +936,246 @@ function Checkout() {
                     {errors.email && <span className="chk-error-text">{errors.email}</span>}
                   </div>
 
-                  <div className="chk-input-group">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label className="chk-label" style={{ margin: 0 }}>Country / Territory *</label>
-                      <span style={{ fontSize: '0.74rem', color: 'var(--chk-text-muted)' }}>
-                        {shippingInfo.country !== 'Kenya' ? '✈️ International Express Delivery' : '🇰🇪 Kenyan Domestic Courier'}
-                      </span>
-                    </div>
-                    <select
-                      value={shippingInfo.country}
-                      onChange={(e) => handleInputChange('country', e.target.value)}
-                      className="chk-input"
-                    >
-                      {allCountries.map(c => {
-                        const cName = typeof c === 'string' ? c : c.name;
-                        const cFlag = typeof c === 'object' && c.flag ? `${c.flag} ` : '';
-                        const cDial = typeof c === 'object' && c.dialCode ? ` (${c.dialCode})` : '';
-                        return (
-                          <option key={cName} value={cName}>
-                            {cFlag}{cName}{cDial}
-                          </option>
-                        );
-                      })}
-                    </select>
+                  <div className="chk-input-group" ref={countryDropdownRef} style={{ position: 'relative' }}>
+                    <label className="chk-label" htmlFor="checkout-country-search-input">Country / Territory *</label>
 
-                    <div className="chk-country-meta-card">
-                      <div className="chk-country-meta-left">
-                        <span className="chk-country-flag-large">{getFlag(shippingInfo.country)}</span>
-                        <div>
-                          <strong className="chk-country-name">{shippingInfo.country}</strong>
-                          <span className="chk-country-sub">
-                            {getDialCode(shippingInfo.country)} • {shippingInfo.country?.toLowerCase() === 'kenya' ? 'Domestic Delivery (All 47 Counties)' : 'Worldwide Express Air Cargo'}
-                          </span>
+                    {/* Integrated Country Search & Select Combobox */}
+                    <div className={`chk-country-input-wrap ${isCountryDropdownOpen ? 'focused' : ''}`}>
+                      <span className="chk-country-input-flag" aria-hidden="true">
+                        {selectedCountryObj?.flag || getFlag(selectedCountryName)}
+                      </span>
+                      <input
+                        id="checkout-country-search-input"
+                        ref={countryInputRef}
+                        type="text"
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-expanded={isCountryDropdownOpen}
+                        autoComplete="off"
+                        value={isSearchingCountry ? countrySearchText : `${selectedCountryName}${selectedCountryObj?.dialCode ? ` (${selectedCountryObj.dialCode})` : ''}`}
+                        placeholder={isSearchingCountry ? "Search country, code, or dial code..." : "Select Country / Territory..."}
+                        onFocus={handleOpenCountryDropdown}
+                        onClick={() => {
+                          if (!isCountryDropdownOpen) handleOpenCountryDropdown();
+                        }}
+                        onChange={(e) => {
+                          if (!isSearchingCountry) setIsSearchingCountry(true);
+                          setCountrySearchText(e.target.value);
+                          if (!isCountryDropdownOpen) setIsCountryDropdownOpen(true);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            handleCloseCountryDropdown();
+                            countryInputRef.current?.blur();
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (filteredCountries.length > 0) {
+                              const first = filteredCountries[0];
+                              handleSelectCountry(typeof first === 'string' ? first : first.name);
+                              countryInputRef.current?.blur();
+                            }
+                          } else if (e.key === 'ArrowDown') {
+                            if (!isCountryDropdownOpen) handleOpenCountryDropdown();
+                          }
+                        }}
+                        className="chk-input chk-country-combobox-input"
+                      />
+                      <div className="chk-country-input-actions">
+                        {isSearchingCountry && countrySearchText && (
+                          <button
+                            type="button"
+                            className="chk-country-clear-btn"
+                            onClick={() => {
+                              setCountrySearchText('');
+                              countryInputRef.current?.focus();
+                            }}
+                            aria-label="Clear country search"
+                          >
+                            <FaTimes />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="chk-country-toggle-btn"
+                          onClick={() => {
+                            if (isCountryDropdownOpen) {
+                              handleCloseCountryDropdown();
+                            } else {
+                              handleOpenCountryDropdown();
+                              countryInputRef.current?.focus();
+                            }
+                          }}
+                          tabIndex={-1}
+                          aria-label="Toggle country list"
+                        >
+                          <FaChevronDown className={`chk-country-trigger-arrow ${isCountryDropdownOpen ? 'rotated' : ''}`} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Popover List Showing All Countries (Filtered live as user types) */}
+                    {isCountryDropdownOpen && (
+                      <div className="chk-country-dropdown-popover">
+                        <div className="chk-country-popover-header">
+                          <span>{countrySearchText ? `${filteredCountries.length} matching countries` : `All Supported Countries & Territories (${allCountries.length})`}</span>
+                        </div>
+                        <div className="chk-country-options-list" role="listbox">
+                          {filteredCountries.length > 0 ? (
+                            filteredCountries.map((c, idx) => {
+                              const cName = typeof c === 'string' ? c : c.name;
+                              const cCode = typeof c === 'object' ? (c.code || c.name) : c;
+                              const cFlag = typeof c === 'object' && c.flag ? c.flag : getFlag(cName);
+                              const cDial = typeof c === 'object' && c.dialCode ? c.dialCode : '';
+                              const isSelected = cName.toLowerCase() === selectedCountryName.toLowerCase();
+
+                              return (
+                                <div
+                                  key={`${cCode}-${idx}`}
+                                  role="option"
+                                  aria-selected={isSelected}
+                                  className={`chk-country-option-item ${isSelected ? 'selected' : ''}`}
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    handleSelectCountry(cName);
+                                  }}
+                                >
+                                  <div className="chk-country-option-info">
+                                    <span className="chk-country-option-flag">{cFlag}</span>
+                                    <span className="chk-country-option-name">{cName}</span>
+                                    {cDial && <span className="chk-country-option-dial">({cDial})</span>}
+                                  </div>
+                                  {isSelected && <FaCheck className="chk-country-option-check" />}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="chk-country-options-empty">
+                              No countries found matching "{countrySearchText}"
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <span className={`chk-zone-pill ${shippingInfo.country?.toLowerCase() === 'kenya' ? 'domestic' : 'international'}`}>
-                        {shippingInfo.country?.toLowerCase() === 'kenya' ? '🇰🇪 Standard Ground' : '✈️ Express Air'}
-                      </span>
-                    </div>
+                    )}
                   </div>
 
                   {shippingInfo.country?.toLowerCase() === 'kenya' ? (
                     <>
                       <div className="chk-form-row">
-                        <div className="chk-input-group">
-                          <label className="chk-label">County *</label>
-                          <select
-                            value={shippingInfo.county}
-                            onChange={(e) => handleInputChange('county', e.target.value)}
-                            className={`chk-input ${errors.county ? 'has-error' : ''}`}
-                          >
-                            <option value="">Select County (All 47 Counties)</option>
-                            {KENYAN_COUNTIES.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
+                        <div className="chk-input-group" ref={countyDropdownRef} style={{ position: 'relative' }}>
+                          <label className="chk-label" htmlFor="checkout-county-search-input">County *</label>
+
+                          {/* Integrated County Search & Select Combobox */}
+                          <div className={`chk-country-input-wrap ${isCountyDropdownOpen ? 'focused' : ''} ${errors.county ? 'has-error' : ''}`}>
+                            <span className="chk-country-input-flag" aria-hidden="true">
+                              <FaMapMarkerAlt style={{ color: 'var(--chk-gold)', fontSize: '0.95rem' }} />
+                            </span>
+                            <input
+                              id="checkout-county-search-input"
+                              ref={countyInputRef}
+                              type="text"
+                              role="combobox"
+                              aria-autocomplete="list"
+                              aria-expanded={isCountyDropdownOpen}
+                              autoComplete="off"
+                              value={isSearchingCounty ? countySearchText : (shippingInfo.county || '')}
+                              placeholder={isSearchingCounty ? "Type to search county (e.g. Nairobi, Nakuru, Bomet)..." : "Select County (All 47 Counties)..."}
+                              onFocus={handleOpenCountyDropdown}
+                              onClick={() => {
+                                if (!isCountyDropdownOpen) handleOpenCountyDropdown();
+                              }}
+                              onChange={(e) => {
+                                if (!isSearchingCounty) setIsSearchingCounty(true);
+                                setCountySearchText(e.target.value);
+                                if (!isCountyDropdownOpen) setIsCountyDropdownOpen(true);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  handleCloseCountyDropdown();
+                                  countyInputRef.current?.blur();
+                                } else if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (filteredCounties.length > 0) {
+                                    handleSelectCounty(filteredCounties[0]);
+                                    countyInputRef.current?.blur();
+                                  }
+                                } else if (e.key === 'ArrowDown') {
+                                  if (!isCountyDropdownOpen) handleOpenCountyDropdown();
+                                }
+                              }}
+                              className={`chk-input chk-country-combobox-input ${errors.county ? 'has-error' : ''}`}
+                            />
+                            <div className="chk-country-input-actions">
+                              {isSearchingCounty && countySearchText && (
+                                <button
+                                  type="button"
+                                  className="chk-country-clear-btn"
+                                  onClick={() => {
+                                    setCountySearchText('');
+                                    countyInputRef.current?.focus();
+                                  }}
+                                  aria-label="Clear county search"
+                                >
+                                  <FaTimes />
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="chk-country-toggle-btn"
+                                onClick={() => {
+                                  if (isCountyDropdownOpen) {
+                                    handleCloseCountyDropdown();
+                                  } else {
+                                    handleOpenCountyDropdown();
+                                    countyInputRef.current?.focus();
+                                  }
+                                }}
+                                tabIndex={-1}
+                                aria-label="Toggle county list"
+                              >
+                                <FaChevronDown className={`chk-country-trigger-arrow ${isCountyDropdownOpen ? 'rotated' : ''}`} />
+                              </button>
+                            </div>
+                          </div>
+
                           {errors.county && <span className="chk-error-text">{errors.county}</span>}
+
+                          {/* Popover List Showing All Counties */}
+                          {isCountyDropdownOpen && (
+                            <div className="chk-country-dropdown-popover">
+                              <div className="chk-country-popover-header">
+                                <span>{countySearchText ? `${filteredCounties.length} matching counties` : `All 47 Kenyan Counties (${currentCountyList.length})`}</span>
+                              </div>
+                              <div className="chk-country-options-list" role="listbox">
+                                {filteredCounties.length > 0 ? (
+                                  filteredCounties.map((cName, idx) => {
+                                    const isSelected = cName.toLowerCase() === (shippingInfo.county || '').toLowerCase();
+                                    return (
+                                      <div
+                                        key={`county-${cName}-${idx}`}
+                                        role="option"
+                                        aria-selected={isSelected}
+                                        className={`chk-country-option-item ${isSelected ? 'selected' : ''}`}
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          handleSelectCounty(cName);
+                                        }}
+                                      >
+                                        <div className="chk-country-option-info">
+                                          <FaMapMarkerAlt style={{ color: isSelected ? 'var(--chk-gold)' : 'var(--chk-text-muted)', fontSize: '0.85rem' }} />
+                                          <span className="chk-country-option-name">{cName}</span>
+                                        </div>
+                                        {isSelected && <FaCheck className="chk-country-option-check" />}
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <div className="chk-country-options-empty">
+                                    No counties found matching "{countySearchText}"
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="chk-input-group">
@@ -934,7 +1287,7 @@ function Checkout() {
 
                     <div className="chk-input-group">
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <label className="chk-label" style={{ margin: 0 }}>Courier Contact Phone *</label>
+                        <label className="chk-label" style={{ margin: 0 }}>Phone Number *</label>
                         <span style={{ fontSize: '0.72rem', color: 'var(--chk-text-muted)' }}>
                           {getDialCode(shippingInfo.country)}
                         </span>
@@ -963,39 +1316,223 @@ function Checkout() {
               </div>
             )}
 
-            {/* STEP 2: PAYMENT OPTIONS (Matching Uploaded Mockup Exactly) */}
-            {currentStep === 2 && (
+            {/* POST-ORDER: PAYBILL INSTRUCTIONS SCREEN */}
+            {createdPaybillOrder && (
+              <div className="paybill-instructions-screen animated-fade-in">
+                <div className="paybill-success-badge-icon">
+                  <FaCheck />
+                </div>
+                
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#FEF3C7', color: '#92400E', padding: '6px 14px', borderRadius: '9999px', fontSize: '12px', fontWeight: 700, marginBottom: '14px' }}>
+                  <FaClock /> {reportSubmitted ? 'Payment Reported — Awaiting Verification' : 'Awaiting Payment'}
+                </div>
+
+                <h2 className="paybill-screen-title">Your order is reserved. One step left.</h2>
+                <p className="paybill-screen-subtitle">
+                  Complete your M-Pesa payment using the details below. Once our team verifies your payment, we'll confirm your order and begin preparing your coffee.
+                </p>
+
+                {/* Prominent Reference Pill */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', flexWrap: 'wrap', marginBottom: '24px' }}>
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '10px 18px', borderRadius: '12px', textAlign: 'left' }}>
+                    <span style={{ display: 'block', fontSize: '11px', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Order Number</span>
+                    <strong style={{ fontSize: '16px', color: '#0F172A', fontFamily: 'monospace' }}>#{createdPaybillOrder.orderNumber}</strong>
+                  </div>
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', padding: '10px 18px', borderRadius: '12px', textAlign: 'left' }}>
+                    <span style={{ display: 'block', fontSize: '11px', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Total Due</span>
+                    <strong style={{ fontSize: '16px', color: '#EA580C', fontWeight: 800 }}>KES {displayTotal.toLocaleString()}</strong>
+                  </div>
+                </div>
+
+                <div className="paybill-steps-card">
+                  <div className="paybill-steps-heading">
+                    <FaCheckCircle style={{ color: '#10B981', fontSize: '16px' }} />
+                    <span>Simple Lipa na M-Pesa Steps</span>
+                  </div>
+                  <div className="paybill-steps-list">
+                    <div className="paybill-step-item">
+                      <span className="paybill-step-num">1</span>
+                      <div>Open <strong>M-Pesa</strong> on your phone &rarr; Select <strong>Lipa na M-Pesa</strong> &rarr; <strong>Paybill</strong></div>
+                    </div>
+                    <div className="paybill-step-item">
+                      <span className="paybill-step-num">2</span>
+                      <div>
+                        Business Number (Paybill):
+                        <span className="paybill-step-val-badge">
+                          {paybillNumber}
+                          <button
+                            type="button"
+                            className="paybill-copy-btn"
+                            onClick={() => copyText(paybillNumber, 'paybill')}
+                            title="Copy Paybill Number"
+                          >
+                            {copiedField === 'paybill' ? <FaCheck style={{ color: '#10B981' }} /> : <FaCopy />}
+                          </button>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="paybill-step-item">
+                      <span className="paybill-step-num">3</span>
+                      <div>
+                        Account Number:
+                        <span className="paybill-step-val-badge">
+                          {paybillAccount}
+                          <button
+                            type="button"
+                            className="paybill-copy-btn"
+                            onClick={() => copyText(paybillAccount, 'paybillAcc')}
+                            title="Copy Account Number"
+                          >
+                            {copiedField === 'paybillAcc' ? <FaCheck style={{ color: '#10B981' }} /> : <FaCopy />}
+                          </button>
+                        </span>
+                        <div style={{ fontSize: '0.82rem', color: '#64748B', marginTop: '6px' }}>
+                          Reference / Order ID: <strong style={{ fontFamily: 'monospace', color: '#1E293B' }}>{createdPaybillOrder.orderNumber}</strong>
+                          <button
+                            type="button"
+                            className="paybill-copy-btn"
+                            style={{ marginLeft: '6px', padding: '2px 6px', fontSize: '0.75rem' }}
+                            onClick={() => copyText(createdPaybillOrder.orderNumber, 'orderNum')}
+                            title="Copy Order Number"
+                          >
+                            {copiedField === 'orderNum' ? <FaCheck style={{ color: '#10B981', fontSize: '10px' }} /> : <FaCopy style={{ fontSize: '10px' }} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="paybill-step-item">
+                      <span className="paybill-step-num">4</span>
+                      <div>
+                        Exact Amount:
+                        <span className="paybill-amount-badge">
+                          KES {displayTotal.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="paybill-step-item">
+                      <span className="paybill-step-num">5</span>
+                      <div>Enter your <strong>M-Pesa PIN</strong> and press Send to complete payment</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Reporting Section */}
+                {!reportSubmitted ? (
+                  <div style={{ margin: '20px 0', padding: '20px', background: '#F8FAFC', borderRadius: '16px', border: '1px solid #E2E8F0', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <div>
+                        <h4 style={{ margin: '0 0 4px', fontSize: '15px', color: '#0F172A', fontWeight: 700 }}>Already made the payment?</h4>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#64748B' }}>Submit your M-Pesa reference code to notify our finance team for fast verification.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowReportForm(prev => !prev)}
+                        style={{ background: '#0F172A', color: '#FFFFFF', border: 'none', padding: '10px 18px', borderRadius: '10px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+                      >
+                        {showReportForm ? 'Hide Form' : "I've made the payment"}
+                      </button>
+                    </div>
+
+                    {showReportForm && (
+                      <form onSubmit={handleReportPayment} style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #E2E8F0' }}>
+                        <div style={{ marginBottom: '12px' }}>
+                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                            M-Pesa Confirmation Code (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. QKH7123456"
+                            value={reportMpesaCode}
+                            onChange={e => setReportMpesaCode(e.target.value.toUpperCase())}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '14px', fontFamily: 'monospace' }}
+                          />
+                        </div>
+                        <div style={{ marginBottom: '14px' }}>
+                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                            Notes / Sender Details (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Sent from Safaricom number 07..."
+                            value={reportNotes}
+                            onChange={e => setReportNotes(e.target.value)}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '14px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <button
+                            type="submit"
+                            disabled={submittingReport}
+                            style={{ background: '#10B981', color: '#FFFFFF', border: 'none', padding: '10px 22px', borderRadius: '10px', fontWeight: 700, fontSize: '13.5px', cursor: 'pointer' }}
+                          >
+                            {submittingReport ? 'Submitting Report...' : 'Submit Payment Report'}
+                          </button>
+                          <span style={{ fontSize: '12px', color: '#64748B' }}>
+                            🔒 Payments are verified against bank records before orders are fulfilled.
+                          </span>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ margin: '20px 0', padding: '16px 20px', background: '#F0FDF4', borderRadius: '14px', border: '1px solid #BBF7D0', textAlign: 'left' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <FaCheckCircle style={{ color: '#16A34A', fontSize: '20px' }} />
+                      <div>
+                        <strong style={{ color: '#166534', fontSize: '14px', display: 'block' }}>Payment Reported — Awaiting Verification</strong>
+                        <span style={{ color: '#334155', fontSize: '12.5px' }}>
+                          Our team has received your notification ({reportMpesaCode || 'M-Pesa transfer'}). We are checking this against our bank statement and will issue your official receipt promptly.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* WhatsApp Support Button (Optional) */}
+                <div style={{ margin: '14px 0' }}>
+                  <a
+                    href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+                      `Hello Rerendet Coffee, I have placed Order #${createdPaybillOrder.orderNumber} for KES ${displayTotal.toLocaleString()}. Customer: ${createdPaybillOrder.shippingAddress?.firstName || user?.firstName || 'Customer'}. Please guide me on payment verification.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="paybill-whatsapp-btn"
+                  >
+                    <FaWhatsapp style={{ fontSize: '18px' }} /> WhatsApp Support Concierge (Optional)
+                  </a>
+                </div>
+
+                <div className="paybill-notice-box">
+                  ⏳ <strong>Reservation Notice:</strong> Your fresh highland beans are reserved for <strong>{expiryHours} hours</strong>. Unpaid orders are cancelled automatically and stock is returned to our inventory if payment is not received.
+                </div>
+
+                <div className="paybill-actions-row">
+                  <Link to={`/track-order/${createdPaybillOrder._id || createdPaybillOrder.orderNumber}`} className="paybill-track-btn">
+                    Track Order &amp; View Receipt &rarr;
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: PAYMENT OPTIONS */}
+            {!createdPaybillOrder && currentStep === 2 && (
               <div className="checkout-step-content animated-fade-in">
                 <h2 className="checkout-section-title">Payment options</h2>
 
-                {/* Horizontal 3-Card Grid */}
+                {/* 2-Option Card Grid */}
                 <div className="payment-options-cards-grid">
-                  {/* Option 1: Credit Card */}
-                  {publicSettings?.payment?.paymentMethods?.card !== false && (
-                    <div
-                      className={`payment-method-box ${paymentMethod === 'card' ? 'selected' : ''}`}
-                      onClick={() => setPaymentMethod('card')}
-                    >
-                      {paymentMethod === 'card' && <div className="method-check-badge">✓</div>}
-                      <FaCreditCard className="method-icon" />
-                      <span className="method-name">CREDIT CARD</span>
-                    </div>
-                  )}
+                  {/* Option 1: Pay via Paybill (guided on WhatsApp) */}
+                  <div
+                    className={`payment-method-box ${paymentMethod === 'paybill' ? 'selected' : ''}`}
+                    onClick={() => setPaymentMethod('paybill')}
+                  >
+                    {paymentMethod === 'paybill' && <div className="method-check-badge">✓</div>}
+                    <FaWhatsapp className="method-icon" style={{ color: '#25D366' }} />
+                    <span className="method-name">PAY VIA PAYBILL (GUIDED ON WHATSAPP)</span>
+                  </div>
 
-                  {/* Option 2: Buy with M-Pesa (Matches Apple Pay card style) */}
-                  {publicSettings?.payment?.paymentMethods?.mpesa !== false && (
-                    <div
-                      className={`payment-method-box ${paymentMethod === 'mpesa' ? 'selected' : ''}`}
-                      onClick={() => setPaymentMethod('mpesa')}
-                    >
-                      {paymentMethod === 'mpesa' && <div className="method-check-badge">✓</div>}
-                      <FaPhone className="method-icon" />
-                      <span className="method-name">BUY WITH M-PESA</span>
-                    </div>
-                  )}
-
-                  {/* Option 3: Pay on Delivery (Matches PayPal card style) */}
-                  {publicSettings?.payment?.paymentMethods?.cashOnDelivery !== false && (
+                  {/* Option 2: Cash on Delivery */}
+                  {publicSettings?.payment?.paymentMethods?.cashOnDelivery === true && (
                     <div
                       className={`payment-method-box ${paymentMethod === 'cod' ? 'selected' : ''}`}
                       onClick={() => setPaymentMethod('cod')}
@@ -1007,133 +1544,24 @@ function Checkout() {
                   )}
                 </div>
 
-                {/* ── Details for CREDIT CARD ── */}
-                {paymentMethod === 'card' && (
-                  <div className="card-payment-form-wrap">
-                    {/* Saved Cards List (Matches Mockup) */}
-                    <div className="saved-cards-section">
-                      <div className="saved-card-row">
-                        <label className="saved-card-radio-label">
-                          <input
-                            type="radio"
-                            name="card_choice"
-                            checked={selectedCardType === 'saved'}
-                            onChange={() => setSelectedCardType('saved')}
-                          />
-                          <span>Visa/Delta/electron ending in <strong>{user?.card?.last4 || '4054'}</strong></span>
-                        </label>
-                        <button type="button" className="btn-card-edit" onClick={() => setSelectedCardType('new')}>Edit</button>
-                      </div>
-
-                      <div className="saved-card-row">
-                        <label className="saved-card-radio-label">
-                          <input
-                            type="radio"
-                            name="card_choice"
-                            checked={selectedCardType === 'new'}
-                            onChange={() => setSelectedCardType('new')}
-                          />
-                          <span>Add new card</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Add New Card Form Fields (Matches Mockup) */}
-                    {selectedCardType === 'new' && (
-                      <div className="chk-form-grid">
-                        <div className="chk-input-group">
-                          <label className="chk-label">CARD NUMBER</label>
-                          <div className="chk-input-wrap">
-                            <input
-                              type="text"
-                              placeholder="2314 2334 5636 4522"
-                              value={cardInfo.number}
-                              onChange={(e) => handleCardInputChange('number', e.target.value)}
-                              className={`chk-input ${errors.cardNo ? 'has-error' : ''}`}
-                              maxLength="19"
-                            />
-                            <div className="chk-input-card-badge">
-                              {getCardBrandBadge(cardInfo.number)}
-                            </div>
-                          </div>
-                          {errors.cardNo && <span className="chk-error-text">{errors.cardNo}</span>}
-                        </div>
-
-                        <div className="chk-form-row">
-                          <div className="chk-input-group">
-                            <label className="chk-label">EXPIRATION DATE</label>
-                            <input
-                              type="text"
-                              placeholder="Month  /  Year"
-                              value={cardInfo.expiry}
-                              onChange={(e) => handleCardInputChange('expiry', e.target.value)}
-                              className={`chk-input ${errors.cardExp ? 'has-error' : ''}`}
-                              maxLength="7"
-                            />
-                            {errors.cardExp && <span className="chk-error-text">{errors.cardExp}</span>}
-                          </div>
-
-                          <div className="chk-input-group">
-                            <label className="chk-label">SECURITY CODE</label>
-                            <input
-                              type="password"
-                              placeholder="CVC"
-                              value={cardInfo.cvv}
-                              onChange={(e) => handleCardInputChange('cvv', e.target.value)}
-                              className={`chk-input ${errors.cardCvv ? 'has-error' : ''}`}
-                              maxLength="4"
-                            />
-                            <span className="chk-helper-note">The last three digits found on the back of your card.</span>
-                            {errors.cardCvv && <span className="chk-error-text">{errors.cardCvv}</span>}
-                          </div>
-                        </div>
-
-                        <div className="chk-input-group">
-                          <label className="chk-label">NAME ON CARD</label>
-                          <input
-                            type="text"
-                            placeholder="Card Holder Name"
-                            value={cardInfo.name}
-                            onChange={(e) => handleCardInputChange('name', e.target.value)}
-                            className={`chk-input ${errors.cardName ? 'has-error' : ''}`}
-                          />
-                          {errors.cardName && <span className="chk-error-text">{errors.cardName}</span>}
-                        </div>
-
-                        <label className="chk-checkbox-label">
-                          <input
-                            type="checkbox"
-                            checked={useSameAddress}
-                            onChange={(e) => setUseSameAddress(e.target.checked)}
-                          />
-                          <span>Use same address as shipping</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* ── Details for BUY WITH M-PESA ── */}
-                {paymentMethod === 'mpesa' && (
-                  <div className="payment-instruction-box animated-fade-in">
-                    <p>Funds will be requested via STK Push directly to your Safaricom M-Pesa line on confirmation:</p>
-                    <div className="chk-input-group">
-                      <label className="chk-label">M-Pesa Number</label>
-                      <input
-                        type="tel"
-                        placeholder="07XX XXX XXX or 2547XX XXX XXX"
-                        value={mpesaPhone}
-                        onChange={(e) => setMpesaPhone(e.target.value)}
-                        className={`chk-input ${errors.mpesa ? 'has-error' : ''}`}
-                      />
-                      {errors.mpesa && <span className="chk-error-text">{errors.mpesa}</span>}
+                {/* ── Details for PAY VIA PAYBILL ── */}
+                {paymentMethod === 'paybill' && (
+                  <div className="payment-instruction-box animated-fade-in" style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '14px', padding: '18px 20px', marginTop: '16px' }}>
+                    <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#0f172a', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      ☕ Easy M-Pesa Paybill Payment
+                    </p>
+                    <p style={{ margin: '0 0 12px', color: '#475569', fontSize: '13.5px', lineHeight: 1.6 }}>
+                      Your fresh coffee is safely reserved for you for <strong>24 hours</strong>. On the next screen, you’ll get our Paybill details and your Order Number to pay directly from your M-Pesa menu or app. We’ll confirm your payment and issue an official receipt right away!
+                    </p>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 14px', borderRadius: '9999px', fontSize: '12.5px', color: '#065f46', fontWeight: 600 }}>
+                      <span>🔒 Safe &amp; verified · Instant digital receipt &amp; fast dispatch</span>
                     </div>
                   </div>
                 )}
 
                 {/* ── Details for CASH ON DELIVERY ── */}
                 {paymentMethod === 'cod' && (
-                  <div className="payment-instruction-box animated-fade-in">
+                  <div className="payment-instruction-box animated-fade-in" style={{ marginTop: '16px' }}>
                     <p>Pay upon safe arrival of your highland coffee bags (Cash, M-Pesa or local debit):</p>
                     <label className="chk-checkbox-label">
                       <input
@@ -1141,7 +1569,7 @@ function Checkout() {
                         checked={codConfirmed}
                         onChange={(e) => setCodConfirmed(e.target.checked)}
                       />
-                      <span>I authorize Rerendet to deliver my coffee order for payment on arrival.</span>
+                      <span>I authorize Rerendet to deliver my coffee order for payment on arrival (orders under KES 20,000).</span>
                     </label>
                     {errors.cod && <span className="chk-error-text">{errors.cod}</span>}
                   </div>
@@ -1164,23 +1592,23 @@ function Checkout() {
           {/* ══════ RIGHT COLUMN: ORDER SUMMARY (Pixel-Perfect from Mockup) ══════ */}
           <aside className="checkout-summary-column">
             <div className="order-summary-box">
-              <h3 className="summary-title">Order Summary</h3>
+              <h3 className="summary-title">{createdPaybillOrder ? 'Order Summary' : 'Order Summary'}</h3>
 
               {/* Mini Cart Items Preview */}
-              {cart.length > 0 && (
+              {summaryItems.length > 0 && (
                 <div className="summary-mini-items">
-                  {cart.map((item, idx) => (
+                  {summaryItems.map((item, idx) => (
                     <div className="summary-mini-item" key={idx}>
                       <img
-                        src={item.images?.[0]?.url || item.image || '/default-product.jpg'}
-                        alt={item.name}
+                        src={item.image || item.images?.[0]?.url || item.product?.images?.[0]?.url || '/default-product.jpg'}
+                        alt={item.name || item.product?.name || 'Coffee item'}
                         className="mini-item-img"
                       />
                       <div className="mini-item-info">
-                        <p className="mini-item-name">{item.name}</p>
-                        <p className="mini-item-meta">{item.size} • Qty {item.quantity}</p>
+                        <p className="mini-item-name">{item.name || item.product?.name || 'Coffee'}</p>
+                        <p className="mini-item-meta">{item.size || 'Standard'} • Qty {item.quantity || 1}</p>
                       </div>
-                      <span className="mini-item-price">KES {(item.price * item.quantity).toLocaleString()}</span>
+                      <span className="mini-item-price">KES {((item.price || 0) * (item.quantity || 1)).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -1190,115 +1618,153 @@ function Checkout() {
               <div className="summary-line-items">
                 <div className="summary-row">
                   <span>Items Total</span>
-                  <span>KES {subtotal.toLocaleString()}</span>
+                  <span>KES {displaySubtotal.toLocaleString()}</span>
                 </div>
 
                 <div className="summary-row">
                   <span>Shipping</span>
-                  <span>{calculatingShipping ? 'Calculating...' : `KES ${shippingCost.toLocaleString()}`}</span>
+                  <span>{calculatingShipping && !createdPaybillOrder ? 'Calculating...' : `KES ${displayShipping.toLocaleString()}`}</span>
                 </div>
-                {deliveryEstimate && (
+                {!createdPaybillOrder && deliveryEstimate && (
                   <div style={{ fontSize: '0.74rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '-4px', marginBottom: '8px' }}>
                     <FaTruck /> {deliveryEstimate}
                   </div>
                 )}
 
-                {discount > 0 && (
+                {displayDiscount > 0 && (
                   <div className="summary-row discount">
-                    <span>Discount ({couponData?.code || 'Promo'})</span>
-                    <span>-KES {discount.toLocaleString()}</span>
+                    <span>Discount {createdPaybillOrder?.couponCode || couponData?.code ? `(${createdPaybillOrder?.couponCode || couponData?.code})` : ''}</span>
+                    <span>-KES {displayDiscount.toLocaleString()}</span>
                   </div>
                 )}
 
-                {appliedStoreCredit > 0 && (
+                {displayStoreCredit > 0 && (
                   <div className="summary-row discount">
                     <span>Store Credit</span>
-                    <span>-KES {appliedStoreCredit.toLocaleString()}</span>
+                    <span>-KES {displayStoreCredit.toLocaleString()}</span>
                   </div>
                 )}
               </div>
 
               {/* Order Total matching mockup */}
               <div className="summary-total-row">
-                <span>Order Total</span>
-                <span className="summary-total-amount">KES {total.toLocaleString()}</span>
+                <span>{createdPaybillOrder ? 'Total Due' : 'Order Total'}</span>
+                <span className="summary-total-amount">KES {displayTotal.toLocaleString()}</span>
               </div>
 
-              {/* Primary CTA Button: PAYMENT DETAILS (or CONFIRM & PLACE ORDER) */}
-              <button
-                type="button"
-                className="btn-checkout-primary"
-                onClick={currentStep === 1 ? handleContinueToPayment : handlePlaceOrder}
-                disabled={loading}
-              >
-                {loading ? (
-                  <><FaSync className="logo-spin" /> Processing...</>
-                ) : currentStep === 1 ? (
-                  'PAYMENT DETAILS'
-                ) : (
-                  `CONFIRM & PLACE ORDER (KES ${total.toLocaleString()})`
-                )}
-              </button>
-
-              {/* Accept cards list matching mockup */}
-              <div className="accepted-cards-wrap">
-                <div className="accepted-cards-label">Accept cards:</div>
-                <div className="accepted-cards-icons">
-                  <span className="card-pill-logo visa">VISA</span>
-                  <span className="card-pill-logo mc">Mastercard</span>
-                  <span className="card-pill-logo amex">AMEX</span>
-                  <span className="card-pill-logo mpesa">M-PESA</span>
-                </div>
-              </div>
-
-              {/* TLS Security Guarantee matching mockup */}
-              <div className="tls-security-box">
-                <FaLock className="tls-icon" />
-                <p className="tls-text">
-                  Our checkout is secure and uses TLS throughout the checkout to protect your details.
-                </p>
-              </div>
-
-              {/* Store credit toggle if available */}
-              {storeCreditAvailable > 0 && (
-                <div className="store-credit-box" style={{ marginBottom: '1.25rem', padding: '0.85rem', background: 'var(--chk-card-selected-bg)', border: '1px dashed var(--chk-border-focus)', borderRadius: '10px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    <input
-                      type="checkbox"
-                      checked={applyStoreCredit}
-                      onChange={(e) => setApplyStoreCredit(e.target.checked)}
-                      style={{ accentColor: 'var(--chk-btn-bg)', cursor: 'pointer' }}
-                    />
-                    <div>
-                      <span style={{ fontWeight: '700', color: 'var(--chk-text-main)' }}>Apply Store Credit</span>
-                      <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--chk-text-muted)' }}>Balance: KES {storeCreditAvailable.toLocaleString()}</span>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              {/* Discount Codes matching mockup */}
-              <div className="discount-codes-section">
-                <div className="discount-codes-title">DISCOUNT CODES:</div>
-                <div className="discount-input-row">
-                  <input
-                    type="text"
-                    placeholder="Promo code here..."
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                    className="discount-input"
-                    disabled={!!couponData || validatingCoupon}
-                  />
+              {!createdPaybillOrder ? (
+                <>
+                  {/* Primary CTA Button: PAYMENT DETAILS (or PLACE ORDER) */}
                   <button
                     type="button"
-                    className="btn-discount-apply"
-                    onClick={couponData ? () => { setCouponData(null); setCouponCode(''); } : handleValidateCoupon}
-                    disabled={validatingCoupon}
+                    className="btn-checkout-primary"
+                    onClick={currentStep === 1 ? handleContinueToPayment : handlePlaceOrder}
+                    disabled={loading}
                   >
-                    {validatingCoupon ? '...' : couponData ? 'RESET' : 'APPLY'}
+                    {loading ? (
+                      <><FaSync className="logo-spin" /> Processing...</>
+                    ) : currentStep === 1 ? (
+                      'PAYMENT DETAILS'
+                    ) : (
+                      `PLACE ORDER (KES ${total.toLocaleString()})`
+                    )}
                   </button>
+
+                  {/* Accepted payment methods */}
+                  <div className="accepted-cards-wrap">
+                    <div className="accepted-cards-label">Accepted payment:</div>
+                    <div className="accepted-cards-icons">
+                      {publicSettings?.payment?.paymentMethods?.mpesa !== false && (
+                        <span className="card-pill-logo mpesa">M-PESA PAYBILL</span>
+                      )}
+                      {publicSettings?.payment?.paymentMethods?.cashOnDelivery === true && (
+                        <span className="card-pill-logo generic">CASH ON DELIVERY</span>
+                      )}
+                      {publicSettings?.payment?.paymentMethods?.card === true && (
+                        <span className="card-pill-logo card">CARD (ONLINE)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* TLS Security Guarantee matching mockup */}
+                  <div className="tls-security-box">
+                    <FaLock className="tls-icon" />
+                    <p className="tls-text">
+                      Our checkout is secure and uses TLS throughout the checkout to protect your details.
+                    </p>
+                  </div>
+
+                  {/* Store credit toggle if available */}
+                  {storeCreditAvailable > 0 && (
+                    <div className="store-credit-box" style={{ marginBottom: '1.25rem', padding: '0.85rem', background: 'var(--chk-card-selected-bg)', border: '1px dashed var(--chk-border-focus)', borderRadius: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={applyStoreCredit}
+                          onChange={(e) => setApplyStoreCredit(e.target.checked)}
+                          style={{ accentColor: 'var(--chk-btn-bg)', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <span style={{ fontWeight: '700', color: 'var(--chk-text-main)' }}>Apply Store Credit</span>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--chk-text-muted)' }}>Balance: KES {storeCreditAvailable.toLocaleString()}</span>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Discount Codes matching mockup */}
+                  <div className="discount-codes-section">
+                    <div className="discount-codes-title">DISCOUNT CODES:</div>
+                    <div className="discount-input-row">
+                      <input
+                        type="text"
+                        placeholder="Promo code here..."
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        className="discount-input"
+                        disabled={!!couponData || validatingCoupon}
+                      />
+                      <button
+                        type="button"
+                        className="btn-discount-apply"
+                        onClick={couponData ? () => { setCouponData(null); setCouponCode(''); } : handleValidateCoupon}
+                        disabled={validatingCoupon}
+                      >
+                        {validatingCoupon ? '...' : couponData ? 'RESET' : 'APPLY'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #e2e8f0', textAlign: 'left' }}>
+                  {createdPaybillOrder.shippingAddress && (
+                    <div style={{ fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5, marginBottom: '14px' }}>
+                      <strong style={{ color: '#0f172a', display: 'block', marginBottom: '4px' }}>
+                        📦 Delivery Address:
+                      </strong>
+                      <div>
+                        {createdPaybillOrder.shippingAddress.firstName} {createdPaybillOrder.shippingAddress.lastName}
+                      </div>
+                      <div>{createdPaybillOrder.shippingAddress.address}</div>
+                      <div>
+                        {createdPaybillOrder.shippingAddress.town ? `${createdPaybillOrder.shippingAddress.town}, ` : ''}
+                        {createdPaybillOrder.shippingAddress.county || createdPaybillOrder.shippingAddress.city || ''}
+                      </div>
+                      {createdPaybillOrder.shippingAddress.phone && (
+                        <div style={{ color: '#0f172a', fontWeight: 600, marginTop: '2px' }}>
+                          📞 {createdPaybillOrder.shippingAddress.phone}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', fontSize: '0.78rem', color: '#475569' }}>
+                    <span style={{ fontWeight: 700, color: '#0f172a', display: 'block', marginBottom: '2px' }}>
+                      ⚡ Instant Verification
+                    </span>
+                    Once you pay via Paybill, submit your M-Pesa reference code on the left for priority verification.
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </aside>

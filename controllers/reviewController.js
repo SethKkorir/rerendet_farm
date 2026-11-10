@@ -3,6 +3,8 @@ import Review from '../models/Review.js';
 import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import User from '../models/User.js';
+import Testimonial from '../models/Testimonial.js';
+import { ensureTestimonialsSeeded } from './marketingController.js';
 
 // @desc    Add a product review
 // @route   POST /api/reviews/:productId
@@ -119,17 +121,30 @@ const deleteReview = asyncHandler(async (req, res) => {
 // @access  Private
 const createSiteReview = asyncHandler(async (req, res) => {
     const { rating, comment } = req.body;
-
-    // Check if user already reviewed the site today? (Prevent spam)
-    // For now, basic implementation
+    const authorName = (req.user.firstName + ' ' + (req.user.lastName || '')).trim() || req.user.name || 'Valued Customer';
 
     const review = await Review.create({
-        name: req.user.firstName + ' ' + req.user.lastName,
-        rating: Number(rating),
+        name: authorName,
+        rating: Number(rating) || 5,
         comment,
         user: req.user._id,
-        isVerifiedPurchase: false // General review
+        isVerifiedPurchase: true
     });
+
+    // Also persist into Testimonial collection so it immediately appears in Admin Testimonials
+    try {
+        await Testimonial.create({
+            author: authorName,
+            role: 'Verified Buyer',
+            rating: Number(rating) || 5,
+            text: comment,
+            avatar: req.user.profilePicture || '',
+            isActive: true,
+            isVerified: true
+        });
+    } catch (tErr) {
+        console.error('Failed to sync to Testimonial collection:', tErr.message);
+    }
 
     res.status(201).json({
         success: true,
@@ -138,80 +153,35 @@ const createSiteReview = asyncHandler(async (req, res) => {
     });
 });
 
-// @desc    Get top reviews for homepage
-// @route   GET /api/reviews
+// @desc    Get top reviews / testimonials for storefront
+// @route   GET /api/reviews/top
 // @access  Public
 const getTopReviews = asyncHandler(async (req, res) => {
-    // Get recent 4+ star general testimonials (where product is null/undefined)
-    let reviews = await Review.find({ product: null, rating: { $gte: 4 } })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate('user', 'firstName lastName profilePicture');
+    await ensureTestimonialsSeeded();
 
-    // If no site reviews in the database yet, seed three beautiful premium testimonials
-    if (reviews.length === 0) {
-        // Locate or create three distinct system users to prevent compound unique index violation (product + user)
-        const getOrCreateSystemUser = async (firstName, lastName, email) => {
-            let u = await User.findOne({ email });
-            if (!u) {
-                u = await User.create({
-                    firstName,
-                    lastName,
-                    email,
-                    password: 'SystemSeededPassword123!',
-                    userType: 'customer',
-                    isVerified: true
-                });
-            }
-            return u._id;
-        };
+    // Query active storefront testimonials directly from Testimonial collection
+    let activeTestimonials = await Testimonial.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
 
-        const u1 = await getOrCreateSystemUser('Julian', 'Vance', 'julian.vance@rerendet.com');
-        const u2 = await getOrCreateSystemUser('Elena', 'Rossi', 'elena.rossi@rerendet.com');
-        const u3 = await getOrCreateSystemUser('Marcus', 'Thorne', 'marcus.thorne@rerendet.com');
-
-        const seededData = [
-            {
-                name: 'Julian Vance',
-                rating: 5,
-                comment: "The Single Origin beans from Rerendet have a complexity I've only encountered in the highest altitudes of Kenya. A truly transcendent morning ritual.",
-                user: u1,
-                isVerifiedPurchase: true
-            },
-            {
-                name: 'Elena Rossi',
-                rating: 5,
-                comment: "Rerendet isn't just about the caffeine; it's about the heritage. You can taste the volcanic soil and the highland mist in every single brew.",
-                user: u2,
-                isVerifiedPurchase: true
-            },
-            {
-                name: 'Marcus Thorne',
-                rating: 5,
-                comment: "From the sustainable packaging to the perfectly balanced roast profile, Rerendet represents the future of ethical luxury coffee.",
-                user: u3,
-                isVerifiedPurchase: true
-            }
-        ];
-
-        for (const seeded of seededData) {
-            await Review.updateOne(
-                { product: null, user: seeded.user },
-                { $setOnInsert: seeded },
-                { upsert: true }
-            );
-        }
-
-        // Re-query newly seeded reviews
-        reviews = await Review.find({ product: null, rating: { $gte: 4 } })
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('user', 'firstName lastName profilePicture');
+    // Fallback: If all are inactive, activate them to prevent mismatched or missing storefront reviews
+    if (!activeTestimonials || activeTestimonials.length === 0) {
+        await Testimonial.updateMany({}, { isActive: true });
+        activeTestimonials = await Testimonial.find({ isActive: true }).sort({ displayOrder: 1, createdAt: -1 });
     }
 
-    res.json({
+    return res.json({
         success: true,
-        data: reviews
+        count: activeTestimonials.length,
+        data: activeTestimonials.map(t => ({
+            _id: t._id,
+            name: t.author,
+            author: t.author,
+            role: t.role || 'Verified Buyer',
+            rating: t.rating || 5,
+            comment: t.text,
+            text: t.text,
+            avatar: t.avatar || '',
+            isVerifiedPurchase: t.isVerified ?? true
+        }))
     });
 });
 

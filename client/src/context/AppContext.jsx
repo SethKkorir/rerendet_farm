@@ -1,6 +1,7 @@
 // context/AppContext.js - COMPLETE REWRITTEN VERSION
 import React, { createContext, useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import API, {
+  tokenStore,
   login as apiLogin,
   loginAdmin as apiLoginAdmin,
   googleLogin,
@@ -33,9 +34,29 @@ import { isProductOutOfStock, getAvailableStockCount } from '../utils/stockValid
 export const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [userType, setUserType] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+      const saved = localStorage.getItem(isAdminRoute ? 'admin_auth' : 'customer_auth') || localStorage.getItem('admin_auth') || localStorage.getItem('customer_auth') || localStorage.getItem('auth');
+      return saved ? JSON.parse(saved).user : null;
+    } catch { return null; }
+  });
+  const [token, setToken] = useState(() => {
+    try {
+      const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+      const saved = localStorage.getItem(isAdminRoute ? 'admin_auth' : 'customer_auth') || localStorage.getItem('admin_auth') || localStorage.getItem('customer_auth') || localStorage.getItem('auth');
+      const t = saved ? JSON.parse(saved).token : null;
+      if (t) tokenStore.set(t);
+      return t;
+    } catch { return null; }
+  });
+  const [userType, setUserType] = useState(() => {
+    try {
+      const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+      const saved = localStorage.getItem(isAdminRoute ? 'admin_auth' : 'customer_auth') || localStorage.getItem('admin_auth') || localStorage.getItem('customer_auth') || localStorage.getItem('auth');
+      return saved ? JSON.parse(saved).userType : null;
+    } catch { return null; }
+  });
   const [loading, setLoading] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [orderRefreshTrigger, setOrderRefreshTrigger] = useState(0); // Trigger for dashboard refresh
@@ -113,7 +134,12 @@ export function AppProvider({ children }) {
     if (!isAdminUser) return;
 
     const lastActivityStr = localStorage.getItem('lastActivity');
-    const lastActivity = lastActivityStr ? parseInt(lastActivityStr, 10) : Date.now();
+    if (!lastActivityStr) {
+      localStorage.setItem('lastActivity', Date.now().toString());
+      return;
+    }
+
+    const lastActivity = parseInt(lastActivityStr, 10);
     const now = Date.now();
 
     if (now - lastActivity > IDLE_TIMEOUT) {
@@ -274,30 +300,43 @@ export function AppProvider({ children }) {
 
   // ==================== AUTHENTICATION METHODS ====================
 
-  const clearAuth = useCallback((skipBroadcast = false) => {
-    setUser(null);
-    setToken(null);
-    setUserType(null);
-    setCartState([]);
-    setIsLocked(false);
-    // Clear token from memory
-    import('../api/api').then(m => m.tokenStore.clear());
-    // Remove any stale legacy localStorage key
+  const clearAuth = useCallback((role = null, skipBroadcast = false) => {
+    const shouldSkipBroadcast = typeof role === 'boolean' ? role : skipBroadcast;
+    const targetRole = typeof role === 'string' ? role : null;
+
+    if (!targetRole || targetRole === 'admin') {
+      localStorage.removeItem('admin_auth');
+    }
+    if (!targetRole || targetRole === 'customer') {
+      localStorage.removeItem('customer_auth');
+      setCartState([]);
+    }
     localStorage.removeItem('auth');
     localStorage.removeItem('lastActivity');
-    console.log('🔓 Auth cleared completely');
 
-    // Synchronize across tabs via BroadcastChannel
-    if (!skipBroadcast) {
+    const currentIsAdmin = userType === 'admin' || user?.role === 'super-admin' || user?.role === 'admin';
+    const shouldClearMemory = !targetRole || (targetRole === 'admin' && currentIsAdmin) || (targetRole === 'customer' && !currentIsAdmin);
+
+    if (shouldClearMemory) {
+      setUser(null);
+      setToken(null);
+      setUserType(null);
+      setIsLocked(false);
+      tokenStore.clear();
+      console.log('🔓 Auth cleared from memory for:', targetRole || 'all');
+    }
+
+    // Synchronize across tabs via BroadcastChannel with role payload
+    if (!shouldSkipBroadcast) {
       try {
         if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
           const bc = new BroadcastChannel('rerendet_auth_sync');
-          bc.postMessage({ type: 'LOGOUT' });
+          bc.postMessage({ type: 'LOGOUT', role: targetRole });
           bc.close();
         }
-      } catch (_) {}
+      } catch (_) { }
     }
-  }, []);
+  }, [userType, user]);
 
   // Map server-side cart to frontend structure
   const formatServerCart = useCallback((serverCart) => {
@@ -346,10 +385,18 @@ export function AppProvider({ children }) {
     setUser(userData);
     if (authToken) {
       setToken(authToken);
-      import('../api/api').then(m => m.tokenStore.set(authToken));
+      tokenStore.set(authToken);
     }
     setUserType(effectiveType);
     setIsLocked(false);
+
+    // Isolated storage: admin uses admin_auth, customer uses customer_auth
+    try {
+      const storageKey = effectiveType === 'admin' ? 'admin_auth' : 'customer_auth';
+      localStorage.setItem(storageKey, JSON.stringify({ user: userData, userType: effectiveType, token: authToken }));
+      localStorage.removeItem('auth'); // Purge legacy shared key
+      localStorage.setItem('lastActivity', Date.now().toString());
+    } catch (_) { }
 
     console.log('🔐 Persistent Auth active for:', userData.email, 'Type:', effectiveType);
 
@@ -361,43 +408,45 @@ export function AppProvider({ children }) {
           bc.postMessage({ type: 'LOGIN', user: userData, token: authToken, role: effectiveType });
           bc.close();
         }
-      } catch (_) {}
+      } catch (_) { }
     }
 
-    // Restore and Merge cart if available in user data
-    setCartState(prevLocalCart => {
-      const serverCart = (userData.cart && Array.isArray(userData.cart)) ? formatServerCart(userData.cart) : [];
+    // Restore and Merge cart ONLY for customers (administrators do not have a customer cart)
+    if (effectiveType === 'customer') {
+      setCartState(prevLocalCart => {
+        const serverCart = (userData.cart && Array.isArray(userData.cart)) ? formatServerCart(userData.cart) : [];
 
-      // If no server cart, stick with local
-      if (serverCart.length === 0) return prevLocalCart;
+        // If no server cart, stick with local
+        if (serverCart.length === 0) return prevLocalCart;
 
-      // If no local cart, use server cart
-      if (prevLocalCart.length === 0) return serverCart;
+        // If no local cart, use server cart
+        if (prevLocalCart.length === 0) return serverCart;
 
-      // Merge: Combine both, prioritising server items but adding unique local items
-      const mergedCart = [...serverCart];
+        // Merge: Combine both, prioritising server items but adding unique local items
+        const mergedCart = [...serverCart];
 
-      prevLocalCart.forEach(localItem => {
-        const existingIndex = mergedCart.findIndex(si =>
-          (si.productId === localItem.productId || si._id === localItem._id) &&
-          si.size === localItem.size
-        );
+        prevLocalCart.forEach(localItem => {
+          const existingIndex = mergedCart.findIndex(si =>
+            (si.productId === localItem.productId || si._id === localItem._id) &&
+            si.size === localItem.size
+          );
 
-        if (existingIndex > -1) {
-          // If exists in both, sum quantities
-          mergedCart[existingIndex].quantity += localItem.quantity;
-          mergedCart[existingIndex].itemTotal = mergedCart[existingIndex].quantity * mergedCart[existingIndex].price;
-        } else {
-          // New guest item not on server yet
-          mergedCart.push(localItem);
-        }
+          if (existingIndex > -1) {
+            // If exists in both, sum quantities
+            mergedCart[existingIndex].quantity += localItem.quantity;
+            mergedCart[existingIndex].itemTotal = mergedCart[existingIndex].quantity * mergedCart[existingIndex].price;
+          } else {
+            // New guest item not on server yet
+            mergedCart.push(localItem);
+          }
+        });
+
+        // Sync merged cart BACK to server immediately
+        apiSyncCart({ cart: mergedCart }).catch(err => console.error('Initial merged cart sync failed:', err));
+
+        return mergedCart;
       });
-
-      // Sync merged cart BACK to server immediately
-      apiSyncCart({ cart: mergedCart }).catch(err => console.error('Initial merged cart sync failed:', err));
-
-      return mergedCart;
-    });
+    }
   }, [formatServerCart]);
 
 
@@ -433,7 +482,7 @@ export function AppProvider({ children }) {
 
   // ==================== CART METHODS ====================
 
-  const addToCart = useCallback((product, quantity = 1, selectedSize = null) => {
+  const addToCart = useCallback((product, quantity = 1, selectedSize = null, selectedGrind = null) => {
     if (!product || !product._id) {
       console.error('❌ Cannot add product to cart: Missing _id');
       return;
@@ -452,7 +501,7 @@ export function AppProvider({ children }) {
       // Auto-remove any existing occurrence of this product from cart
       setCartState(prevCart => prevCart.filter(item => item._id !== productId.toString() && item.productId !== productId.toString()));
       // Alert the admin immediately
-      import('../api/api').then(m => m.reportOutOfStock(productId.toString())).catch(() => {});
+      import('../api/api').then(m => m.reportOutOfStock(productId.toString())).catch(() => { });
       return;
     }
 
@@ -468,6 +517,7 @@ export function AppProvider({ children }) {
     setCartState(prevCart => {
       let itemPrice = product.price;
       let finalSize = selectedSize || product.size || product.selectedSize || '250g';
+      const finalGrind = selectedGrind || product.selectedGrind || product.grind || (product.roastLevel ? (product.defaultGrind || 'Whole Beans') : undefined);
 
       if (product.sizes && product.sizes.length > 0) {
         const selectedSizeData = product.sizes.find(size => size.size === finalSize);
@@ -485,7 +535,9 @@ export function AppProvider({ children }) {
       }
 
       const existingItemIndex = prevCart.findIndex(item =>
-        item._id === productId.toString() && item.size === finalSize
+        item._id === productId.toString() &&
+        item.size === finalSize &&
+        (!finalGrind || item.grind === finalGrind)
       );
 
       if (existingItemIndex > -1) {
@@ -523,6 +575,7 @@ export function AppProvider({ children }) {
           price: itemPrice,
           quantity: quantity,
           size: finalSize,
+          grind: finalGrind,
           itemTotal: itemPrice * quantity,
           images: product.images || [],
           category: product.category,
@@ -542,7 +595,9 @@ export function AppProvider({ children }) {
 
     if (addedSuccessfully) {
       const sizeText = selectedSize ? ` (${selectedSize})` : '';
-      showSuccess(`Added ${quantity} ${product.name}${sizeText} to cart`);
+      const finalGrind = selectedGrind || product.selectedGrind || product.grind;
+      const grindText = finalGrind ? ` [${finalGrind}]` : '';
+      showSuccess(`Added ${quantity} ${product.name}${sizeText}${grindText} to cart`);
 
       // Sync with server if logged in
       if (token) {
@@ -554,17 +609,19 @@ export function AppProvider({ children }) {
     }
   }, [showSuccess, showError, token]);
 
-  const removeFromCart = useCallback((productId, size = null) => {
+  const removeFromCart = useCallback((productId, size = null, grind = null) => {
     setCartState(prevCart => {
       const updatedCart = prevCart.filter(item => {
-        if (size) {
+        if (size && grind) {
+          return !(item._id === productId && item.size === size && item.grind === grind);
+        } else if (size) {
           return !(item._id === productId && item.size === size);
         } else {
           return item._id !== productId;
         }
       });
 
-      console.log('🗑️ Removed from cart:', productId, size);
+      console.log('🗑️ Removed from cart:', productId, size, grind);
       return updatedCart;
     });
     showInfo('Product removed from cart');
@@ -578,21 +635,24 @@ export function AppProvider({ children }) {
     }
   }, [showInfo, token]);
 
-  const updateCartQuantity = useCallback((productId, quantity, size = null) => {
+  const updateCartQuantity = useCallback((productId, quantity, size = null, grind = null) => {
     if (quantity <= 0) {
-      removeFromCart(productId, size);
+      removeFromCart(productId, size, grind);
       return;
     }
 
     setCartState(prevCart => {
-      const target = prevCart.find(item => item._id === productId && (!size || item.size === size));
+      const target = prevCart.find(item => item._id === productId && (!size || item.size === size) && (!grind || item.grind === grind));
       if (target && isProductOutOfStock(target)) {
         showError(`"${target.name}" is out of stock and was removed from your cart.`);
         return prevCart.filter(item => item._id !== productId);
       }
 
       return prevCart.map(item => {
-        if (size ? (item._id === productId && item.size === size) : (item._id === productId)) {
+        const match = size
+          ? (item._id === productId && item.size === size && (!grind || item.grind === grind))
+          : (item._id === productId);
+        if (match) {
           const maxAvail = getAvailableStockCount(item);
           if (maxAvail > 0 && quantity > maxAvail) {
             showInfo(`Only ${maxAvail} unit(s) available in stock for ${item.name}`);
@@ -669,7 +729,7 @@ export function AppProvider({ children }) {
           outOfStockItems.forEach(oos => {
             showError(`"${oos.name}" is currently out of stock and has been automatically removed from your cart.`);
             // Alert admin of the out of stock occurrence
-            import('../api/api').then(m => m.reportOutOfStock((oos.product || oos._id).toString())).catch(() => {});
+            import('../api/api').then(m => m.reportOutOfStock((oos.product || oos._id).toString())).catch(() => { });
           });
         }
 
@@ -715,12 +775,8 @@ export function AppProvider({ children }) {
         throw new Error('Invalid token received from server');
       }
 
-      // STRICT SEPARATION: Admins cannot login as customers
-      if (userData.role === 'admin' || userData.role === 'super-admin') {
-        throw new Error('Administrator accounts cannot log in to the customer shop. Please use the Admin Portal.');
-      }
-
-      setAuth(userData, authToken, 'customer');
+      const isPrivilegedAdmin = userData.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
+      setAuth(userData, authToken, isPrivilegedAdmin ? 'admin' : 'customer');
       showSuccess('Login successful! Welcome back!');
       return response.data;
     } catch (error) {
@@ -741,7 +797,8 @@ export function AppProvider({ children }) {
 
       if (!validateToken(authToken)) throw new Error('Invalid token received');
 
-      setAuth(userData, authToken, 'customer');
+      const isPrivilegedAdmin = userData.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
+      setAuth(userData, authToken, isPrivilegedAdmin ? 'admin' : 'customer');
       showSuccess('Login successful!');
       return response.data;
     } catch (error) {
@@ -837,12 +894,8 @@ export function AppProvider({ children }) {
         throw new Error('Invalid token received from server');
       }
 
-      // STRICT SEPARATION: Admins cannot login as customers via Google
-      if (userData.role === 'admin' || userData.role === 'super-admin') {
-        throw new Error('Administrator accounts cannot log in to the customer shop. Please use the Admin Portal.');
-      }
-
-      setAuth(userData, authToken, 'customer');
+      const isPrivilegedAdmin = userData.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
+      setAuth(userData, authToken, isPrivilegedAdmin ? 'admin' : 'customer');
       showSuccess(`Welcome ${userData.firstName}! Google login successful.`);
       return response.data;
     } catch (error) {
@@ -892,7 +945,8 @@ export function AppProvider({ children }) {
 
       if (!validateToken(authToken)) throw new Error('Invalid token received');
 
-      setAuth(userData, authToken, 'customer');
+      const isPrivilegedAdmin = userData.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
+      setAuth(userData, authToken, isPrivilegedAdmin ? 'admin' : 'customer');
       showSuccess('Email verified! You are now logged in.');
       return response.data;
     } catch (error) {
@@ -931,10 +985,11 @@ export function AppProvider({ children }) {
 
       setUser(prev => ({ ...prev, ...updatedUser }));
 
-      // Update local storage
-      const storedAuth = JSON.parse(localStorage.getItem('auth') || '{}');
+      // Update role-isolated local storage
+      const storageKey = userType === 'admin' ? 'admin_auth' : 'customer_auth';
+      const storedAuth = JSON.parse(localStorage.getItem(storageKey) || '{}');
       if (storedAuth.user) {
-        localStorage.setItem('auth', JSON.stringify({
+        localStorage.setItem(storageKey, JSON.stringify({
           ...storedAuth,
           user: { ...storedAuth.user, ...updatedUser }
         }));
@@ -968,14 +1023,15 @@ export function AppProvider({ children }) {
       } : prev.shippingInfo;
       const updated = { ...prev, addresses: newAddresses || [], shippingInfo: newShipping };
       try {
-        const storedAuth = JSON.parse(localStorage.getItem('auth') || '{}');
+        const storageKey = userType === 'admin' ? 'admin_auth' : 'customer_auth';
+        const storedAuth = JSON.parse(localStorage.getItem(storageKey) || '{}');
         if (storedAuth.user) {
-          localStorage.setItem('auth', JSON.stringify({
+          localStorage.setItem(storageKey, JSON.stringify({
             ...storedAuth,
             user: { ...storedAuth.user, ...updated }
           }));
         }
-      } catch (_) {}
+      } catch (_) { }
       return updated;
     });
   }, []);
@@ -1016,9 +1072,9 @@ export function AppProvider({ children }) {
 
   // ==================== ROLE CHECKS ====================
 
-  const isAdmin = userType === 'admin';
-  const isSuperAdmin = user?.role === 'super-admin';
-  const isCustomer = userType === 'customer';
+  const isAdmin = userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(user?.role);
+  const isSuperAdmin = user?.role === 'super-admin' || user?.role === 'super_admin' || user?.role === 'owner';
+  const isCustomer = !!user; // Every authenticated user has customer store & purchasing capabilities
   const isAuthenticated = !!user && !!token;
 
   // Polling for Real-time Order Updates
@@ -1297,12 +1353,23 @@ export function AppProvider({ children }) {
 
   // Listen for session expiration events from API layer to cleanly log out
   useEffect(() => {
-    const handleAuthExpired = () => {
-      console.warn('⚠️ Session expired event received. Clearing authentication...');
-      clearAuth();
+    const handleAuthExpired = (event) => {
+      const expiredScope = event?.detail?.scope;
+      const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
+      if (expiredScope && ((isAdminRoute && expiredScope === 'customer') || (!isAdminRoute && expiredScope === 'admin'))) {
+        console.log(`ℹ️ Ignoring auth-expired event for ${expiredScope} on ${isAdminRoute ? 'admin' : 'store'} route`);
+        return;
+      }
+
+      console.warn('⚠️ Session expired event received. Clearing authentication for active scope...');
+      const roleToClear = isAdminRoute ? 'admin' : 'customer';
+      clearAuth(roleToClear, false);
       showWarning('Your session has expired. Please log in again.');
-      setShowAuthModal(true);
-      setAuthView('login');
+      if (!isAdminRoute) {
+        setShowAuthModal(true);
+        setAuthView('login');
+      }
     };
 
     if (typeof window !== 'undefined') {
@@ -1318,7 +1385,7 @@ export function AppProvider({ children }) {
   // Ref to track if initialization has already run
   const hasInitialized = useRef(false);
 
-  // Multi-tab synchronization across browser tabs/windows
+  // Multi-tab synchronization across browser tabs/windows (role-isolated)
   useEffect(() => {
     let bc;
     try {
@@ -1326,12 +1393,20 @@ export function AppProvider({ children }) {
         bc = new BroadcastChannel('rerendet_auth_sync');
         bc.onmessage = (event) => {
           if (!event.data) return;
+          const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+
           if (event.data.type === 'LOGOUT') {
-            console.log('🔄 Logout synchronized across tabs');
-            clearAuth(true);
+            const logoutRole = event.data.role;
+            if (!logoutRole || (isAdminRoute && logoutRole === 'admin') || (!isAdminRoute && logoutRole === 'customer')) {
+              console.log('🔄 Logout synchronized across tabs for role:', logoutRole || 'all');
+              clearAuth(logoutRole, true);
+            }
           } else if (event.data.type === 'LOGIN' && event.data.user) {
-            console.log('🔄 Login synchronized across tabs for:', event.data.user.email);
-            setAuth(event.data.user, event.data.token, event.data.role, true);
+            const loginRole = event.data.role;
+            if ((isAdminRoute && loginRole === 'admin') || (!isAdminRoute && loginRole === 'customer')) {
+              console.log('🔄 Login synchronized across tabs for:', event.data.user.email);
+              setAuth(event.data.user, event.data.token, event.data.role, true);
+            }
           }
         };
       }
@@ -1351,27 +1426,39 @@ export function AppProvider({ children }) {
     const initializeAuth = async () => {
       if (hasInitialized.current) return;
       hasInitialized.current = true;
-      
+
+      const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+      const authScope = isAdminRoute ? 'admin' : 'customer';
+
       try {
-        console.log('🚀 Initializing persistent auth & application state...');
+        console.log('🚀 Initializing persistent auth & application state for scope:', authScope);
         setAuthLoading(true);
-        
+
         // 1. Fetch public settings
         await fetchPublicSettings();
-        
+
         // 2. Persistent Authentication check via direct silent refresh
         let sessionRestored = false;
 
         try {
           const { default: axios } = await import('axios');
-          const apiBase = import.meta.env.VITE_API_URL || '/api';
+          let apiBase = import.meta.env.VITE_API_URL || '/api';
+          if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            if (apiBase.includes('localhost') || apiBase.includes('127.0.0.1')) {
+              apiBase = '/api';
+            }
+          }
           const refreshEndpoint = apiBase.endsWith('/') ? `${apiBase}auth/refresh` : `${apiBase}/auth/refresh`;
+
           const refreshRes = await axios.post(
             refreshEndpoint,
             {},
             {
               withCredentials: true,
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+              headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Auth-Scope': authScope
+              }
             }
           );
 
@@ -1387,11 +1474,22 @@ export function AppProvider({ children }) {
         } catch (refreshErr) {
           // Normal guest visitor or expired session — no noisy alerts
           console.log('ℹ️ No active persistent refresh session found (guest visitor or expired)');
+          // Only clear if server explicitly told us the token was revoked/reused
+          if (refreshErr.response?.data?.code === 'TOKEN_REUSE_DETECTED') {
+            clearAuth(authScope, true);
+          }
         }
 
-        // If no session restored, ensure clean unauthenticated state
+        // If no session restored from silent refresh, only clear auth if there's no valid local session
         if (!sessionRestored && isMounted) {
-          clearAuth(true);
+          const currentToken = tokenStore.get();
+          const targetKey = isAdminRoute ? 'admin_auth' : 'customer_auth';
+          const currentLocalAuth = localStorage.getItem(targetKey) || localStorage.getItem('auth');
+          if (!currentToken && !currentLocalAuth) {
+            clearAuth(authScope, true);
+          } else {
+            console.log('ℹ️ Retaining local active session state');
+          }
         }
 
         // 3. Initialize cart

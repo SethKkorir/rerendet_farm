@@ -16,9 +16,9 @@ export const getAdminWhatsAppNumber = (publicSettings) => {
     || publicSettings?.store?.phone
     || '';
 
-  if (!raw) return '254711245765';
+  if (!raw) return '254705684984';
 
-  // If the admin saved a full wa.me link (e.g. https://wa.me/254711245765)
+  // If the admin saved a full wa.me link (e.g. https://wa.me/254705684984)
   if (raw.includes('wa.me/')) {
     const after = raw.split('wa.me/')[1]?.split('?')[0];
     const cleaned = after?.replace(/\D/g, '');
@@ -27,7 +27,7 @@ export const getAdminWhatsAppNumber = (publicSettings) => {
 
   // Extract all digit characters
   let digits = raw.replace(/\D/g, '');
-  if (!digits) return '254711245765';
+  if (!digits) return '254705684984';
 
   // Convert leading local Kenyan 0 (e.g. 0711245765 -> 254711245765)
   if (digits.startsWith('0') && digits.length === 10) {

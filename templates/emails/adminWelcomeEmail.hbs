@@ -1,131 +1,57 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #dc2626, #7c2d12);
-            padding: 40px;
-            text-align: center;
-            border-radius: 12px 12px 0 0;
-        }
-
-        .header h1 {
-            color: #ffffff;
-            margin: 0;
-            font-size: 28px;
-            letter-spacing: 1px;
-        }
-
-        .content {
-            padding: 40px;
-            border: 1px solid #eee;
-            border-top: none;
-            border-radius: 0 0 12px 12px;
-            background: #ffffff;
-        }
-
-        .greeting {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 20px;
-        }
-
-        .message {
-            color: #555;
-            margin-bottom: 25px;
-        }
-
-        .info-box {
-            background: white;
-            padding: 25px;
-            margin: 25px 0;
-            border-left: 4px solid #dc2626;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .info-box h3 {
-            margin-top: 0;
-            color: #dc2626;
-        }
-
-        .permissions-list {
-            padding-left: 20px;
-            color: #444;
-        }
-
-        .permissions-list li {
-            margin-bottom: 8px;
-        }
-
-        .action-box {
-            text-align: center;
-            margin-top: 35px;
-        }
-
-        .btn {
-            background: #dc2626;
-            color: #ffffff;
-            padding: 14px 28px;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: bold;
-            display: inline-block;
-        }
-
-        .footer {
-            padding: 30px;
-            text-align: center;
-            font-size: 13px;
-            color: #999;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Invitation - Rerendet Coffee</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F8F9FA; margin: 0; padding: 40px 16px; color: #374151; }
+    .card { max-width: 580px; margin: 0 auto; background-color: #FFFFFF; border-top: 4px solid #1E3D2F; border-radius: 4px; border-left: 1px solid #E5E7EB; border-right: 1px solid #E5E7EB; border-bottom: 1px solid #E5E7EB; overflow: hidden; padding: 36px 36px 32px; text-align: left; }
+    .hero-title { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; font-size: 32px; font-weight: 400; color: #1F2937; text-align: center; margin: 0 0 12px; }
+    .hero-subtitle { font-size: 14.5px; color: #6B7280; text-align: center; line-height: 1.6; margin: 0 auto 24px; max-width: 480px; }
+    .btn { display: inline-block; background-color: #1E3D2F; color: #FFFFFF !important; padding: 12px 34px; border-radius: 9999px; text-decoration: none; font-weight: 600; font-size: 14px; }
+    .social-pill { display: inline-block; border: 1px solid #D1D5DB; border-radius: 9999px; padding: 7px 22px; color: #374151 !important; text-decoration: none; font-size: 13.5px; font-weight: 600; }
+  </style>
 </head>
-
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Rerendet Coffee Admin</h1>
-        </div>
-        <div class="content">
-            <div class="greeting">Welcome {{firstName}},</div>
-            <p class="message">Your administrator account has been successfully created and activated. You now have
-                access to the Rerendet Coffee management systems.</p>
-
-            <div class="info-box">
-                <h3>🔧 Admin Permissions</h3>
-                <ul class="permissions-list">
-                    {{#if permissions.canManageUsers}}<li>✅ Manage Users</li>{{/if}}
-                    {{#if permissions.canManageProducts}}<li>✅ Manage Products</li>{{/if}}
-                    {{#if permissions.canManageOrders}}<li>✅ Manage Orders</li>{{/if}}
-                    {{#if permissions.canManageContent}}<li>✅ Manage Content</li>{{/if}}
-                </ul>
-                <p><strong>Role:</strong> {{role}}</p>
-            </div>
-
-            <div class="action-box">
-                <a href="{{adminUrl}}" class="btn">Access Admin Panel</a>
-            </div>
-        </div>
-        <div class="footer">
-            &copy; 2025 Rerendet Coffee. All rights reserved.
-        </div>
+  <div class="card">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="https://rerendet-farm.vercel.app" target="_blank" style="text-decoration: none;">
+        <img src="https://res.cloudinary.com/dln2pifwf/image/upload/v1779294419/rerendet-coffee/products/pb7indr2rhu7fnhh3jjh.png" alt="Rerendet Coffee" width="140" style="display: block; max-width: 145px; height: auto; margin: 0 auto; border: 0;" />
+      </a>
     </div>
-</body>
 
+    <h1 class="hero-title">Karibu, {{name}}.</h1>
+    <p class="hero-subtitle">You have been granted administrator access to the Rerendet Coffee command center in Bomet, Kenya.</p>
+
+    <div style="border: 1px solid #E5E7EB; border-radius: 8px; padding: 18px 20px; margin: 20px 0; background: #F9FAFB;">
+      <span style="font-size: 11.5px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">Assigned Role</span>
+      <strong style="font-size: 16px; color: #111827;">{{role}}</strong>
+    </div>
+
+    <div style="text-align: center; margin: 26px 0;">
+      <a href="{{loginUrl}}" class="btn">Log In to Admin Dashboard</a>
+    </div>
+
+    <!-- Divider -->
+    <div style="border-top: 1px solid #E5E7EB; margin: 34px 0 24px;"></div>
+
+    <p style="text-align: center; color: #6B7280; font-size: 13.5px; margin: 0 0 32px;">
+      Questions? Reply to this email and our engineering team will help.
+    </p>
+
+    <!-- Brand Footer -->
+    <div style="border-top: 1px solid #E5E7EB; padding-top: 22px; text-align: center; font-size: 12.5px; color: #9CA3AF; line-height: 1.8;">
+      <p style="margin: 0 0 4px; color: #6B7280;">
+        Rerendet Coffee &middot; Bomet, Kenya
+      </p>
+      <p style="margin: 0 0 8px; color: #6B7280;">
+        +254 705 684 984 &middot; <a href="mailto:hello@rerendetcoffee.com" style="color: #6B7280; text-decoration: none;">hello@rerendetcoffee.com</a>
+      </p>
+    </div>
+  </div>
+</body>
 </html>

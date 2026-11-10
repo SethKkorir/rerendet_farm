@@ -1,12 +1,10 @@
-// client/src/components/Account/OverviewTab.jsx — Minimalist Quiet Luxury Member Overview
+// client/src/components/Account/OverviewTab.jsx — Minimalist Quiet Luxury Member Overview (Matching Image 3)
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaShoppingBag, FaShieldAlt, FaCreditCard, FaMapMarkerAlt,
-  FaArrowRight, FaHeadset, FaComments, FaClock, FaCheckCircle,
-  FaReceipt, FaLock
+  FaShoppingBag, FaShieldAlt, FaLock, FaClock, FaCheck, FaArrowRight,
+  FaCheckCircle, FaReceipt
 } from 'react-icons/fa';
-import { getWhatsAppLink } from '../../utils/whatsappHelper';
 
 /* ── Safe Product Image Resolver ── */
 const getItemImage = (item) => {
@@ -19,42 +17,24 @@ const getItemImage = (item) => {
   return '/hero-product.png';
 };
 
-/* ── Mask Phone Helper ── */
-const maskPhone = (phone) => {
-  if (!phone) return null;
-  const str = String(phone).trim();
-  if (str.length < 8) return str;
-  return str.slice(0, 3) + ' ••• ••• ' + str.slice(-3);
-};
-
-const OverviewTab = ({ user, orders = [], onNavigate, publicSettings }) => {
+const OverviewTab = ({ user, orders = [], onNavigate }) => {
   const navigate = useNavigate();
-  const whatsAppUrl = getWhatsAppLink(publicSettings);
 
   // Active (unfulfilled or in-transit) vs Delivered
-  const { activeOrders, latestOrder, unpaidCount } = useMemo(() => {
+  const { activeOrders, latestOrder } = useMemo(() => {
     const active = orders.filter(o => {
       const isCancelled = o.status === 'cancelled' || o.orderStatus === 'cancelled';
       const isDelivered = o.fulfillmentStatus === 'delivered';
       return !isCancelled && !isDelivered;
     });
 
-    const unpaid = orders.filter(o => o.paymentStatus !== 'paid' && o.status !== 'cancelled').length;
     const latest = orders.length > 0 ? orders[0] : null;
-
-    return { activeOrders: active, latestOrder: latest, unpaidCount: unpaid };
+    return { activeOrders: active, latestOrder: latest };
   }, [orders]);
 
-  // Shipping destination summary
-  const shipping = user?.shippingInfo;
-  const hasShippingAddress = Boolean(
-    shipping?.address || shipping?.city || shipping?.county || shipping?.town
-  );
+  const fullName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Seth Kipchumba';
 
-  // M-Pesa phone
-  const mpesaPhone = user?.wallet?.mpesaPhone || user?.phone;
-
-  // Format date
+  // Format date helper
   const formatOrderDate = (dateStr) => {
     if (!dateStr) return 'Recent Order';
     try {
@@ -69,379 +49,300 @@ const OverviewTab = ({ user, orders = [], onNavigate, publicSettings }) => {
   };
 
   return (
-    <div className="ord-luxury-canvas ov-overview-canvas">
-      {/* ══ Editorial Header ══ */}
-      <div className="ord-luxury-header">
-        <span className="ord-luxury-tag">MY ACCOUNT</span>
-        <h2 className="ord-luxury-title">
-          Welcome, {user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Valued Customer'}
+    <div className="ord-luxury-canvas ov-overview-canvas" style={{ padding: 0 }}>
+      {/* ══ Header Row (Matching Image 3) ══ */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
+        <h2 className="rc-dash-title">
+          Welcome, {fullName}
         </h2>
-        <p className="ord-luxury-sub">
-          Manage your orders, delivery addresses, and account security.
+        <p className="rc-dash-sub">
+          A quick look at your orders, delivery details and account security.
         </p>
-        <div className="ord-luxury-h-line" />
       </div>
 
-      {/* ══ 2FA Security Recommendation Strip ══ */}
+      {/* ══ 2FA Security Recommendation Banner (Matching Image 3) ══ */}
       {!user?.twoFactorEnabled && (
-        <div className="ov-security-banner">
-          <div className="ov-sec-left">
-            <div className="ov-sec-icon-circle">
+        <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: '1.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              background: 'rgba(202, 160, 88, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#B58838',
+              fontSize: '0.95rem',
+              flexShrink: 0
+            }}>
               <FaShieldAlt />
             </div>
-            <div className="ov-sec-text">
-              <h4 className="ov-sec-title">Protect Your Account with 2FA</h4>
-              <p className="ov-sec-desc">
+            <div>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+                Protect your account with 2FA
+              </h4>
+              <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
                 Turn on two-factor authentication for extra security whenever you log in.
               </p>
             </div>
           </div>
+
           <button
             type="button"
-            className="ord-action-btn outline ov-sec-btn"
+            className="rc-btn-gold"
             onClick={() => onNavigate('security')}
           >
-            <span>Enable 2FA</span>
-            <FaArrowRight style={{ fontSize: '0.72rem' }} />
+            Enable 2FA ↗
           </button>
         </div>
       )}
 
-      {/* ══ 3 Minimalist Metric Tiles ══ */}
-      <div className="ov-metrics-row">
-        {/* Metric 1: Total Orders */}
-        <div className="ov-metric-card" onClick={() => onNavigate('orders')}>
-          <div className="ov-metric-top">
-            <span className="ov-metric-label">TOTAL ORDERS</span>
-            <span className="ov-metric-icon">
-              <FaShoppingBag />
+      {/* ══ 3 Stat Cards Grid (Matching Image 3) ══ */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '1.25rem',
+        marginBottom: '2.5rem'
+      }}>
+        {/* TOTAL ORDERS */}
+        <div
+          className="rc-card-white"
+          onClick={() => onNavigate('orders')}
+          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
+              TOTAL ORDERS
             </span>
+            <FaShoppingBag style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
           </div>
-          <div className="ov-metric-val">{orders.length}</div>
-          <div className="ov-metric-foot">
+          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: '#1E140E', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+            {orders.length}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
             <span>{orders.length === 1 ? '1 order placed' : `${orders.length} orders placed`}</span>
-            <span className="ov-metric-link">
-              View <FaArrowRight style={{ fontSize: '0.65rem' }} />
+            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              View orders →
             </span>
           </div>
         </div>
 
-        {/* Metric 2: Active Orders */}
-        <div className="ov-metric-card" onClick={() => onNavigate('orders')}>
-          <div className="ov-metric-top">
-            <span className="ov-metric-label">ACTIVE ORDERS</span>
-            <span className="ov-metric-icon">
-              <FaClock />
+        {/* ACTIVE ORDERS */}
+        <div
+          className="rc-card-white"
+          onClick={() => onNavigate('orders')}
+          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
+              ACTIVE ORDERS
             </span>
+            <FaClock style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
           </div>
-          <div className="ov-metric-val">{activeOrders.length}</div>
-          <div className="ov-metric-foot">
-            <span>{activeOrders.length === 0 ? 'No active orders' : `${activeOrders.length} in progress`}</span>
-            <span className="ov-metric-link">
-              Track <FaArrowRight style={{ fontSize: '0.65rem' }} />
+          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: '#1E140E', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+            {activeOrders.length}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
+            <span>{activeOrders.length === 0 ? 'No active orders' : `${activeOrders.length} active`}</span>
+            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Track →
             </span>
           </div>
         </div>
 
-        {/* Metric 3: Account Security */}
-        <div className="ov-metric-card" onClick={() => onNavigate('security')}>
-          <div className="ov-metric-top">
-            <span className="ov-metric-label">ACCOUNT SECURITY</span>
-            <span className="ov-metric-icon">
-              <FaLock />
+        {/* ACCOUNT SECURITY */}
+        <div
+          className="rc-card-white"
+          onClick={() => onNavigate('security')}
+          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
+              ACCOUNT SECURITY
             </span>
+            <FaLock style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
           </div>
-          <div className={`ov-metric-val ${user?.twoFactorEnabled ? 'status-fortified' : 'status-standard'}`}>
-            {user?.twoFactorEnabled ? '2FA Active' : 'Standard'}
+          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: user?.twoFactorEnabled ? '#2e7d32' : '#B58838', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+            {user?.twoFactorEnabled ? 'Fortified' : 'Standard'}
           </div>
-          <div className="ov-metric-foot">
-            <span>{user?.twoFactorEnabled ? '2FA Protected' : '2FA Recommended'}</span>
-            <span className="ov-metric-link">
-              Manage <FaArrowRight style={{ fontSize: '0.65rem' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
+            <span>{user?.twoFactorEnabled ? '2FA Active' : '2FA recommended'}</span>
+            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Manage →
             </span>
           </div>
         </div>
       </div>
 
-      {/* ══ Latest Order Spotlight ══ */}
-      <div className="ov-spotlight-section">
-        <div className="ov-section-header">
+      {/* ══ Recent Activity Section (Matching Image 3) ══ */}
+      <div style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div>
-            <span className="ov-section-eyebrow">RECENT ACTIVITY</span>
-            <h3 className="ov-section-title">Latest Order</h3>
+            <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '2px' }}>
+              RECENT ACTIVITY
+            </span>
+            <h3 style={{
+              fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
+              fontSize: '1.35rem',
+              fontWeight: 700,
+              color: '#1E140E',
+              margin: 0
+            }}>
+              Latest order
+            </h3>
           </div>
-          {orders.length > 0 && (
-            <button
-              type="button"
-              className="ov-section-link-btn"
-              onClick={() => onNavigate('orders')}
-            >
-              <span>View All Orders ({orders.length})</span>
-              <FaArrowRight style={{ fontSize: '0.72rem' }} />
-            </button>
-          )}
+
+          <button
+            type="button"
+            onClick={() => onNavigate('orders')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#1E140E',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              padding: 0
+            }}
+          >
+            Order history →
+          </button>
         </div>
 
         {latestOrder ? (
-          <div className="ord-clean-card ov-spotlight-card">
-            {/* Top Meta Strip */}
-            <div className="ord-clean-top">
-              <div className="ord-clean-meta-left">
-                <span className="ord-clean-number">
+          <div className="rc-card-white" style={{ padding: '1.75rem 2rem', marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div>
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1E140E' }}>
                   Order #{latestOrder.orderNumber || latestOrder._id.slice(-8).toUpperCase()}
                 </span>
-                <span className="ord-clean-dot-sep" />
-                <span className="ord-clean-date">
+                <span style={{ margin: '0 8px', color: '#D4C9BC' }}>·</span>
+                <span style={{ fontSize: '0.84rem', color: '#8E7D70' }}>
                   {formatOrderDate(latestOrder.createdAt)}
                 </span>
               </div>
 
-              <div className="ord-clean-badges-right">
-                {(() => {
-                  const isCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
-                  const isDelivered = latestOrder.fulfillmentStatus === 'delivered';
-                  const isShipped = latestOrder.fulfillmentStatus === 'shipped';
-                  const statusClass = isCancelled ? 'cancelled' : isDelivered ? 'delivered' : isShipped ? 'shipped' : 'processing';
-                  const statusLabel = isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : isShipped ? 'In Transit' : 'Preparing Order';
-                  return (
-                    <span className={`ord-clean-status-pill ${statusClass}`}>
-                      {statusLabel}
-                    </span>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <div className="ord-clean-divider" />
-
-            {/* Items Preview */}
-            <div className="ord-clean-items">
-              {(latestOrder.items || []).slice(0, 2).map((item, idx) => (
-                <div key={idx} className="ord-clean-item">
-                  <div className="ord-clean-item-left">
-                    <img
-                      src={getItemImage(item)}
-                      alt={item.name}
-                      className="ord-clean-thumb"
-                      onError={(e) => { e.target.src = '/hero-product.png'; }}
-                    />
-                    <div className="ord-clean-item-info">
-                      <span className="ord-clean-item-title">{item.product?.name || item.name}</span>
-                      <span className="ord-clean-item-spec">
-                        {item.size || '250g'} · Quantity: {item.quantity}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span className="ord-clean-item-price">
-                    KES {Number(item.price * item.quantity).toLocaleString()}
+              {(() => {
+                const isLatestCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
+                return (
+                  <span
+                    className="rc-badge-preferred"
+                    style={isLatestCancelled ? { background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' } : undefined}
+                  >
+                    {isLatestCancelled ? 'Cancelled' : (latestOrder.fulfillmentStatus || latestOrder.status || 'Processing')}
                   </span>
-                </div>
-              ))}
-              {(latestOrder.items || []).length > 2 && (
-                <div className="ov-more-items-note">
-                  +{latestOrder.items.length - 2} more item(s)
-                </div>
-              )}
+                );
+              })()}
             </div>
 
-            <div className="ord-clean-divider" />
-
-            {/* Total and Quick CTAs */}
-            <div className="ord-clean-bottom">
-              <div className="ord-clean-total-wrap">
-                <span className="ord-clean-total-label">Order Total</span>
-                <span className="ord-clean-total-val">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid #F2ECE3' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: '#8E7D70', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block' }}>
+                  Total Amount
+                </span>
+                <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1E140E' }}>
                   KES {Number(latestOrder.total || latestOrder.totalAmount || 0).toLocaleString()}
                 </span>
               </div>
 
-              <div className="ord-clean-actions">
-                <button
-                  type="button"
-                  className="ord-action-btn outline"
-                  onClick={() => onNavigate('orders')}
-                >
-                  <FaReceipt /> View Details
-                </button>
-
-                <button
-                  type="button"
-                  className="ord-action-btn solid"
-                  onClick={() => navigate(`/order-tracking/${latestOrder._id}`)}
-                >
-                  Track Order <FaArrowRight style={{ fontSize: '0.7rem' }} />
-                </button>
-              </div>
+              {(() => {
+                const isLatestCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
+                return (
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      className="rc-btn-white"
+                      onClick={() => onNavigate('orders')}
+                    >
+                      <FaReceipt style={{ fontSize: '0.75rem' }} /> {isLatestCancelled ? 'Order details' : 'Receipt'}
+                    </button>
+                    {!isLatestCancelled ? (
+                      <button
+                        type="button"
+                        className="rc-btn-gold"
+                        onClick={() => navigate(`/track-order/${latestOrder._id}`)}
+                      >
+                        Track order →
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rc-btn-gold"
+                        style={{ background: '#1E140E', color: '#FFFFFF' }}
+                        onClick={() => onNavigate('orders')}
+                      >
+                        View in orders →
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         ) : (
-          <div className="ord-clean-card ov-empty-spotlight">
-            <div className="ov-empty-icon-wrap">
+          <div className="rc-card-white" style={{ textAlign: 'center', padding: '3.5rem 2rem', marginBottom: 0 }}>
+            <div style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              background: '#FAF6EE',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              color: '#CAA058',
+              fontSize: '1.4rem'
+            }}>
               <FaShoppingBag />
             </div>
-            <h4 className="ov-empty-title">No Orders Yet</h4>
-            <p className="ov-empty-desc">
-              You haven't placed any orders yet. Discover our fresh roasted coffee to get started.
+            <h4 style={{
+              fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
+              fontSize: '1.25rem',
+              fontWeight: 700,
+              color: '#1E140E',
+              margin: '0 0 0.5rem'
+            }}>
+              No orders yet
+            </h4>
+            <p style={{ color: '#665548', fontSize: '0.88rem', maxWidth: '380px', margin: '0 auto' }}>
+              Your first order will appear here, with updates from checkout through delivery.
             </p>
-            <button
-              type="button"
-              className="ord-action-btn solid ov-empty-btn"
-              onClick={() => navigate('/#coffee-shop')}
-            >
-              <span>Shop Fresh Coffee</span>
-              <FaArrowRight style={{ fontSize: '0.72rem' }} />
-            </button>
           </div>
         )}
       </div>
 
-      {/* ══ Split Grid: Shipping & M-Pesa ══ */}
-      <div className="ov-split-grid">
-        {/* Destination Card */}
-        <div className="ord-clean-card ov-info-card">
-          <div className="ov-info-card-top">
-            <div className="ov-info-icon-badge">
-              <FaMapMarkerAlt />
-            </div>
-            <div className="ov-info-meta">
-              <span className="ov-info-eyebrow">SHIPPING</span>
-              <h4 className="ov-info-title">Delivery Address</h4>
-            </div>
+      {/* ══ Account In Good Standing Banner (Matching Image 3) ══ */}
+      <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'rgba(202, 160, 88, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#B58838',
+            fontSize: '0.85rem',
+            flexShrink: 0
+          }}>
+            <FaCheck />
           </div>
-
-          <div className="ord-clean-divider" />
-
-          <div className="ov-info-body">
-            {hasShippingAddress ? (
-              <div className="ov-address-content">
-                <p className="ov-address-line primary">
-                  {shipping?.address || 'Street address on file'}
-                </p>
-                <p className="ov-address-line sub">
-                  {[shipping?.town, shipping?.county, shipping?.country || 'Kenya'].filter(Boolean).join(', ')}
-                </p>
-                {shipping?.zip && (
-                  <p className="ov-address-line zip">Postal Code: {shipping.zip}</p>
-                )}
-                {user?.phone && (
-                  <p className="ov-address-line phone">Phone: {user.phone}</p>
-                )}
-              </div>
-            ) : (
-              <div className="ov-address-empty">
-                <p className="ov-empty-inline-text">
-                  No shipping address saved yet.
-                </p>
-                <p className="ov-empty-inline-sub">
-                  Add an address for faster checkout.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="ov-info-footer">
-            <button
-              type="button"
-              className="ov-card-link-btn"
-              onClick={() => onNavigate('addresses')}
-            >
-              <span>{hasShippingAddress ? 'Edit Address' : 'Add Shipping Address'}</span>
-              <FaArrowRight style={{ fontSize: '0.7rem' }} />
-            </button>
-          </div>
-        </div>
-
-        {/* M-Pesa Card */}
-        <div className="ord-clean-card ov-info-card">
-          <div className="ov-info-card-top">
-            <div className="ov-info-icon-badge">
-              <FaCreditCard />
-            </div>
-            <div className="ov-info-meta">
-              <span className="ov-info-eyebrow">PAYMENT</span>
-              <h4 className="ov-info-title">Lipa na M-Pesa</h4>
-            </div>
-          </div>
-
-          <div className="ord-clean-divider" />
-
-          <div className="ov-info-body">
-            <div className="ov-mpesa-status-box">
-              <div className="ov-mpesa-row">
-                <span className="ov-mpesa-badge">DEFAULT PAYMENT</span>
-                <span className="ov-mpesa-verified">
-                  <FaCheckCircle /> 256-Bit SSL
-                </span>
-              </div>
-              <div className="ov-mpesa-number">
-                {maskPhone(mpesaPhone) || '07•• ••• •••'}
-              </div>
-              <p className="ov-mpesa-desc">
-                M-Pesa payment prompt will be sent directly to your phone at checkout.
-              </p>
-            </div>
-          </div>
-
-          <div className="ov-info-footer">
-            <button
-              type="button"
-              className="ov-card-link-btn"
-              onClick={() => onNavigate('wallet')}
-            >
-              <span>Manage Payment</span>
-              <FaArrowRight style={{ fontSize: '0.7rem' }} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ══ Customer Support Strip ══ */}
-      <div className="ov-concierge-strip">
-        <div className="ov-concierge-left">
-          <div className="ov-concierge-icon-circle">
-            <FaHeadset />
-          </div>
-          <div className="ov-concierge-text">
-            <span className="ov-concierge-tag">SUPPORT</span>
-            <h4 className="ov-concierge-title">Need Help with Your Order?</h4>
-            <p className="ov-concierge-desc">
-              Have questions about your order, our coffee, or your account? Reach out to our team anytime.
+          <div>
+            <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+              Your account is in good standing
+            </h4>
+            <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+              Add two-step verification for an extra layer of protection.
             </p>
           </div>
         </div>
 
-        <div className="ov-concierge-actions">
-          <a
-            href={whatsAppUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ord-action-btn solid ov-concierge-wa-btn"
-          >
-            <FaComments />
-            <span>Chat on WhatsApp</span>
-          </a>
-
-          <button
-            type="button"
-            className="ord-action-btn outline"
-            onClick={() => onNavigate('tickets')}
-          >
-            <span>Help & Support</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ══ Security & SSL Footer ══ */}
-      <div className="ov-security-footer">
-        <div className="ov-sec-foot-item">
-          <FaLock className="ov-sec-foot-icon" />
-          <span>Secure SSL Connection</span>
-        </div>
-        <span className="ov-sec-foot-dot" />
-        <div className="ov-sec-foot-item">
-          <FaClock className="ov-sec-foot-icon" />
-          <span>Last Sign-In: {user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-GB') : 'Active session'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', fontWeight: 600, color: '#B58838' }}>
+          <span>✨</span>
+          <span>{user?.twoFactorEnabled ? 'Fortified' : 'Standard'}</span>
         </div>
       </div>
     </div>

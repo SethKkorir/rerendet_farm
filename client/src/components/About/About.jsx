@@ -75,44 +75,7 @@ const About = () => {
                     e.target.src = '/images/coffee/Rerendet_CoffeeFarm.png';
                   }}
                 />
-                <div className="about-image-overlay-subtle" />
-
-                {/* Modern Glass Elevation Badge */}
-                <div className="about-elevation-badge">
-                  <div className="about-badge-icon">
-                    <FaMountain />
-                  </div>
-                  <div className="about-badge-text">
-                    <span className="about-badge-val">1,800m ASL</span>
-                    <span className="about-badge-sub">Kenyan Highlands</span>
-                  </div>
-                </div>
               </div>
-
-              {/* Clean Modern Inset Card (Secondary Image) */}
-              {image2 && image2 !== image && (
-                <motion.div
-                  className="about-secondary-card"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.7, delay: 0.2 }}
-                >
-                  <img
-                    src={image2}
-                    alt="Farm Heritage"
-                    className="about-secondary-img"
-                    loading="lazy"
-                    onError={(e) => {
-                      e.target.src = '/images/coffee/bomet-sunrise.png';
-                    }}
-                  />
-                  <div className="about-secondary-caption">
-                    <FaTree className="about-caption-icon" />
-                    <span>Indigenous Shade Canopy</span>
-                  </div>
-                </motion.div>
-              )}
             </motion.div>
 
             {/* ── Right Column: Story & Heritage Content ── */}
@@ -123,28 +86,10 @@ const About = () => {
               viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
             >
-              {/* Header Tag */}
-              <div className="about-scand-tag-wrap">
-                <span className="about-scand-tag">OUR HERITAGE</span>
-              </div>
-
-              {/* Bold Modern Title */}
+              {/* Bold Editorial Title */}
               <h2 className="about-scand-title">
                 The Soul of <span className="about-title-gold">Rerendet</span>
               </h2>
-
-              {/* Farm Pill Highlights */}
-              <div className="about-pills-row">
-                <span className="about-pill">
-                  <FaTree className="about-pill-icon" /> Rerendet Evergreen Shade
-                </span>
-                <span className="about-pill">
-                  <FaLeaf className="about-pill-icon" /> Hand-Picked Harvest
-                </span>
-                <span className="about-pill">
-                  <FaFire className="about-pill-icon" /> Artisan Roasted
-                </span>
-              </div>
 
               {/* Narrative Story */}
               <div className="about-narrative">
@@ -152,15 +97,12 @@ const About = () => {
                 <p className="about-story-sub">{subStory}</p>
               </div>
 
-              {/* Metric Credentials Cards */}
-              <div className="about-stats-grid">
+              {/* Clean Metric Credentials Strip */}
+              <div className="about-clean-stats">
                 {displayedStats.map((item, idx) => (
-                  <div key={idx} className="about-stat-card">
-                    <div className="about-stat-top">
-                      <span className="about-stat-number">{item.num}</span>
-                      <span className="about-stat-icon">{item.icon}</span>
-                    </div>
-                    <span className="about-stat-label">{item.lab}</span>
+                  <div key={idx} className="about-clean-stat">
+                    <span className="about-clean-num">{item.num}</span>
+                    <span className="about-clean-label">{item.lab}</span>
                   </div>
                 ))}
               </div>

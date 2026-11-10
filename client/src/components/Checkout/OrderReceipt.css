@@ -30,6 +30,134 @@
   box-sizing: border-box;
 }
 
+/* ══ Centered Brand Header ══════════════════════════════════════════ */
+.or-center-logo-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.2rem 2rem 0.5rem;
+  position: relative;
+  z-index: 2;
+}
+
+.or-center-brand-logo {
+  height: 62px;
+  max-width: 220px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 0.6rem;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+.or-center-brand-name {
+  font-family: var(--font-heading, 'Outfit', sans-serif);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #171311;
+  margin: 0 0 3px;
+  text-transform: uppercase;
+}
+
+.or-center-brand-sub {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #7A6E65;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+/* ══ Minimal Single-Page Roastery Footer ════════════════════════════ */
+.or-minimal-footer {
+  padding: 1.25rem 3rem 1.85rem;
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  margin-top: auto;
+  text-align: center;
+}
+
+.or-footer-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--inv-line, #E2DDD5);
+  margin-bottom: 0.85rem;
+}
+
+.or-footer-policy {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475569;
+  margin: 0 0 5px;
+  letter-spacing: 0.2px;
+}
+
+.or-footer-contact {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0F172A;
+  margin: 0 0 4px;
+}
+
+.or-footer-estate {
+  font-size: 0.74rem;
+  color: #94A3B8;
+  margin: 0;
+  letter-spacing: 0.4px;
+}
+
+.or-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: #7A6E65;
+  font-weight: 600;
+}
+
+.or-footer-dot {
+  color: var(--inv-gold, #D4AF37);
+  font-size: 0.85rem;
+}
+
+/* Payment Method Capsule (Left Column) */
+.or-paymethod-capsule {
+  background: #F4F1EA;
+  border: 1px solid #E5DFC4;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.or-paymethod-title {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #8A7C70;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 2px;
+}
+
+.or-paymethod-val {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #171311;
+  margin-bottom: 3px;
+}
+
+.or-paymethod-status {
+  display: inline-block;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 @media (max-width: 768px) {
   .or-page {
     padding: 5rem 0.5rem 3rem;
@@ -140,9 +268,9 @@
 /* ══ Upper White Body Grid ═════════════════════════════════════════ */
 .or-body-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  padding: 3.5rem 3.5rem 2.5rem;
-  gap: 2.5rem;
+  grid-template-columns: 220px 1fr;
+  padding: 1.25rem 3rem 1.25rem;
+  gap: 2.25rem;
   position: relative;
   z-index: 2;
   box-sizing: border-box;
@@ -151,8 +279,8 @@
 @media (max-width: 768px) {
   .or-body-grid {
     grid-template-columns: 1fr;
-    padding: 2.25rem 1.5rem 2rem;
-    gap: 2rem;
+    padding: 1.25rem 1.25rem 1.5rem;
+    gap: 1.75rem;
   }
 }
 
@@ -160,15 +288,16 @@
 .or-left-col {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 1.15rem;
   position: relative;
 }
 
 .or-title-wrapper {
   display: flex;
   align-items: flex-start;
-  gap: 1.5rem;
-  min-height: 260px;
+  gap: 1.25rem;
+  min-height: 185px;
 }
 
 /* Giant vertical "Invoice." title matching mockup */
@@ -176,7 +305,7 @@
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-family: var(--font-heading);
-  font-size: 5rem;
+  font-size: 4.25rem;
   font-weight: 900;
   letter-spacing: -2px;
   color: #171311;
@@ -191,6 +320,7 @@
     transform: none;
     font-size: 3.2rem;
   }
+
   .or-title-wrapper {
     min-height: auto;
   }
@@ -199,10 +329,10 @@
 /* Thin vertical line with terminal dot */
 .or-vertical-accent-line {
   width: 2px;
-  height: 220px;
+  height: 165px;
   background: #171311;
   position: relative;
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .or-accent-dot {
@@ -210,8 +340,8 @@
   bottom: 0;
   left: 50%;
   transform: translate(-50%, 50%);
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
   background: #171311;
 }
@@ -224,7 +354,7 @@
 
 /* Invoice To block */
 .or-client-box {
-  margin-top: 1.5rem;
+  margin-top: 0.25rem;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -256,7 +386,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 1.25rem;
+  margin-top: 0.75rem;
 }
 
 .or-three-dots span {
@@ -270,18 +400,36 @@
 .or-right-col {
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  gap: 0.85rem;
 }
 
-/* Header with dark brand capsule & metadata */
+/* Header with metadata */
 .or-header-meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
-  margin-bottom: 2.75rem;
+  margin-bottom: 1.35rem;
 }
 
-/* Dark capsule brand pill */
+/* Brand Logo in Editorial Header */
+.or-brand-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.or-brand-logo {
+  height: 58px;
+  max-width: 220px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.08));
+}
+
+/* Dark capsule brand pill (fallback) */
 .or-brand-capsule {
   display: inline-flex;
   align-items: center;
@@ -553,9 +701,17 @@
     color: #000000 !important;
   }
 
-  header, footer, .header, .footer, .or-toolbar, .no-print,
-  .oc-modal-header, .oc-modal-footer, .oc-actions-group,
-  .whatsapp-fab-button, .back-to-top {
+  header,
+  footer,
+  .header,
+  .footer,
+  .or-toolbar,
+  .no-print,
+  .oc-modal-header,
+  .oc-modal-footer,
+  .oc-actions-group,
+  .whatsapp-fab-button,
+  .back-to-top {
     display: none !important;
   }
 

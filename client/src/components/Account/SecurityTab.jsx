@@ -2,11 +2,11 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
-import API from '../../api/api';
+import API, { getCustomerSessions, revokeCustomerSession, revokeAllOtherSessions } from '../../api/api';
 import {
   FaLock, FaShieldAlt, FaKey, FaTrash, FaCheckCircle,
   FaExclamationTriangle, FaClock, FaDesktop, FaFingerprint,
-  FaUnlock, FaArrowRight
+  FaUnlock, FaArrowRight, FaSignOutAlt, FaMobileAlt
 } from 'react-icons/fa';
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -78,6 +78,48 @@ const SecurityTab = () => {
   // Activity Logs
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+
+  // Active Sessions
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+
+  const fetchSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const res = await getCustomerSessions();
+      if (res.data?.success) {
+        setSessions(res.data.data || []);
+      }
+    } catch (err) {
+      console.error('Fetch sessions error:', err);
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  const handleRevokeSession = async (jti) => {
+    try {
+      await revokeCustomerSession(jti);
+      showSuccess?.('Session signed out successfully');
+      setSessions(prev => prev.filter(s => s.jti !== jti));
+    } catch (err) {
+      showError?.(err.response?.data?.message || 'Failed to sign out session');
+    }
+  };
+
+  const handleRevokeAllOtherSessions = async () => {
+    try {
+      await revokeAllOtherSessions();
+      showSuccess?.('All other sessions signed out');
+      fetchSessions();
+    } catch (err) {
+      showError?.(err.response?.data?.message || 'Failed to sign out other sessions');
+    }
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -179,15 +221,14 @@ const SecurityTab = () => {
   const is2FA = Boolean(user?.twoFactorEnabled);
 
   return (
-    <div className="ord-luxury-canvas">
+    <div className="ord-luxury-canvas" style={{ padding: 0 }}>
       {/* ══ Editorial Header ══ */}
-      <div className="ord-luxury-header">
-        <span className="ord-luxury-tag">SECURITY</span>
-        <h2 className="ord-luxury-title">Password & Security</h2>
-        <p className="ord-luxury-sub">
+      <div style={{ marginBottom: '1.25rem' }}>
+        <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
+        <h2 className="rc-dash-title">Password & security</h2>
+        <p className="rc-dash-sub">
           Manage your password, login security, and two-factor authentication.
         </p>
-        <div className="ord-luxury-h-line" />
       </div>
 
       {/* ── Card 1: Two-Factor Authentication ── */}
@@ -295,12 +336,24 @@ const SecurityTab = () => {
             background: 'rgba(16, 185, 129, 0.08)',
             border: '1px solid rgba(16, 185, 129, 0.25)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: '1rem'
           }}>
-            <FaUnlock style={{ color: '#10B981', fontSize: '1.25rem', flexShrink: 0 }} />
+            <FaUnlock style={{ color: '#10B981', fontSize: '1.25rem', marginTop: '2px', flexShrink: 0 }} />
             <div style={{ fontSize: '0.82rem', color: 'var(--cust-text)', lineHeight: 1.5 }}>
-              <strong>Early Password Change Allowed:</strong> Customer support has approved an exception for your account. You can update your password below.
+              <div>
+                <strong style={{ color: '#10B981' }}>Early Password Change Allowed:</strong> Customer care has authorized a 24-hour policy exception for your account.
+              </div>
+              {user?.passwordOverrideReason && (
+                <div style={{ marginTop: '2px', color: 'var(--cust-text-muted)', fontSize: '0.78rem' }}>
+                  Reason: <em>"{user.passwordOverrideReason}"</em>
+                </div>
+              )}
+              {user?.passwordOverrideExpiresAt && (
+                <div style={{ marginTop: '4px', color: '#10B981', fontWeight: 600, fontSize: '0.78rem' }}>
+                  Valid until: {new Date(user.passwordOverrideExpiresAt).toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
         ) : isCooldownActive ? (
@@ -437,6 +490,110 @@ const SecurityTab = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* ── Card 2b: Active Sessions & Connected Devices ── */}
+      <div className="ord-clean-card">
+        <div className="ord-clean-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span className="ord-clean-number">Connected Devices</span>
+            <span className="ord-clean-date">Active Sessions</span>
+          </div>
+          {sessions.length > 1 && (
+            <button
+              type="button"
+              className="ord-clean-cancel-link"
+              onClick={handleRevokeAllOtherSessions}
+              style={{ fontSize: '0.78rem', color: '#EF4444' }}
+            >
+              Sign out all other sessions
+            </button>
+          )}
+        </div>
+
+        <div className="ord-clean-divider" />
+
+        {sessionsLoading ? (
+          <p style={{ fontSize: '0.85rem', color: 'var(--cust-text-muted)', margin: '1rem 0' }}>
+            Loading active sessions…
+          </p>
+        ) : sessions.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {sessions.map((sess) => {
+              const isCurrent = sess.isCurrent || sess.current;
+              const isMobile = (sess.deviceType || '').toLowerCase().includes('mobile') || (sess.userAgent || '').includes('Mobile');
+              return (
+                <div
+                  key={sess._id || sess.jti}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '12px',
+                    background: isCurrent ? 'rgba(196, 151, 70, 0.08)' : 'var(--cust-bg-home)',
+                    border: isCurrent ? '1px solid rgba(196, 151, 70, 0.25)' : '1px solid transparent',
+                    fontSize: '0.84rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: 'rgba(196, 151, 70, 0.12)',
+                      color: 'var(--cust-gold)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1rem'
+                    }}>
+                      {isMobile ? <FaMobileAlt /> : <FaDesktop />}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--cust-text)' }}>
+                          {sess.browser || 'Web Browser'} on {sess.os || 'Desktop'}
+                        </span>
+                        {isCurrent && (
+                          <span style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: '#10B981',
+                            color: '#FFFFFF'
+                          }}>
+                            Current Device
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--cust-text-muted)', marginTop: '2px' }}>
+                        IP: {sess.ipAddress || 'Verified IP'} • Last active: {sess.lastActivity ? new Date(sess.lastActivity).toLocaleString() : 'Just now'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isCurrent && sess.jti && (
+                    <button
+                      type="button"
+                      className="ord-action-btn outline"
+                      onClick={() => handleRevokeSession(sess.jti)}
+                      style={{ fontSize: '0.74rem', padding: '0.35rem 0.75rem', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                    >
+                      <FaSignOutAlt style={{ marginRight: '4px' }} /> Sign Out
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{ fontSize: '0.85rem', color: 'var(--cust-text-muted)', margin: 0 }}>
+            Your current browser session is securely active.
+          </p>
+        )}
       </div>
 
       {/* ── Card 3: Recent Activity Logs ── */}

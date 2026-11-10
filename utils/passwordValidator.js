@@ -1,6 +1,40 @@
 // utils/passwordValidator.js - HIGH ENTROPY & BREACH VALIDATOR
 import zxcvbnLib from 'zxcvbn';
+import bcrypt from 'bcryptjs';
 import { checkPasswordBreach } from './hibpService.js';
+
+/**
+ * Checks whether a proposed new password matches the current password or any of the last 5 historical passwords
+ */
+export const checkPasswordHistory = async (newPassword, currentPasswordHash, passwordHistory = []) => {
+  if (currentPasswordHash) {
+    const isCurrent = await bcrypt.compare(newPassword, currentPasswordHash);
+    if (isCurrent) {
+      return {
+        isValid: false,
+        isReused: true,
+        message: 'New password cannot be the same as your current password. Please choose a different password.'
+      };
+    }
+  }
+
+  const recentHistory = (passwordHistory || []).slice(-5);
+  for (const item of recentHistory) {
+    const hash = typeof item === 'string' ? item : item?.hash;
+    if (hash) {
+      const match = await bcrypt.compare(newPassword, hash);
+      if (match) {
+        return {
+          isValid: false,
+          isReused: true,
+          message: 'Security Policy: You cannot reuse any of your last 5 passwords. Please choose a unique password.'
+        };
+      }
+    }
+  }
+
+  return { isValid: true, isReused: false };
+};
 
 export const checkPasswordStrength = (password, email = '') => {
   try {

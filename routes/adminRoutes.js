@@ -38,6 +38,10 @@ import {
   deleteUser,
   resetUserSecurity,
   generateUserPasswordReset,
+  revokeUserPasswordRecovery,
+  getUserRecoveryHistory,
+  getUserSessions,
+  revokeUserSession,
   testEmailConfig,
   checkNewOrders,
   getAdminOverview,
@@ -50,6 +54,8 @@ import {
   exportCustomersCSV,
   getPaymentTransactions,
   manualPaymentOverride,
+  confirmPayment,
+  downloadAdminOrderReceipt,
   refundOrder,
   getReconciliationReport,
   getSystemHealth,
@@ -66,6 +72,7 @@ import {
 } from '../controllers/couponController.js';
 
 import { getStatementReport } from '../controllers/statementController.js';
+import { unlockUserAccount } from '../controllers/authController.js';
 
 const router = express.Router();
 
@@ -87,6 +94,8 @@ router.get('/orders/status', adminAuth(['orders:view']), checkNewOrders);
 router.get('/orders', adminAuth(['orders:view']), getOrders);
 router.get('/orders/:id', adminAuth(['orders:view']), getOrderDetail);
 router.put('/orders/:id/status', adminAuth(['orders:update_status']), updateOrderStatus);
+router.post('/orders/:id/confirm-payment', adminAuth(['orders:manage']), confirmPayment);
+router.get('/orders/:id/receipt', adminAuth(['orders:view']), downloadAdminOrderReceipt);
 router.post('/orders/:id/manual-override', adminAuth(['orders:manage']), manualPaymentOverride);
 router.post('/orders/:id/refund', adminAuth(['orders:manage']), refundOrder);
 
@@ -111,7 +120,25 @@ router.put('/users/:id/status', adminAuth(['users:manage']), toggleUserStatus);
 router.delete('/users/:id', adminAuth(['users:manage']), deleteUser);
 router.patch('/users/:id/security-reset', adminAuth(['users:manage']), resetUserSecurity);
 router.post('/users/:id/generate-password-reset', adminAuth(['users:manage']), generateUserPasswordReset);
+router.post('/users/:id/generate-recovery', adminAuth(['users:manage']), generateUserPasswordReset);
+router.post('/users/:id/revoke-recovery', adminAuth(['users:manage']), revokeUserPasswordRecovery);
+router.get('/users/:id/recovery-history', adminAuth(['users:manage', 'users:view']), getUserRecoveryHistory);
+router.get('/users/:id/sessions', adminAuth(['users:manage', 'users:view']), getUserSessions);
+router.delete('/users/:id/sessions/:sessionId', adminAuth(['users:manage']), revokeUserSession);
 router.put('/users/:id/unlock-password', adminAuth(['users:manage']), toggleCustomerPasswordUnlock);
+router.post('/users/:id/password-override', adminAuth(['users:manage']), toggleCustomerPasswordUnlock);
+router.delete('/users/:id/password-override', adminAuth(['users:manage']), (req, res, next) => {
+  req.body = { ...req.body, unlock: false };
+  return toggleCustomerPasswordUnlock(req, res, next);
+});
+router.put('/users/:id/unlock', adminAuth(['users:manage']), (req, res, next) => {
+  req.params.userId = req.params.id;
+  return unlockUserAccount(req, res, next);
+});
+router.post('/users/:id/unlock', adminAuth(['users:manage']), (req, res, next) => {
+  req.params.userId = req.params.id;
+  return unlockUserAccount(req, res, next);
+});
 
 // ==================== CONTACT MANAGEMENT ====================
 router.get('/contacts', adminAuth(['contacts:manage']), getContacts);

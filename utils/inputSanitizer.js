@@ -59,25 +59,32 @@ export const sanitizeEmail = (email) => {
 };
 
 /**
- * Validate and sanitize phone number (Kenyan format)
+ * Validate and sanitize phone number (Kenyan and International formats)
  */
 export const sanitizePhone = (phone) => {
     if (typeof phone !== 'string') return '';
 
-    // Remove all non-digit characters
-    let sanitized = phone.replace(/\D/g, '');
+    const trimmed = phone.trim();
+    // Extract only digits
+    const digitsOnly = trimmed.replace(/\D/g, '');
 
-    // Ensure it starts with 254 (Kenya country code)
-    if (sanitized.startsWith('0')) {
-        sanitized = '254' + sanitized.substring(1);
-    } else if (sanitized.startsWith('7') || sanitized.startsWith('1')) {
-        sanitized = '254' + sanitized;
-    } else if (!sanitized.startsWith('254')) {
-        return '';
+    // Kenyan local conversions
+    if (digitsOnly.startsWith('0') && digitsOnly.length === 10) {
+        return '254' + digitsOnly.substring(1);
+    } else if ((digitsOnly.startsWith('7') || digitsOnly.startsWith('1')) && digitsOnly.length === 9) {
+        return '254' + digitsOnly;
+    } else if (digitsOnly.startsWith('2540') && digitsOnly.length === 13) {
+        return '254' + digitsOnly.substring(4);
+    } else if (digitsOnly.startsWith('254') && digitsOnly.length === 12) {
+        return digitsOnly;
     }
 
-    // Validate length (should be 12 digits for Kenya: 254 + 9 digits)
-    return sanitized.length === 12 ? sanitized : '';
+    // General international or standard format: allow any valid phone between 7 and 16 digits
+    if (digitsOnly.length >= 7 && digitsOnly.length <= 16) {
+        return trimmed.startsWith('+') ? `+${digitsOnly}` : digitsOnly;
+    }
+
+    return digitsOnly.length >= 7 ? digitsOnly : '';
 };
 
 /**

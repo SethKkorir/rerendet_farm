@@ -28,3 +28,4 @@ router.post('/execute', executeEmergencyAction);
 router.get('/status', getEmergencyStatus);
 
 export default router;
+

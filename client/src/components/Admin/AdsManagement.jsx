@@ -340,9 +340,6 @@ const AdsManagement = () => {
       {/* ── Studio Header ── */}
       <div className="adm-header">
         <div className="adm-header-left">
-          <div className="adm-header-badge">
-            <FaBullhorn /> Storefront Marketing Engine
-          </div>
           <h1 className="adm-title">Promotions &amp; Ads Studio</h1>
           <p className="adm-subtitle">
             Deploy native billboard hero banners, flash sale cards, cart upsells, and discount popups.

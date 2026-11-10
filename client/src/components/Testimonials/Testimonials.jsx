@@ -54,9 +54,9 @@ const Testimonials = () => {
         const res = await getTopReviews();
         if (res.data.success && res.data.data && res.data.data.length > 0) {
           const formatted = res.data.data.map(r => ({
-            text: r.comment,
-            author: r.name,
-            role: r.isVerifiedPurchase ? "Verified Buyer" : "Coffee Club",
+            text: r.text || r.comment,
+            author: r.author || r.name,
+            role: r.role || (r.isVerifiedPurchase ? "Verified Buyer" : "Coffee Club"),
             rating: r.rating || 5,
             id: r._id
           }));
@@ -82,20 +82,22 @@ const Testimonials = () => {
   }, [isPaused, showReviewModal, count]);
 
   const handleNext = () => {
+    if (count <= 1) return;
     setCurrent(prev => (prev + 1) % count);
   };
 
   const handlePrev = () => {
+    if (count <= 1) return;
     setCurrent(prev => (prev - 1 + count) % count);
   };
 
   // Indices for 3 visible cards
-  const prevIdx = (current - 1 + count) % count;
-  const nextIdx = (current + 1) % count;
+  const prevIdx = count > 0 ? (current - 1 + count) % count : 0;
+  const nextIdx = count > 0 ? (current + 1) % count : 0;
 
-  const currentItem = list[current];
-  const prevItem = list[prevIdx];
-  const nextItem = list[nextIdx];
+  const currentItem = list[current] || {};
+  const prevItem = list[prevIdx] || {};
+  const nextItem = list[nextIdx] || {};
 
   const handleSubmitReview = async () => {
     if (!token) {
@@ -127,7 +129,7 @@ const Testimonials = () => {
             })));
             setCurrent(0);
           }
-        } catch {}
+        } catch { }
       } else {
         showAlert(res.data.message || 'Error submitting review', 'error');
       }
@@ -166,7 +168,7 @@ const Testimonials = () => {
 
           {/* Cards Track: Left, Center (Active), Right */}
           <div className="tm-cards-track">
-            
+
             {/* Left Card */}
             {count > 1 && (
               <div
@@ -176,8 +178,8 @@ const Testimonials = () => {
               >
                 <span className="tm-quote-mark open">“</span>
                 <div className="tm-card-content">
-                  <h3 className="tm-card-author">{prevItem.author}</h3>
-                  <p className="tm-card-body">{prevItem.text}</p>
+                  <h3 className="tm-card-author">{prevItem?.author || 'Coffee Enthusiast'}</h3>
+                  <p className="tm-card-body">{prevItem?.text || ''}</p>
                 </div>
                 <span className="tm-quote-mark close">”</span>
               </div>
@@ -185,7 +187,7 @@ const Testimonials = () => {
 
             {/* Center Active Card (Elevated & Prominent) */}
             <motion.div
-              key={currentItem.id || current}
+              key={currentItem?.id || current}
               className="tm-card active"
               initial={{ opacity: 0.8, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1.08 }}
@@ -193,8 +195,8 @@ const Testimonials = () => {
             >
               <span className="tm-quote-mark open">“</span>
               <div className="tm-card-content">
-                <h3 className="tm-card-author">{currentItem.author}</h3>
-                <p className="tm-card-body">{currentItem.text}</p>
+                <h3 className="tm-card-author">{currentItem?.author || 'Coffee Enthusiast'}</h3>
+                <p className="tm-card-body">{currentItem?.text || ''}</p>
               </div>
               <span className="tm-quote-mark close">”</span>
             </motion.div>
@@ -208,8 +210,8 @@ const Testimonials = () => {
               >
                 <span className="tm-quote-mark open">“</span>
                 <div className="tm-card-content">
-                  <h3 className="tm-card-author">{nextItem.author}</h3>
-                  <p className="tm-card-body">{nextItem.text}</p>
+                  <h3 className="tm-card-author">{nextItem?.author || 'Coffee Enthusiast'}</h3>
+                  <p className="tm-card-body">{nextItem?.text || ''}</p>
                 </div>
                 <span className="tm-quote-mark close">”</span>
               </div>

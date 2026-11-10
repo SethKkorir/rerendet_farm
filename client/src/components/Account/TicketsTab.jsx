@@ -137,15 +137,14 @@ const TicketsTab = () => {
   };
 
   return (
-    <div className="ord-luxury-canvas">
+    <div className="ord-luxury-canvas" style={{ padding: 0 }}>
       {/* ══ Editorial Header ══ */}
-      <div className="ord-luxury-header">
-        <span className="ord-luxury-tag">HELP & SUPPORT</span>
-        <h2 className="ord-luxury-title">Customer Support</h2>
-        <p className="ord-luxury-sub">
+      <div style={{ marginBottom: '1.25rem' }}>
+        <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
+        <h2 className="rc-dash-title">Help & support</h2>
+        <p className="rc-dash-sub">
           Have questions about your order or need assistance? Reach out to our team below.
         </p>
-        <div className="ord-luxury-h-line" />
       </div>
 
       {/* ── Top Controls Strip ── */}

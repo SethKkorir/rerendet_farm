@@ -5,26 +5,37 @@
   --color-primary: #D4AF37;
   --color-primary-dark: #B5952F;
   --color-primary-light: #E5C365;
-  --color-secondary: #1c120c; /* Rich Coffee Seed */
-  --color-accent: #6f4e37; /* Coffee bean brown */
+  --color-secondary: #1c120c;
+  /* Rich Coffee Seed */
+  --color-accent: #6f4e37;
+  /* Coffee bean brown */
 
   /* --- Semantic Workspace (Light Mode: Warm Parchment) --- */
-  --bg-home: #F8F4EE; /* Creamy espresso crema */
-  --bg-deep: #ECE3D7; /* Milk foam oatmeal */
-  --bg-surface: #FAF7F2; /* Flawless steamed milk */
+  --bg-home: #F8F4EE;
+  /* Creamy espresso crema */
+  --bg-deep: #ECE3D7;
+  /* Milk foam oatmeal */
+  --bg-surface: #FAF7F2;
+  /* Flawless steamed milk */
   --bg-card: #ffffff;
   --bg-input: #ffffff;
-  --bg-glass: rgba(248, 244, 238, 0.94); /* Less transparent, rich crema glass */
-  --bg-overlay: rgba(111, 78, 55, 0.16); /* Warm coffee tint */
+  --bg-glass: rgba(248, 244, 238, 0.94);
+  /* Less transparent, rich crema glass */
+  --bg-overlay: rgba(111, 78, 55, 0.16);
+  /* Warm coffee tint */
 
-  --text-main: #1d1510; /* Roasted coffee black */
-  --text-muted: #615045; /* Dark milk chocolate */
-  --text-dim: #8b7566; /* Hazelnut ground */
+  --text-main: #1d1510;
+  /* Roasted coffee black */
+  --text-muted: #615045;
+  /* Dark milk chocolate */
+  --text-dim: #8b7566;
+  /* Hazelnut ground */
   --text-on-dark: #FDFCFB;
   --text-gold: #B5952F;
 
   --border-light: #ECE5DC;
-  --border-main: #D6CAB8; /* Noticeable coffee borders for rich structures */
+  --border-main: #D6CAB8;
+  /* Noticeable coffee borders for rich structures */
   --border-strong: #A89582;
   --border-glass: rgba(111, 78, 55, 0.15);
 
@@ -49,28 +60,42 @@
 
 [data-theme='dark'] {
   /* --- Semantic Workspace (Dark Mode: Artisanal Roasted Mocha & Warm Cream — From Reference) --- */
-  --bg-home: #201104;       /* Deep roasted mocha canvas */
-  --bg-deep: #160b02;       /* Ultra-deep espresso backdrop */
-  --bg-surface: #341d0e;    /* Rich coffee surface (nav & panels) */
-  --bg-card: #2c180b;       /* Warm roasted chocolate card */
-  --bg-input: #1a0d03;      /* Dark roasted coffee well */
-  --bg-glass: rgba(44, 24, 11, 0.94); /* Warm coffee glass */
+  --bg-home: #201104;
+  /* Deep roasted mocha canvas */
+  --bg-deep: #160b02;
+  /* Ultra-deep espresso backdrop */
+  --bg-surface: #341d0e;
+  /* Rich coffee surface (nav & panels) */
+  --bg-card: #2c180b;
+  /* Warm roasted chocolate card */
+  --bg-input: #1a0d03;
+  /* Dark roasted coffee well */
+  --bg-glass: rgba(44, 24, 11, 0.94);
+  /* Warm coffee glass */
   --bg-overlay: rgba(22, 11, 2, 0.85);
 
-  --color-primary: #d8964e; /* Warm golden caramel */
+  --color-primary: #d8964e;
+  /* Warm golden caramel */
   --color-primary-dark: #b87834;
   --color-primary-light: #f0b573;
-  --color-accent: #7a4d29;  /* Roasted mocha brown pill accent */
+  --color-accent: #7a4d29;
+  /* Roasted mocha brown pill accent */
 
-  --text-main: #fffaf5;     /* Warm milk foam cream white (100% visible) */
-  --text-muted: #dfccba;    /* Creamy latte milk dust (high contrast & clear) */
-  --text-dim: #bfa58f;      /* Hazelnut cream hints */
+  --text-main: #fffaf5;
+  /* Warm milk foam cream white (100% visible) */
+  --text-muted: #dfccba;
+  /* Creamy latte milk dust (high contrast & clear) */
+  --text-dim: #bfa58f;
+  /* Hazelnut cream hints */
   --text-on-dark: #fffaf5;
-  --text-gold: #d8964e;     /* High-luminance caramel gold */
+  --text-gold: #d8964e;
+  /* High-luminance caramel gold */
 
   --border-light: rgba(216, 150, 78, 0.14);
-  --border-main: rgba(216, 150, 78, 0.24);  /* Clean, visible warm contours */
-  --border-strong: rgba(216, 150, 78, 0.5); /* Glowing caramel border */
+  --border-main: rgba(216, 150, 78, 0.24);
+  /* Clean, visible warm contours */
+  --border-strong: rgba(216, 150, 78, 0.5);
+  /* Glowing caramel border */
   --border-glass: rgba(216, 150, 78, 0.2);
 
   --shadow-sm: 0 2px 6px rgba(10, 5, 1, 0.5);
@@ -120,7 +145,12 @@ html {
 }
 
 /* Fluid Typography - matching Our Coffee Shop modern Scandinavian aesthetic */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-heading);
   font-weight: 700;
   letter-spacing: -0.025em;

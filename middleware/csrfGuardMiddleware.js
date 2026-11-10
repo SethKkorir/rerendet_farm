@@ -48,6 +48,7 @@ export const csrfGuard = (req, res, next) => {
     req.originalUrl.startsWith('/api/auth/resend-verification') ||
     req.originalUrl.startsWith('/api/public') ||
     req.originalUrl.includes('/restock-subscribe') ||
+    req.originalUrl.includes('/report-payment') ||
     req.originalUrl.includes('/track/impression') ||
     req.originalUrl.includes('/track/click');
 

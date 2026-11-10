@@ -32,21 +32,24 @@ const WhatsAppSupport = () => {
         window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     };
 
+    const isAccountPage = location.pathname.startsWith('/account');
+
     return (
         <motion.div
-            className="whatsapp-support-floating"
+            className={`whatsapp-support-floating ${isAccountPage ? 'in-account-portal' : ''}`}
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.8 }}
         >
-            <button className="whatsapp-btn" onClick={handleClick} title="Chat with us on WhatsApp">
-                <div className="whatsapp-icon-wrap">
-                    <FaWhatsapp />
-                    <span className="whatsapp-pulse"></span>
-                </div>
-                <div className="whatsapp-text">
-                    <span className="whatsapp-label">Chat with Us</span>
-                </div>
+            <button
+                type="button"
+                className="whatsapp-btn"
+                onClick={handleClick}
+                title="Chat with us on WhatsApp"
+                aria-label="Chat with us on WhatsApp"
+            >
+                <FaWhatsapp className="whatsapp-fa-icon" />
+                <span className="whatsapp-pulse" aria-hidden="true" />
             </button>
         </motion.div>
     );

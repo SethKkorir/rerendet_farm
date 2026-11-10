@@ -5,7 +5,7 @@ import { AppContext } from '../../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaStore, FaBell, FaLeaf, FaTimes, FaReceipt,
-  FaPrint
+  FaPrint, FaDownload
 } from 'react-icons/fa';
 import './OrderConfirmation.css';
 import '../Checkout/OrderReceipt.css';
@@ -131,7 +131,25 @@ const OrderConfirmation = () => {
 
   // Signature: use admin uploaded signature if present, or fallback to signature script
   const signatureUrl = store.signature || '';
-  const signatoryName = store.signatoryName || 'Sacha Dubois';
+  const signatoryName = store.signatoryName || 'Authorized Farm Signatory';
+
+  const isCancelled = order.status === 'cancelled' || order.orderStatus === 'cancelled';
+  const isPaid = !isCancelled && (order.paymentStatus === 'paid' || !!order.receipt?.receiptNumber);
+  const getPaymentMethodLabel = (method) => {
+    if (!method) return 'M-Pesa Paybill';
+    const m = String(method).toLowerCase();
+    if (m === 'paybill') return 'M-Pesa Paybill';
+    if (m === 'cod') return 'Cash on Delivery';
+    if (m === 'card') return 'Credit / Debit Card';
+    if (m === 'mpesa') return 'M-Pesa';
+    return method.toUpperCase();
+  };
+  const paymentMethodLabel = getPaymentMethodLabel(order.paymentMethod);
+  const paymentReference = order.receipt?.receiptNumber
+    || order.paymentConfirmation?.mpesaCode
+    || order.paymentReporting?.reportedMpesaCode
+    || order.transactionId
+    || (order.paymentMethod === 'paybill' ? `Paybill 516600 (Acc: 934558 • Ref: ${order.orderNumber})` : 'Pending Verification');
 
   return (
     <div className="oc-clean-page">
@@ -212,22 +230,31 @@ const OrderConfirmation = () => {
             <FaTimes />
           </button>
 
-          {/* Green Check Circle */}
+          {/* Icon Circle */}
           <div className="oc-check-wrap">
-            <div className="oc-check-circle">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+            <div
+              className="oc-check-circle"
+              style={isCancelled ? { background: '#FEE2E2', borderColor: '#FCA5A5', color: '#DC2626' } : undefined}
+            >
+              {isCancelled ? (
+                <FaTimes style={{ fontSize: '18px' }} />
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
             </div>
           </div>
 
           {/* Headline & Subtitle */}
           <div className="oc-heading-group">
             <h1 className="oc-thank-title">
-              Thank you, {customerName}! 🎉
+              {isCancelled ? `Order Cancelled` : `Thank you, ${customerName}! 🎉`}
             </h1>
             <p className="oc-thank-sub">
-              Your order has been received and is being prepared with care.
+              {isCancelled
+                ? `Order #${order.orderNumber} has been cancelled. Any reserved stock has been released.`
+                : `Your order has been received and is being prepared with care.`}
             </p>
           </div>
 
@@ -246,41 +273,45 @@ const OrderConfirmation = () => {
             </div>
           </div>
 
-          {/* 3-Step Vertical Timeline */}
-          <div className="oc-timeline">
-            {/* Step 1: Confirmed */}
-            <div className="oc-timeline-step">
-              <div className="oc-timeline-dot active" />
-              <div className="oc-step-content">
-                <span className="oc-step-name">Order confirmed</span>
-                <span className="oc-step-sub">{orderTime}</span>
+          {/* 3-Step Vertical Timeline (Non-cancelled orders ONLY) */}
+          {!isCancelled && (
+            <div className="oc-timeline">
+              {/* Step 1: Confirmed */}
+              <div className="oc-timeline-step">
+                <div className="oc-timeline-dot active" />
+                <div className="oc-step-content">
+                  <span className="oc-step-name">Order confirmed</span>
+                  <span className="oc-step-sub">{orderTime}</span>
+                </div>
               </div>
-            </div>
 
-            {/* Step 2: Preparing */}
-            <div className="oc-timeline-step">
-              <div className="oc-timeline-dot pending" />
-              <div className="oc-step-content">
-                <span className="oc-step-name">Preparing your order</span>
-                <span className="oc-step-sub">We'll notify you soon</span>
+              {/* Step 2: Preparing */}
+              <div className="oc-timeline-step">
+                <div className="oc-timeline-dot pending" />
+                <div className="oc-step-content">
+                  <span className="oc-step-name">Preparing your order</span>
+                  <span className="oc-step-sub">We'll notify you soon</span>
+                </div>
               </div>
-            </div>
 
-            {/* Step 3: Out for delivery */}
-            <div className="oc-timeline-step">
-              <div className="oc-timeline-dot pending" />
-              <div className="oc-step-content">
-                <span className="oc-step-name">Ready for delivery</span>
-                <span className="oc-step-sub">Estimated 2–3 business days</span>
+              {/* Step 3: Out for delivery */}
+              <div className="oc-timeline-step">
+                <div className="oc-timeline-dot pending" />
+                <div className="oc-step-content">
+                  <span className="oc-step-name">Ready for delivery</span>
+                  <span className="oc-step-sub">Estimated 2–3 business days</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Notification Callout */}
-          <div className="oc-notify-callout">
-            <FaBell className="oc-notify-icon" />
-            <span>We'll send you a notification when your order is ready.</span>
-          </div>
+          {!isCancelled && (
+            <div className="oc-notify-callout">
+              <FaBell className="oc-notify-icon" />
+              <span>We'll send you a notification when your order is ready.</span>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="oc-actions-group">
@@ -289,16 +320,18 @@ const OrderConfirmation = () => {
               className="btn-oc-track"
               onClick={() => navigate('/account?tab=orders')}
             >
-              Track order
+              {isCancelled ? 'View My Orders' : 'Track order'}
             </button>
 
-            <button
-              type="button"
-              className="btn-oc-receipt"
-              onClick={() => setShowReceiptModal(true)}
-            >
-              <FaReceipt /> View receipt
-            </button>
+            {isPaid && (
+              <button
+                type="button"
+                className="btn-oc-receipt"
+                onClick={() => setShowReceiptModal(true)}
+              >
+                <FaReceipt /> View receipt
+              </button>
+            )}
 
             <Link to="/" className="btn-oc-back">
               Back to shop
@@ -328,16 +361,30 @@ const OrderConfirmation = () => {
                 <div className="oc-modal-title-group">
                   <FaReceipt className="oc-modal-title-icon" />
                   <div>
-                    <h3 className="oc-modal-title">Official Invoice</h3>
-                    <p className="oc-modal-sub">Order #{order.orderNumber}</p>
+                    <h3 className="oc-modal-title">{isPaid ? 'Official Payment Receipt' : 'Order Invoice'}</h3>
+                    <p className="oc-modal-sub">
+                      {isPaid && order.receipt?.receiptNumber ? `Receipt #${order.receipt.receiptNumber}` : `Order #${order.orderNumber}`}
+                    </p>
                   </div>
                 </div>
                 <div className="oc-modal-header-actions">
+                  {(isPaid && order.receipt?.receiptNumber) && (
+                    <a
+                      href={`/api/orders/${order._id || order.orderNumber}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="oc-modal-print-btn"
+                      style={{ textDecoration: 'none', background: '#10B981', color: '#FFFFFF', borderColor: '#10B981' }}
+                      title="Download Official PDF Receipt"
+                    >
+                      <FaDownload /> Download PDF
+                    </a>
+                  )}
                   <button
                     type="button"
                     className="oc-modal-print-btn"
                     onClick={handlePrint}
-                    title="Print Receipt"
+                    title="Print Document"
                   >
                     <FaPrint /> Print
                   </button>
@@ -373,12 +420,26 @@ const OrderConfirmation = () => {
                     <circle cx="430" cy="50" r="140" stroke="#E2DDD5" strokeWidth="1" />
                   </svg>
 
+                  {/* Top Centered Brand Logo & Title */}
+                  <div className="or-center-logo-header">
+                    <img
+                      src={store.logo || '/rerendet-logo.png'}
+                      alt={store.name || 'Rerendet Coffee'}
+                      className="or-center-brand-logo"
+                      onError={(e) => {
+                        e.target.src = '/rerendet-logo.png';
+                      }}
+                    />
+                    <h2 className="or-center-brand-name">{store.name || 'RERENDET COFFEE ROASTERS'}</h2>
+                    <p className="or-center-brand-sub">Great Rift Valley Highlands · Bomet, Kenya</p>
+                  </div>
+
                   {/* ══ Upper Body Grid ══ */}
                   <div className="or-body-grid">
                     {/* ── Left Column: Giant Vertical Title + Client Info ── */}
                     <div className="or-left-col">
                       <div className="or-title-wrapper">
-                        <h1 className="or-vertical-title">Invoice.</h1>
+                        <h1 className="or-vertical-title">{isPaid ? 'Receipt.' : 'Invoice.'}</h1>
                         <div className="or-vertical-accent-line">
                           <div className="or-accent-dot" />
                         </div>
@@ -391,6 +452,17 @@ const OrderConfirmation = () => {
                         <p className="or-client-text">{clientEmail}</p>
                         <p className="or-client-text">{clientLocation}</p>
 
+                        <div className="or-paymethod-capsule">
+                          <span className="or-paymethod-title">Payment Method</span>
+                          <span className="or-paymethod-val">{paymentMethodLabel}</span>
+                          <span
+                            className="or-paymethod-status"
+                            style={{ color: isPaid ? '#10B981' : '#F59E0B' }}
+                          >
+                            {isPaid ? '✓ PAID IN FULL (Verified)' : '⏳ Awaiting Payment'}
+                          </span>
+                        </div>
+
                         <div className="or-three-dots">
                           <span />
                           <span />
@@ -399,32 +471,38 @@ const OrderConfirmation = () => {
                       </div>
                     </div>
 
-                    {/* ── Right Column: Brand Capsule & Items Table ── */}
+                    {/* ── Right Column: Metadata & Items Table ── */}
                     <div className="or-right-col">
                       {/* Header Meta */}
                       <div className="or-header-meta">
-                        <div className="or-brand-capsule">
-                          <span className="or-capsule-name">
-                            {store.name || 'Rerendet Co.'}
-                          </span>
-                          <img
-                            src={store.logo || '/rerendet-emblem.png'}
-                            alt="Rerendet Emblem"
-                            className="or-capsule-emblem"
-                            onError={(e) => {
-                              e.target.src = '/rerendet-logo.png';
-                            }}
-                          />
-                        </div>
+                        {isPaid && order.receipt?.receiptNumber ? (
+                          <>
+                            <div className="or-meta-item">
+                              <span className="or-meta-title">Receipt No :</span>
+                              <span className="or-meta-val" style={{ color: '#10B981', fontWeight: 800 }}>{order.receipt.receiptNumber}</span>
+                            </div>
+                            <div className="or-meta-item">
+                              <span className="or-meta-title">Order No :</span>
+                              <span className="or-meta-val">#{order.orderNumber}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="or-meta-item">
+                            <span className="or-meta-title">Invoice No :</span>
+                            <span className="or-meta-val">No. {order.orderNumber}</span>
+                          </div>
+                        )}
 
                         <div className="or-meta-item">
-                          <span className="or-meta-title">Invoice No :</span>
-                          <span className="or-meta-val">No. {order.orderNumber}</span>
-                        </div>
-
-                        <div className="or-meta-item">
-                          <span className="or-meta-title">Invoice Date:</span>
+                          <span className="or-meta-title">{isPaid ? 'Receipt Date:' : 'Invoice Date:'}</span>
                           <span className="or-meta-val">{invoiceDate}</span>
+                        </div>
+
+                        <div className="or-meta-item">
+                          <span className="or-meta-title">Status :</span>
+                          <span className="or-meta-val" style={{ color: isPaid ? '#10B981' : '#F59E0B', fontWeight: 700 }}>
+                            {isPaid ? 'PAID IN FULL (Verified)' : (order.paymentStatus === 'payment_reported' ? 'Payment Reported (Reviewing)' : 'Awaiting Payment')}
+                          </span>
                         </div>
 
                         <div className="or-three-dots" style={{ justifyContent: 'flex-end', marginTop: '4px' }}>
@@ -501,47 +579,18 @@ const OrderConfirmation = () => {
                     </div>
                   </div>
 
-                  {/* ══ Lower Dark Espresso Banner ══ */}
-                  <div className="or-dark-banner">
-                    {/* Gold dot matrices */}
-                    <DotGrid className="top-right" />
-                    <DotGrid className="bottom-left" />
-
-                    {/* Left: Signature Section */}
-                    <div className="or-signature-block">
-                      <div className="or-signature-area">
-                        {signatureUrl ? (
-                          <img
-                            src={signatureUrl}
-                            alt="Authorized Signature"
-                            className="or-signature-img"
-                          />
-                        ) : (
-                          <div className="or-signature-cursive">
-                            Rerendet
-                          </div>
-                        )}
-                      </div>
-                      <p className="or-signatory-name">{signatoryName}</p>
-                    </div>
-
-                    {/* Right: Payment Details & Notes */}
-                    <div className="or-details-block">
-                      <div>
-                        <h3 className="or-banner-section-title">Payment Details:</h3>
-                        <p className="or-banner-text">
-                          <strong>Method:</strong> {order.paymentMethod === 'mpesa' ? 'M-PESA Express' : 'Credit / Debit Card'}<br />
-                          <strong>Receipt Ref:</strong> {order.transactionId || 'M-PESA · Completed Transaction'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <h3 className="or-banner-section-title">Notes:</h3>
-                        <p className="or-banner-text">
-                          Payment must be made immediately on receipt, either in the form of transfer or direct payment at our store. Enjoy your 100% shade-grown Arabica from the Great Rift Valley.
-                        </p>
-                      </div>
-                    </div>
+                  {/* Clean Minimalist Single-Page Roastery Footer */}
+                  <div className="or-minimal-footer">
+                    <div className="or-footer-divider" />
+                    <p className="or-footer-policy">
+                      Goods once sold are not returnable unless damaged upon delivery.
+                    </p>
+                    <p className="or-footer-contact">
+                      Support Email: {store.email || 'rerendet@gmail.com'} &bull; Contact / WhatsApp: {store.phone || '+254 705 684 894'}
+                    </p>
+                    <p className="or-footer-estate">
+                      {store.name || 'Rerendet Coffee Roasters Limited'} &bull; Bomet Highlands, Great Rift Valley, Kenya
+                    </p>
                   </div>
 
                 </div>
@@ -549,12 +598,23 @@ const OrderConfirmation = () => {
 
               {/* Modal Footer */}
               <div className="oc-modal-footer no-print">
+                {(isPaid && order.receipt?.receiptNumber) && (
+                  <a
+                    href={`/api/orders/${order._id || order.orderNumber}/receipt`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-modal-print"
+                    style={{ textDecoration: 'none', background: '#10B981', color: '#FFFFFF' }}
+                  >
+                    <FaDownload /> Download Official PDF Receipt
+                  </a>
+                )}
                 <button
                   type="button"
                   className="btn-modal-print"
                   onClick={handlePrint}
                 >
-                  <FaPrint /> Print Official Invoice
+                  <FaPrint /> Print {isPaid ? 'Official Receipt' : 'Invoice'}
                 </button>
                 <button
                   type="button"

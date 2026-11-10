@@ -23,14 +23,21 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { REFRESH_TOKEN_EXPIRY_SECONDS } from '../config/tokenConfig.js';
 import Settings from '../models/Settings.js';
-import generateToken, { 
-  generateAccessToken, 
-  generateRefreshToken, 
-  setRefreshTokenCookie, 
+import generateToken, {
+  generateAccessToken,
+  generateRefreshToken,
+  setRefreshTokenCookie,
   clearRefreshTokenCookie,
   setTokenCookie,
   clearTokenCookie,
-  getClientIp
+  getClientIp,
+  ADMIN_ACCESS_COOKIE,
+  ADMIN_REFRESH_COOKIE,
+  CUSTOMER_ACCESS_COOKIE,
+  CUSTOMER_REFRESH_COOKIE,
+  setAdminCookies,
+  setCustomerCookies,
+  clearAllAuthCookies
 } from '../utils/generateToken.js';
 import realSendEmail from '../utils/sendEmail.js';
 import { getVerificationEmail, getWelcomeEmail, getResetPasswordEmail, getRegretEmail, getSecurityAlertEmail } from '../utils/emailTemplates.js';
@@ -58,7 +65,8 @@ import { logActivity } from '../utils/activityLogger.js';
 import ActivityLog from '../models/ActivityLog.js';
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library';
-import { validatePasswordSecurely } from '../utils/passwordValidator.js';
+import { validatePasswordSecurely, checkPasswordHistory } from '../utils/passwordValidator.js';
+import PasswordRecovery from '../models/PasswordRecovery.js';
 import redisClient from '../config/redis.js';
 
 const lookupCountryByIp = (ip) => {
@@ -103,8 +111,12 @@ const createSession = async (req, res, user, replacingJti = null) => {
   );
   const refreshToken = generateRefreshToken(user._id, user.tokenVersion || 0, jti, ip, userAgent);
 
-  setTokenCookie(res, accessToken);
-  setRefreshTokenCookie(res, refreshToken);
+  // Role-isolated session cookies
+  if (isUserAdmin) {
+    setAdminCookies(res, accessToken, refreshToken);
+  } else {
+    setCustomerCookies(res, accessToken, refreshToken);
+  }
 
   // GAP 7: Create AdminSession database record
   if (isUserAdmin) {
@@ -200,7 +212,7 @@ const createSession = async (req, res, user, replacingJti = null) => {
         await AdminSession.updateOne(
           { jti: replacingJti },
           { $set: { isRevoked: true, revokedAt: new Date(), replacedBy: jti } }
-        ).catch(() => {});
+        ).catch(() => { });
       }
       await AdminSession.create({
         jti,
@@ -223,7 +235,7 @@ const createSession = async (req, res, user, replacingJti = null) => {
         await CustomerSession.updateOne(
           { jti: replacingJti },
           { $set: { isRevoked: true, revokedAt: new Date(), replacedBy: jti } }
-        ).catch(() => {});
+        ).catch(() => { });
       }
       await CustomerSession.create({
         jti,
@@ -306,7 +318,7 @@ const handleDeviceFingerprint = async (req, user) => {
 
   if (!isKnown) {
     console.log(`🔍 New login device detected for ${user.email} (IP: ${ip}, UA: ${uaString})`);
-    
+
     user.knownDevices = user.knownDevices || [];
     user.knownDevices.push({
       ip,
@@ -315,16 +327,16 @@ const handleDeviceFingerprint = async (req, user) => {
       verifiedAt: new Date()
     });
     await user.save({ validateBeforeSave: false });
-    
+
     try {
       let logoUrl;
       try {
         const settings = await Settings.getSettings();
         logoUrl = settings?.store?.logo;
-      } catch (err) {}
+      } catch (err) { }
 
       const alertMessage = `We detected a login from a new device/browser (${browser} on ${os}) for your account from IP address ${ip}. If this was you, no action is needed. If this wasn't you, please freeze your account immediately by resetting your password.`;
-      
+
       await sendEmail({
         to: user.email,
         subject: '⚠️ Security Alert: New Device Login Detected',
@@ -346,7 +358,7 @@ const verify2FALogin = asyncHandler(async (req, res) => {
 
   console.log(`🔐 2FA Attempt for: ${email} | Code Received: [${code}]`);
 
-  const user = await User.findOne({ email }).select('+verificationCode +verificationCodeExpires +role +userType +isVerified +wallet +shippingInfo +cart +twoFactorEnabled +adminPermissions');
+  const user = await User.findOne({ email }).select('+verificationCode +verificationCodeExpires +role +userType +isVerified +wallet +shippingInfo +cart +twoFactorEnabled +adminPermissions +loginAttempts');
 
   if (!user) {
     console.error(`❌ 2FA Failure: User ${email} not found`);
@@ -364,23 +376,53 @@ const verify2FALogin = asyncHandler(async (req, res) => {
 
   console.log(`🔍 2FA Match Check: Input:[${inputCode}] | DB:[${dbCode}] | Expired: ${isExpired}`);
 
-  if (!dbCode || dbCode !== inputCode || isExpired) {
-    console.error(`❌ 2FA Failure: Code mismatch or expired for ${email}`);
+  // 1. Explicit Expiration Check — Do not penalize with brute-force attempt lockout
+  if (isExpired) {
+    console.error(`❌ 2FA Failure: Verification code expired for ${email}`);
+    user.verificationCode = undefined;
+    user.verificationCodeExpires = undefined;
+    user.loginAttempts = 0; // Reset attempts so fresh code starts clean
+    await user.save({ validateBeforeSave: false });
     res.status(400);
-    throw new Error('Invalid or expired verification code');
+    throw new Error('Verification code has expired. Please click "Resend Code" to receive a fresh code.');
+  }
+
+  // 2. Mismatch / Invalid Code Check
+  if (!dbCode || dbCode !== inputCode) {
+    console.error(`❌ 2FA Failure: Code mismatch for ${email}`);
+
+    const currentAttempts = (user.loginAttempts || 0) + 1;
+    if (currentAttempts >= 5) {
+      // Invalidate the code after 5 bad attempts so code cannot be brute-forced
+      user.verificationCode = undefined;
+      user.verificationCodeExpires = undefined;
+      user.loginAttempts = 0;
+      await user.save({ validateBeforeSave: false });
+      res.status(400);
+      throw new Error('Too many incorrect code attempts. For your security, this verification code has been invalidated. Please request a new code.');
+    }
+
+    user.loginAttempts = currentAttempts;
+    await user.save({ validateBeforeSave: false });
+
+    const remaining = 5 - currentAttempts;
+    res.status(400);
+    throw new Error(`Invalid verification code. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before code expires.`);
   }
 
   const isTryAdminPath = req.originalUrl.includes('/admin/');
-  const isAdmin = user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin';
+  const isPrivilegedAdmin = user.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(user.role);
+  const isAdmin = isPrivilegedAdmin;
 
-  if (isTryAdminPath && !isAdmin) {
+  if (isTryAdminPath && !isPrivilegedAdmin) {
     res.status(403);
     throw new Error('This account does not have administrator privileges.');
   }
 
-  // Clear code
+  // Clear code & reset attempts on successful verification
   user.verificationCode = undefined;
   user.verificationCodeExpires = undefined;
+  user.loginAttempts = 0;
   user.lastLoginAt = new Date();
   await user.save({ validateBeforeSave: false });
 
@@ -469,9 +511,9 @@ const toggle2FA = asyncHandler(async (req, res) => {
   });
 });
 
-// Customer registration
+// Customer registration (Privilege separation: role is always forced to customer)
 const registerCustomer = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password, phone, gender, dateOfBirth, userType = 'customer' } = req.body;
+  const { firstName, lastName, email, password, phone, gender, dateOfBirth } = req.body;
 
   console.log(`👤 Customer registration attempt:`, email);
 
@@ -509,7 +551,7 @@ const registerCustomer = asyncHandler(async (req, res) => {
         try {
           const settings = await Settings.getSettings();
           logoUrl = settings?.store?.logo;
-        } catch (_) {}
+        } catch (_) { }
         const emailHtml = getVerificationEmail(existingUser.firstName, verificationCode, logoUrl);
         await sendEmail({
           to: existingUser.email,
@@ -525,7 +567,7 @@ const registerCustomer = asyncHandler(async (req, res) => {
         try {
           const settings = await Settings.getSettings();
           logoUrl = settings?.store?.logo;
-        } catch (_) {}
+        } catch (_) { }
         const clientUrl = resolveClientUrl();
         await sendEmail({
           to: existingUser.email,
@@ -673,11 +715,6 @@ const googleLogin = asyncHandler(async (req, res) => {
 
     if (user) {
       console.log('👤 Existing user found:', email, 'Type:', user.userType);
-      // RELAXED SECURITY: Allow Admin Login via Google for testing flow
-      if (user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin') {
-        console.log('✅ Allowing Admin login via Google for testing:', email);
-        // We continue and grant them a token below
-      }
 
       // If user exists, update googleId if missing
       if (!user.googleId) {
@@ -794,6 +831,11 @@ const googleLogin = asyncHandler(async (req, res) => {
 
 // Customer login
 const loginCustomer = asyncHandler(async (req, res) => {
+  // Clear any existing admin session first to ensure session isolation
+  const opts = getAuthCookieOptions();
+  res.clearCookie(ADMIN_ACCESS_COOKIE, opts);
+  res.clearCookie(ADMIN_REFRESH_COOKIE, opts);
+
   const { email, password } = req.body;
   console.log('👤 Customer login attempt:', email);
 
@@ -803,7 +845,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
   if (!user) {
     console.log('❌ Customer not found:', email);
     res.status(401);
-    throw new Error('Invalid email or password');
+    throw new Error('Invalid credentials');
   }
 
   // Check if account is active
@@ -811,11 +853,6 @@ const loginCustomer = asyncHandler(async (req, res) => {
     console.log('❌ Customer account inactive:', email);
     res.status(403);
     throw new Error('Your account has been deactivated. Please contact support.');
-  }
-
-  // RELAXED SECURITY: Allow admin to log in via customer portal for testing
-  if (user.userType === 'admin' || user.role === 'admin' || user.role === 'super-admin') {
-    console.log('✅ Allowing admin login via customer portal for testing:', email);
   }
 
   // Check if account is locked
@@ -840,21 +877,12 @@ const loginCustomer = asyncHandler(async (req, res) => {
     const attempts = updatedUser.loginAttempts;
     const remaining = 5 - attempts;
 
-    // Alert when attempts hit 3 or more (Warning)
+    // Log activity on elevated failed attempts (Warning)
     if (attempts >= 3 && attempts < 5) {
-      import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
-        dispatchSecurityAlert({
-          eventTitle: 'Customer Brute Force Attempts',
-          eventDescription: `Multiple failed login attempts detected for Customer account: **${email}**. Current failed attempts: ${attempts}.`,
-          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-          userAccount: email,
-          severity: 'WARNING',
-          metadata: {
-            'Failed Attempts': attempts,
-            'Account Type': 'Customer'
-          }
-        });
-      }).catch(err => console.error('Alert error:', err));
+      logActivity(req, 'CUSTOMER_LOGIN_WARN', `${user.firstName || 'Customer'} ${user.lastName || ''} (${email})`, user._id, {
+        attempts,
+        ip: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      }).catch(err => console.error('Activity log error:', err));
     }
 
     // Lock account after 5 failed attempts
@@ -864,23 +892,14 @@ const loginCustomer = asyncHandler(async (req, res) => {
         $set: { lockUntil: lockExpiry }
       });
 
-      // Dispatch Critical Locked Out Alert for Customer
-      import('../utils/securityAlerts.js').then(({ dispatchSecurityAlert }) => {
-        dispatchSecurityAlert({
-          eventTitle: 'Customer Account Temporarily Locked',
-          eventDescription: `Customer account **${email}** has been locked for 1 hour after exceeding 5 failed password attempts.`,
-          ipAddress: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-          userAccount: email,
-          severity: 'CRITICAL',
-          metadata: {
-            'Failed Attempts': attempts,
-            'Lock Duration': '1 Hour',
-            'Account Type': 'Customer'
-          }
-        });
-      }).catch(err => console.error('Alert error:', err));
+      // Record in activity log for admin auditing (does not dispatch panic email to super-admin)
+      logActivity(req, 'CUSTOMER_ACCOUNT_LOCKED', `${user.firstName || 'Customer'} ${user.lastName || ''} (${email})`, user._id, {
+        attempts,
+        lockDuration: '1 Hour',
+        ip: req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress
+      }).catch(err => console.error('Activity log error:', err));
 
-      // Send security alert email
+      // Send security alert email strictly to customer
       try {
         let logoUrl;
         try {
@@ -889,10 +908,10 @@ const loginCustomer = asyncHandler(async (req, res) => {
         } catch (e) { }
         await sendEmail({
           to: user.email,
-          subject: '⚠️ Security Alert: Account Locked - Rerendet Coffee',
+          subject: 'Security Notice: Account Temporarily Locked - Rerendet Coffee',
           html: getSecurityAlertEmail(
             user.firstName,
-            `Your account has been temporarily locked for an hour due to ${attempts} consecutive failed login attempts. If this was not you, please reset your password immediately.`,
+            `Your account has been temporarily locked for 1 hour due to ${attempts} consecutive failed login attempts. If you did not make these attempts, please reset your password once the lock expires or contact our customer support team for assistance.`,
             logoUrl
           )
         });
@@ -904,8 +923,13 @@ const loginCustomer = asyncHandler(async (req, res) => {
       throw new Error('Too many failed attempts. Account locked for an hour. A security alert has been sent to your email.');
     }
 
+    // Progressive delay on 3rd and 4th failed attempts to mitigate automated credential stuffing
+    if (attempts >= 3 && attempts < 5) {
+      await new Promise(r => setTimeout(r, (attempts - 2) * 1000));
+    }
+
     res.status(401);
-    throw new Error(`Invalid email or password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before account lock.`);
+    throw new Error('Invalid credentials');
   }
 
   // Check for 2FA specifically for the user (ignoring Google auth flow here, this is email/pass)
@@ -926,7 +950,8 @@ const loginCustomer = asyncHandler(async (req, res) => {
     }
 
     // Fallback Legacy Email-based 2FA Flow
-    // Generate code
+    // Reset login attempts so user gets full fresh attempts for the 2FA code
+    user.loginAttempts = 0;
     const verificationCode = user.generateVerificationCode();
     await user.save({ validateBeforeSave: false }); // Save code to DB
 
@@ -1094,7 +1119,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         try {
           const settings = await Settings.getSettings();
           logoUrl = settings?.store?.logo;
-        } catch (_) {}
+        } catch (_) { }
         const verifyHtml = getVerificationEmail(user.firstName, verificationCode, logoUrl);
         await sendEmail({
           to: newEmail,
@@ -1111,7 +1136,7 @@ const updateProfile = asyncHandler(async (req, res) => {
         try {
           const settings = await Settings.getSettings();
           logoUrl = settings?.store?.logo;
-        } catch (_) {}
+        } catch (_) { }
         await sendEmail({
           to: oldEmail,
           subject: 'Security Alert: Account Email Changed',
@@ -1136,7 +1161,7 @@ const updateProfile = asyncHandler(async (req, res) => {
           try {
             const settings = await Settings.getSettings();
             logoUrl = settings?.store?.logo;
-          } catch (_) {}
+          } catch (_) { }
           await sendEmail({
             to: user.email,
             subject: 'Security Alert: Phone Number Updated',
@@ -1146,7 +1171,7 @@ const updateProfile = asyncHandler(async (req, res) => {
               logoUrl
             )
           });
-        } catch (_) {}
+        } catch (_) { }
       }
     }
 
@@ -1252,15 +1277,28 @@ const changePassword = asyncHandler(async (req, res) => {
     throw new Error(validation.feedback);
   }
 
-  const user = await User.findById(req.user._id).select('+password');
+  const user = await User.findById(req.user._id).select('+password +passwordHistory');
 
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  // 1. PASSWORD COOLDOWN: 30 days (unless customer care override is active)
-  const isOverrideActive = Boolean(user.allowPasswordChangeOverride);
+  // 1. PASSWORD COOLDOWN: 30 days (unless customer care override is active and valid)
+  let isOverrideActive = Boolean(user.allowPasswordChangeOverride);
+
+  // Check 24-hour expiration on admin override
+  if (isOverrideActive && user.passwordOverrideExpiresAt) {
+    if (new Date() > new Date(user.passwordOverrideExpiresAt)) {
+      isOverrideActive = false;
+      user.allowPasswordChangeOverride = false;
+      user.passwordOverrideExpiresAt = null;
+      user.passwordOverrideGrantedAt = null;
+      user.passwordOverrideReason = null;
+      await user.save({ validateBeforeSave: false });
+      logActivity(req, 'PASSWORD_COOLDOWN_OVERRIDE_EXPIRED', `Password cooldown override expired for ${user.email}`, user._id).catch(() => { });
+    }
+  }
 
   if (!isOverrideActive && user.passwordChangedAt) {
     const timeSinceLastChange = Date.now() - user.passwordChangedAt.getTime();
@@ -1273,76 +1311,93 @@ const changePassword = asyncHandler(async (req, res) => {
     }
   }
 
-  if (await bcrypt.compare(currentPassword, user.password)) {
-    if (currentPassword === newPassword || (await bcrypt.compare(newPassword, user.password))) {
-      res.status(400);
-      throw new Error('New password cannot be the same as your current password. Please choose a different password.');
-    }
-    const salt = await bcrypt.genSalt(14);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    await User.findOneAndUpdate(
-      { _id: user._id },
-      { 
-        $set: { 
-          password: hashedPassword, 
-          passwordChangedAt: new Date(),
-          allowPasswordChangeOverride: false,
-          passwordOverrideGrantedAt: null,
-          passwordOverrideReason: null
-        },
-        $inc: { tokenVersion: 1 }
-      }
-    );
-
-    await invalidateAllUserSessions(user._id);
-
-    // FIX 4: Session collection updates running asynchronously without await
-    const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
-    if (isUserAdmin) {
-      import('../models/AdminSession.js').then(({ default: AdminSession }) => {
-        AdminSession.updateMany({ adminId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
-      }).catch(console.error);
-    } else {
-      import('../models/CustomerSession.js').then(({ default: CustomerSession }) => {
-        CustomerSession.updateMany({ userId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
-      }).catch(console.error);
-    }
-
-    clearTokenCookie(res);
-    clearRefreshTokenCookie(res);
-
-    // 2. SEND SECURITY EMAIL ALERT
-    try {
-      let logoUrl;
-      try {
-        const settings = await Settings.getSettings();
-        logoUrl = settings?.store?.logo;
-      } catch (sErr) {
-        console.error('Settings fetch error:', sErr);
-      }
-
-      await sendEmail({
-        to: user.email,
-        subject: 'Security Alert: Password Changed',
-        html: getSecurityAlertEmail(user.firstName, 'Password Updated Successfully', logoUrl)
-      });
-      console.log(`📧 Password change alert sent to: ${user.email}`);
-    } catch (emailErr) {
-      console.error('❌ Failed to send security alert email:', emailErr);
-    }
-
-    // Clear sensitive data from response
-    user.password = undefined;
-
-    res.json({
-      success: true,
-      message: 'Password updated successfully'
-    });
-  } else {
+  const isCurrentMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isCurrentMatch) {
     res.status(401);
     throw new Error('Invalid current password');
   }
+
+  // Check password reuse against current and historical passwords (previous 5)
+  const historyCheck = await checkPasswordHistory(newPassword, user.password, user.passwordHistory || []);
+  if (!historyCheck.isValid) {
+    res.status(400);
+    throw new Error(historyCheck.message);
+  }
+
+  const salt = await bcrypt.genSalt(14);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  const updatedHistory = [user.password, ...(user.passwordHistory || [])].slice(0, 5);
+
+  await User.findOneAndUpdate(
+    { _id: user._id },
+    {
+      $set: {
+        password: hashedPassword,
+        passwordHistory: updatedHistory,
+        passwordChangedAt: new Date(),
+        allowPasswordChangeOverride: false,
+        passwordOverrideExpiresAt: null,
+        passwordOverrideGrantedAt: null,
+        passwordOverrideReason: null
+      },
+      $inc: { tokenVersion: 1 }
+    }
+  );
+
+  // Invalidate any active recovery challenges for this user
+  await PasswordRecovery.updateMany(
+    { userId: user._id, status: { $in: ['PENDING', 'VERIFIED'] } },
+    { status: 'REVOKED' }
+  ).catch(() => { });
+
+  await invalidateAllUserSessions(user._id);
+
+  const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff' || user.userType === 'admin';
+  if (isUserAdmin) {
+    const { default: AdminSession } = await import('../models/AdminSession.js');
+    await AdminSession.updateMany({ adminId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+  } else {
+    const { default: CustomerSession } = await import('../models/CustomerSession.js');
+    await CustomerSession.updateMany({ userId: user._id, isRevoked: false }, { isRevoked: true, revokedAt: new Date() }).catch(console.error);
+  }
+
+  // Server is root of trust: clear all auth cookies server-side
+  clearAllAuthCookies(res);
+
+  // Send activity log
+  logActivity(
+    req,
+    isOverrideActive ? 'PASSWORD_CHANGE_USING_OVERRIDE' : 'PASSWORD_CHANGE',
+    'Customer updated account password',
+    user._id,
+    { overrideUsed: isOverrideActive }
+  ).catch(console.error);
+
+  // 2. SEND SECURITY EMAIL ALERT
+  try {
+    let logoUrl;
+    try {
+      const settings = await Settings.getSettings();
+      logoUrl = settings?.store?.logo;
+    } catch (sErr) {
+      console.error('Settings fetch error:', sErr);
+    }
+
+    await sendEmail({
+      to: user.email,
+      subject: 'Security Alert: Password Changed',
+      html: getSecurityAlertEmail(user.firstName, 'Password Updated Successfully', logoUrl)
+    });
+    console.log(`📧 Password change alert sent to: ${user.email}`);
+  } catch (emailErr) {
+    console.error('❌ Failed to send security alert email:', emailErr);
+  }
+
+  res.json({
+    success: true,
+    message: 'Password updated successfully'
+  });
 });
 
 // @desc    Delete user account
@@ -1406,6 +1461,11 @@ const deleteAccount = asyncHandler(async (req, res) => {
 // Admin login (separate endpoint)
 
 const loginAdmin = asyncHandler(async (req, res) => {
+  // Clear any conflicting customer session cookies first to guarantee session isolation
+  const opts = getAuthCookieOptions();
+  res.clearCookie(CUSTOMER_ACCESS_COOKIE, opts);
+  res.clearCookie(CUSTOMER_REFRESH_COOKIE, opts);
+
   const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
 
   // 1. IP Blocklist Check (Layer 7)
@@ -1536,7 +1596,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
         }
       }
       res.status(401);
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid credentials');
     }
 
     // Check if account is locked
@@ -1646,9 +1706,8 @@ const loginAdmin = asyncHandler(async (req, res) => {
         throw new Error('Too many failed attempts. Admin account locked for an hour. A security alert has been sent.');
       }
 
-      const remaining = 5 - attempts;
       res.status(401);
-      throw new Error(`Invalid email or password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
+      throw new Error('Invalid credentials');
     }
 
     // Reset login attempts on successful login
@@ -1686,7 +1745,8 @@ const loginAdmin = asyncHandler(async (req, res) => {
       }
 
       // Fallback Legacy Email-based 2FA Flow
-      // Generate code
+      // Reset attempts so fresh 2FA code has full quota
+      user.loginAttempts = 0;
       const verificationCode = user.generateVerificationCode();
       await user.save({ validateBeforeSave: false }); // Save code to DB securely
 
@@ -2029,7 +2089,7 @@ const logout = asyncHandler(async (req, res) => {
         userIdToRevoke = decoded.userId;
         jtiToRevoke = decoded.jti;
       }
-    } catch (err) {}
+    } catch (err) { }
   }
 
   if (!userIdToRevoke) {
@@ -2041,7 +2101,7 @@ const logout = asyncHandler(async (req, res) => {
           userIdToRevoke = decoded.userId;
           jtiToRevoke = decoded.jti;
         }
-      } catch (err) {}
+      } catch (err) { }
     }
   }
 
@@ -2070,13 +2130,13 @@ const logout = asyncHandler(async (req, res) => {
           pipeline.del(`refresh:${userIdToRevoke}:${jtiToRevoke}`);
           pipeline.srem(`refresh:${userIdToRevoke}:sessions`, jtiToRevoke);
           await pipeline.exec();
-        } catch (err) {}
+        } catch (err) { }
       }
     }
   }
 
-  clearTokenCookie(res);
-  clearRefreshTokenCookie(res);
+  // Server is root of trust: clear all auth cookies server-side
+  clearAllAuthCookies(res);
   res.json({
     success: true,
     message: 'Logged out successfully'
@@ -2087,11 +2147,21 @@ const logout = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/refresh
 // @access  Public (uses HttpOnly cookie)
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  const cookieToken = req.cookies?.refreshToken;
+  const authScope = (req.headers['x-auth-scope'] || '').toLowerCase();
+  let cookieToken = null;
+  if (authScope === 'admin') {
+    cookieToken = req.cookies?.[ADMIN_REFRESH_COOKIE] || req.cookies?.refreshToken;
+  } else {
+    // For storefront/general: check customer refresh cookie, fall back to admin refresh cookie
+    cookieToken = req.cookies?.[CUSTOMER_REFRESH_COOKIE] || req.cookies?.[ADMIN_REFRESH_COOKIE] || req.cookies?.refreshToken;
+  }
 
   if (!cookieToken) {
-    res.status(401);
-    throw new Error('No refresh token — please log in again.');
+    return res.status(200).json({
+      success: false,
+      authenticated: false,
+      message: 'No active refresh session'
+    });
   }
 
   // Step 1: Verify JWT signature and extract payload
@@ -2099,8 +2169,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
     decoded = verifyRefreshToken(cookieToken);
   } catch (err) {
-    clearRefreshTokenCookie(res);
-    clearTokenCookie(res);
+    clearAllAuthCookies(res);
     res.status(401);
     throw new Error('Refresh token invalid or expired — please log in again.');
   }
@@ -2110,16 +2179,14 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   // Step 2: Query User from MongoDB selecting all required profile attributes
   const user = await User.findById(userId).populate('cart.product');
   if (!user) {
-    clearRefreshTokenCookie(res);
-    clearTokenCookie(res);
+    clearAllAuthCookies(res);
     res.status(401);
     throw new Error('Account not found.');
   }
 
   // Step 3: If decoded.tokenVersion does not strictly equal user.tokenVersion, return 401
   if (decoded.tokenVersion === undefined || user.tokenVersion === undefined || decoded.tokenVersion !== user.tokenVersion) {
-    clearRefreshTokenCookie(res);
-    clearTokenCookie(res);
+    clearAllAuthCookies(res);
     return res.status(401).json({
       success: false,
       message: 'Session invalidated. Please log in again.'
@@ -2128,8 +2195,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   // Step 3.5: PasswordRecentlyChanged check
   if (user.passwordChangedAt !== null && decoded.iat !== undefined && decoded.iat * 1000 < user.passwordChangedAt.getTime()) {
-    clearRefreshTokenCookie(res);
-    clearTokenCookie(res);
+    clearAllAuthCookies(res);
     return res.status(401).json({
       success: false,
       message: 'Password recently changed. Please log in again.'
@@ -2148,7 +2214,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   // Step 5: Redis and DB Session check
   const isUserAdmin = user.role === 'admin' || user.role === 'super-admin' || user.role === 'super_admin' || user.role === 'owner' || user.role === 'fulfillment_staff';
-  
+
   let exists = null;
   let customerSession = null;
   let adminSession = null;
@@ -2193,18 +2259,28 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
   }
 
-  // Token Reuse Detection: If session was already marked revoked, potential reuse attack
-  if ((adminSession && adminSession.isRevoked) || (customerSession && customerSession.isRevoked)) {
-    console.warn(`🚨 [Refresh Token Reuse Detected] User ${userId} attempted using revoked token jti: ${jti}`);
-    await invalidateAllUserSessions(userId);
-    await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
-    clearRefreshTokenCookie(res);
-    clearTokenCookie(res);
-    return res.status(401).json({
-      success: false,
-      code: 'TOKEN_REUSE_DETECTED',
-      message: 'Suspicious session reuse detected. For your security, all active sessions have been terminated. Please log in again.'
-    });
+  // Token Reuse Detection: If session was already marked revoked, check for concurrent rotation grace period
+  const isRevoked = (adminSession && adminSession.isRevoked) || (customerSession && customerSession.isRevoked);
+  if (isRevoked) {
+    const revokedSession = adminSession || customerSession;
+    const revokedAtTime = revokedSession?.revokedAt ? new Date(revokedSession.revokedAt).getTime() : 0;
+    // RFC 6819 §5.2.2.3: 30-second grace window to absorb parallel/concurrent requests from the same client
+    const isWithinGrace = revokedAtTime > 0 && (Date.now() - revokedAtTime < 30000);
+
+    if (!isWithinGrace) {
+      console.warn(`🚨 [Refresh Token Reuse Detected] User ${userId} attempted using revoked token jti: ${jti}`);
+      await invalidateAllUserSessions(userId);
+      await User.findByIdAndUpdate(userId, { $inc: { tokenVersion: 1 } });
+      clearRefreshTokenCookie(res);
+      clearTokenCookie(res);
+      return res.status(401).json({
+        success: false,
+        code: 'TOKEN_REUSE_DETECTED',
+        message: 'Suspicious session reuse detected. For your security, all active sessions have been terminated. Please log in again.'
+      });
+    } else {
+      console.log(`ℹ️ [Refresh Token Grace Period] Concurrent refresh within 30s grace window for user ${userId} (jti: ${jti})`);
+    }
   }
 
   // Step 6: If neither Redis nor DB knows this session, treat as expired
@@ -2224,7 +2300,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       pipeline.del(`refresh:${userId}:${jti}`);
       pipeline.srem(`refresh:${userId}:sessions`, jti);
       await pipeline.exec();
-    } catch (err) {}
+    } catch (err) { }
   }
 
   // Step 7: Issue rotated tokens & link replacingJti in DB
@@ -2272,14 +2348,16 @@ const checkEmail = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ email });
+  const isAdmin = user && (user.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(user.role));
 
   res.json({
     success: true,
     data: {
       exists: !!user,
-      userType: user?.userType
+      userType: isAdmin ? 'admin' : (user ? 'customer' : undefined)
     },
-    exists: !!user
+    exists: !!user,
+    userType: isAdmin ? 'admin' : (user ? 'customer' : undefined)
   });
 });
 
@@ -2305,7 +2383,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
   // Generate 6-digit clean secure numeric OTP code
   const rawToken = Math.floor(100000 + Math.random() * 900000).toString();
-  
+
   // Store SHA-256 hashed token in DB
   const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
   user.resetPasswordToken = hashedToken;
@@ -2564,7 +2642,8 @@ const resendVerification = asyncHandler(async (req, res) => {
     throw new Error('User not found with this email');
   }
 
-  // Generate a fresh 6-digit verification code with 10-minute validity
+  // Generate a fresh 6-digit verification code with 10-minute validity and reset attempts
+  user.loginAttempts = 0;
   const verificationCode = user.generateVerificationCode();
   await user.save({ validateBeforeSave: false });
 
@@ -2834,7 +2913,7 @@ const confirm2FASetup = asyncHandler(async (req, res) => {
     try {
       const settings = await Settings.getSettings();
       logoUrl = settings?.store?.logo;
-    } catch (_) {}
+    } catch (_) { }
     await sendEmail({
       to: user.email,
       subject: 'Security Alert: Two-Factor Authentication Enabled',
@@ -2879,7 +2958,7 @@ const disable2FA = asyncHandler(async (req, res) => {
     try {
       const settings = await Settings.getSettings();
       logoUrl = settings?.store?.logo;
-    } catch (_) {}
+    } catch (_) { }
     await sendEmail({
       to: user.email,
       subject: 'Security Alert: Two-Factor Authentication Disabled',
@@ -2954,7 +3033,7 @@ const verify2FATOTP = asyncHandler(async (req, res) => {
   // Verify device fingerprint asynchronously
   try {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
-  } catch (_) {}
+  } catch (_) { }
 
   const accessToken = await createSession(req, res, user);
 
@@ -3052,7 +3131,7 @@ const verify2FABackup = asyncHandler(async (req, res) => {
   // Verify device fingerprint asynchronously
   try {
     handleDeviceFingerprint(req, user).catch(err => console.error('Device fingerprint error:', err));
-  } catch (_) {}
+  } catch (_) { }
 
   const accessToken = await createSession(req, res, user);
 
@@ -3170,7 +3249,7 @@ const revokeAllOtherSessions = asyncHandler(async (req, res) => {
         pipeline.srem(`refresh:${req.user.id}:sessions`, sess.jti);
       }
       await pipeline.exec();
-    } catch (err) {}
+    } catch (err) { }
   }
 
   res.json({

@@ -22,6 +22,7 @@ import PaymentTransaction from '../models/PaymentTransaction.js';
 import sendEmail from '../utils/sendEmail.js';
 import { getFraudAlert } from '../utils/emailTemplates.js';
 import { runPaymentReconciliation } from '../scripts/reconcilePayments.js';
+import { expireUnpaidPaybillOrders } from '../services/orderExpiryService.js';
 
 dotenv.config();
 
@@ -415,6 +416,15 @@ const startCronJobs = () => {
             }
         } catch (err) {
             console.error('[Cron] Low stock scanner error:', err.message);
+        }
+    });
+
+            cron.schedule('*/30 * * * *', async () => {
+        try {
+            console.log('[Cron] Running Paybill order expiry scanner (30-min window)...');
+            await expireUnpaidPaybillOrders();
+        } catch (err) {
+            console.error('[Cron] Paybill order expiry scanner error:', err.message);
         }
     });
 

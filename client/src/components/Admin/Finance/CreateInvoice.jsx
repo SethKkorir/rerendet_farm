@@ -17,7 +17,17 @@ import {
   CheckCircle2,
   FileCheck
 } from 'lucide-react';
+import '../../Checkout/OrderReceipt.css';
 import './CreateInvoice.css';
+
+// 4x4 gold dot grid matching exact email & storefront Liceria design
+const DotGrid = ({ className = '' }) => (
+  <div className={`or-dot-grid ${className}`} aria-hidden="true">
+    {Array.from({ length: 16 }).map((_, i) => (
+      <span key={i} />
+    ))}
+  </div>
+);
 
 // Versatile farm presets spanning coffee, harvest produce, honey, macadamia, and nursery seedlings
 const FARM_PRODUCT_PRESETS = [
@@ -550,153 +560,215 @@ const CreateInvoice = () => {
 
         </div>
 
-        {/* ─── RIGHT: LIVE LUXURY INVOICE PREVIEW ─── */}
+        {/* ─── RIGHT: LIVE LUXURY EDITORIAL INVOICE PREVIEW ─── */}
         <div className="ci-preview-pane">
           <div className="ci-preview-sticky">
             <div className="ci-preview-head-banner">
               <div className="ci-ph-title">
                 <Sparkles size={14} className="ci-sparkle" />
-                <span>Live Farm Invoice Preview</span>
+                <span>Live Liceria Editorial Preview</span>
               </div>
               <span className="ci-ph-pill">Instant Sync</span>
             </div>
 
-            {/* PRINTABLE LUXURY COFFEEHOUSE & FARM INVOICE */}
-            <div className="ci-invoice-sheet" ref={invoicePrintRef}>
-              
-              {/* Header */}
-              <div className="sheet-header">
-                <div className="sheet-brand">
-                  <div className="sheet-logo-row">
-                    <img src="/rerendet-logo.png" alt="Rerendet Farm" className="sheet-logo" />
-                    <div>
-                      <h1 className="sheet-company-name">Rerendet Coffee Farm</h1>
-                      <p className="sheet-company-sub">Single-Origin Roastery & Agricultural Estate · Bomet, Kenya</p>
+            {/* PRINTABLE LUXURY COFFEEHOUSE & FARM INVOICE (Matching Email & Storefront Receipts) */}
+            <div className="or-sheet" id="admin-create-preview-sheet" ref={invoicePrintRef} style={{ maxWidth: '100%' }}>
+              {/* Subtle curved background lines */}
+              <svg className="or-sheet-curves" viewBox="0 0 600 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M0 80C140 180 280 40 420 160"
+                  stroke="#D4AF37"
+                  strokeWidth="1"
+                  strokeDasharray="4 6"
+                  opacity="0.4"
+                />
+                <path
+                  d="M120 0C220 120 360 90 480 220"
+                  stroke="#171311"
+                  strokeWidth="0.8"
+                  opacity="0.25"
+                />
+                <circle cx="430" cy="50" r="140" stroke="#E2DDD5" strokeWidth="1" />
+              </svg>
+
+              {/* Top Centered Brand Logo & Title */}
+              <div className="or-center-logo-header">
+                <img
+                  src={publicSettings?.store?.logo || '/rerendet-logo.png'}
+                  alt={publicSettings?.store?.name || 'Rerendet Coffee'}
+                  className="or-center-brand-logo"
+                  onError={(e) => { e.target.src = '/rerendet-logo.png'; }}
+                />
+                <h2 className="or-center-brand-name">{publicSettings?.store?.name || 'RERENDET COFFEE ROASTERS'}</h2>
+                <p className="or-center-brand-sub">Great Rift Valley Highlands · Bomet, Kenya</p>
+              </div>
+
+              {/* ══ Upper Body Grid ══ */}
+              <div className="or-body-grid">
+                {/* ── Left Column: Giant Vertical Title + Client Info ── */}
+                <div className="or-left-col">
+                  <div className="or-title-wrapper">
+                    <h1 className="or-vertical-title">Invoice.</h1>
+                    <div className="or-vertical-accent-line">
+                      <div className="or-accent-dot" />
                     </div>
                   </div>
-                  <div className="sheet-meta-farm">
-                    <span>Highland Estate, Chepalungu Hills</span>
-                    <span>KRA PIN: P051982744T · Agricultural Produce Registered</span>
-                    <span>orders@rerendetcoffee.com · +254 700 000 000</span>
+
+                  <div className="or-client-box">
+                    <span className="or-label-sm">Invoice To :</span>
+                    <h2 className="or-client-name">{client.name || 'Valued Client'}</h2>
+                    {client.company && (
+                      <p className="or-client-text" style={{ fontWeight: 700, color: '#1E150F' }}>
+                        {client.company}
+                      </p>
+                    )}
+                    {client.phone && <p className="or-client-text">{client.phone}</p>}
+                    {client.email && <p className="or-client-text">{client.email}</p>}
+                    <p className="or-client-text">
+                      {client.address ? `${client.address}, ` : ''}
+                      {client.city ? `${client.city}, ` : ''}
+                      {client.country || 'Kenya'}
+                    </p>
+                    {client.kraPin && (
+                      <p className="or-client-text" style={{ fontSize: '11px', color: '#8A7C70' }}>
+                        KRA PIN: {client.kraPin}
+                      </p>
+                    )}
+
+                    <div className="or-three-dots">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
                   </div>
                 </div>
 
-                <div className="sheet-invoice-meta">
-                  <span className="sheet-doc-type">COMMERCIAL INVOICE</span>
-                  <div className="sheet-doc-number">{invoiceNumber}</div>
-                  <div className="sheet-meta-row">
-                    <span className="sm-lbl">Date:</span>
-                    <span className="sm-val">{issueDate}</span>
+                {/* ── Right Column: Brand Capsule & Items Table ── */}
+                <div className="or-right-col">
+                  {/* Header Meta */}
+                  <div className="or-header-meta">
+                    <div className="or-meta-item">
+                      <span className="or-meta-title">Invoice No :</span>
+                      <span className="or-meta-val" style={{ fontWeight: 800 }}>{invoiceNumber}</span>
+                    </div>
+
+                    <div className="or-meta-item">
+                      <span className="or-meta-title">Issue Date:</span>
+                      <span className="or-meta-val">{issueDate}</span>
+                    </div>
+
+                    <div className="or-meta-item">
+                      <span className="or-meta-title">Due Date:</span>
+                      <span className="or-meta-val">{dueDate}</span>
+                    </div>
+
+                    <div className="or-meta-item">
+                      <span className="or-meta-title">Status:</span>
+                      <span className="or-meta-val" style={{ color: '#D97706', fontWeight: 700 }}>
+                        PAYMENT PENDING
+                      </span>
+                    </div>
+
+                    <div className="or-three-dots" style={{ justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <span />
+                      <span />
+                      <span />
+                    </div>
                   </div>
-                  <div className="sheet-meta-row">
-                    <span className="sm-lbl">Due Date:</span>
-                    <span className="sm-val">{dueDate}</span>
+
+                  {/* Editorial Table */}
+                  <div className="or-table-container">
+                    <table className="or-table">
+                      <thead>
+                        <tr>
+                          <th className="col-no">No</th>
+                          <th className="col-desc">Description</th>
+                          <th className="col-amt">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((it, idx) => (
+                          <tr key={it.id || idx}>
+                            <td className="col-no">{idx + 1}.</td>
+                            <td className="col-desc">
+                              <div className="or-desc-name">{it.name || 'Produce Item'}</div>
+                              {it.description && (
+                                <div className="or-desc-meta">{it.description}</div>
+                              )}
+                              <div className="or-desc-meta">
+                                Qty: {it.quantity || 1} {it.unitPrice ? `@ KES ${(Number(it.unitPrice) || 0).toLocaleString()}` : ''}
+                              </div>
+                            </td>
+                            <td className="col-amt">
+                              KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {/* Shipping Cost if entered */}
+                        {shippingCost > 0 && (
+                          <tr>
+                            <td className="col-no">{items.length + 1}.</td>
+                            <td className="col-desc">
+                              <div className="or-desc-name">Delivery / Logistics Handling</div>
+                              <div className="or-desc-meta">Freight Dispatch to {client.city || 'Client Destination'}</div>
+                            </td>
+                            <td className="col-amt">
+                              KES {Number(shippingCost).toLocaleString()}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Tax Row if calculated */}
+                        {taxAmount > 0 && (
+                          <tr>
+                            <td className="col-no">{items.length + (shippingCost > 0 ? 2 : 1)}.</td>
+                            <td className="col-desc">
+                              <div className="or-desc-name">Value Added Tax (VAT {taxRate}%)</div>
+                              <div className="or-desc-meta">Registered Statutory Tax</div>
+                            </td>
+                            <td className="col-amt">
+                              KES {Number(taxAmount).toLocaleString()}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Discount row if entered */}
+                        {discount > 0 && (
+                          <tr>
+                            <td className="col-no">—</td>
+                            <td className="col-desc">
+                              <div className="or-desc-name" style={{ color: '#10B981' }}>Special Commercial Concession</div>
+                              <div className="or-desc-meta">Entity Partnership Discount</div>
+                            </td>
+                            <td className="col-amt" style={{ color: '#10B981' }}>
+                              − KES {Number(discount).toLocaleString()}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Total Row */}
+                        <tr className="or-table-total-row">
+                          <td colSpan="2" style={{ fontWeight: 800 }}>Total Due</td>
+                          <td className="col-amt">
+                            KES {grandTotal.toLocaleString()}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
 
-              {/* Bill To Bar */}
-              <div className="sheet-bill-to-strip">
-                <div className="sheet-bill-box">
-                  <span className="sheet-strip-label">INVOICED TO</span>
-                  <strong className="sheet-client-name">{client.name || 'Valued Customer'}</strong>
-                  {client.company && <span className="sheet-client-co">{client.company}</span>}
-                  {client.address && <span>{client.address}</span>}
-                  <span>{client.city ? `${client.city}, ${client.country || 'Kenya'}` : client.country || 'Kenya'}</span>
-                  {client.phone && <span>Phone: {client.phone}</span>}
-                  {client.email && <span>Email: {client.email}</span>}
-                  {client.kraPin && <span className="sheet-pin">KRA PIN: {client.kraPin}</span>}
-                </div>
-
-                <div className="sheet-payment-box">
-                  <span className="sheet-strip-label">PAYMENT CHANNEL</span>
-                  <strong>Method: {paymentMethod.replace('_', ' ')}</strong>
-                  <p className="sheet-pay-instruct">{paymentInstructions}</p>
-                </div>
-              </div>
-
-              {/* Table of Items */}
-              <table className="sheet-table">
-                <thead>
-                  <tr>
-                    <th className="th-desc">Item Description</th>
-                    <th className="th-qty">Qty</th>
-                    <th className="th-unit">Unit Price</th>
-                    <th className="th-total">Total (KES)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it, idx) => (
-                    <tr key={it.id || idx}>
-                      <td>
-                        <strong className="it-name">{it.name || 'Farm Item'}</strong>
-                      </td>
-                      <td className="td-qty">{it.quantity || 1}</td>
-                      <td className="td-unit">
-                        KES {(Number(it.unitPrice) || 0).toLocaleString()}
-                      </td>
-                      <td className="td-total">
-                        KES {((Number(it.quantity) || 0) * (Number(it.unitPrice) || 0)).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Summary Bottom */}
-              <div className="sheet-summary-row">
-                <div className="sheet-notes-block">
-                  <span className="sheet-strip-label">TERMS & NOTES</span>
-                  <p>{notes}</p>
-                </div>
-
-                <div className="sheet-totals-block">
-                  <div className="st-row">
-                    <span>Subtotal:</span>
-                    <span>KES {subtotal.toLocaleString()}</span>
-                  </div>
-                  {taxRate > 0 && (
-                    <div className="st-row">
-                      <span>VAT ({taxRate}%):</span>
-                      <span>KES {taxAmount.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {shippingCost > 0 && (
-                    <div className="st-row">
-                      <span>Delivery / Logistics:</span>
-                      <span>KES {Number(shippingCost).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {discount > 0 && (
-                    <div className="st-row discount">
-                      <span>Discount:</span>
-                      <span>- KES {Number(discount).toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="st-row grand-total">
-                    <span>Total Due:</span>
-                    <span>KES {grandTotal.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Official Signature Stamp Section */}
-              <div className="sheet-footer">
-                <div className="sheet-sign-box">
-                  {signatureImage ? (
-                    <div className="sheet-signature-wrap">
-                      <img src={signatureImage} alt="Official Signature" className="sheet-signature-img" />
-                    </div>
-                  ) : (
-                    <div className="sheet-sign-line-placeholder" />
-                  )}
-                  <div className="sheet-sign-rule" />
-                  <span className="sheet-signatory-name">{signatoryName}</span>
-                  <span className="sheet-signatory-title">Rerendet Coffee Farm Management</span>
-                </div>
-
-                <div className="sheet-thanks">
-                  <span>Fresh Harvest Quality Guaranteed · Bomet, Kenya</span>
+              {/* Clean Minimalist Single-Page Roastery Footer */}
+              <div className="or-minimal-footer">
+                <div className="or-footer-divider" />
+                <div className="or-footer-row">
+                  <span>🌱 100% Shade-Grown Arabica</span>
+                  <span className="or-footer-dot">•</span>
+                  <span>Single-Origin Highland Harvest</span>
+                  <span className="or-footer-dot">•</span>
+                  <span>Official Commercial Document</span>
                 </div>
               </div>
 

@@ -114,7 +114,7 @@ console.log("✅ connectDB initiated");
 app.use((req, res, next) => {
   const adminSegment = process.env.ADMIN_PATH_SEGMENT || 'admin';
   const path = req.path.toLowerCase();
-  
+
   if (path.startsWith('/admin') || (adminSegment && path.includes(adminSegment.toLowerCase()))) {
     const originalSetHeader = res.setHeader;
     res.setHeader = function (name, value) {
@@ -131,8 +131,8 @@ app.use((req, res, next) => {
       }
       return originalSetHeader.apply(this, arguments);
     };
-    
-    originalSetHeader.call(res, 'Content-Security-Policy', 
+
+    originalSetHeader.call(res, 'Content-Security-Policy',
       `default-src 'self'; ` +
       `script-src 'self'; ` +
       `style-src 'self' 'unsafe-inline'; ` +
@@ -556,5 +556,15 @@ if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
+
+    // Start background Paybill order expiry scheduler (runs every 30 minutes)
+    import('node-cron').then(({ default: cron }) => {
+      import('./services/orderExpiryService.js').then(({ expireUnpaidPaybillOrders }) => {
+        cron.schedule('*/30 * * * *', () => {
+          expireUnpaidPaybillOrders().catch(err => console.error('[Server Cron] Expiry error:', err.message));
+        });
+        console.log('⏰ Paybill order auto-expiry scheduler active (runs every 30 mins)');
+      });
+    }).catch(err => console.warn('⚠️ Could not start server-side cron:', err.message));
   });
 }

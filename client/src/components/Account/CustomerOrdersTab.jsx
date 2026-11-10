@@ -3,7 +3,7 @@ import React, { useState, useContext, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FaSearch, FaEye, FaReceipt, FaTimes, FaPrint, FaArrowRight
+  FaSearch, FaEye, FaReceipt, FaTimes, FaPrint, FaArrowRight, FaDownload
 } from 'react-icons/fa';
 import { AppContext } from '../../context/AppContext';
 import './OrdersTab.css';
@@ -31,12 +31,29 @@ const getItemImage = (item) => {
 
 const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
   const navigate = useNavigate();
-  const { token, showNotification, publicSettings } = useContext(AppContext);
+  const { token, showNotification, publicSettings, addToCart, setIsCartOpen } = useContext(AppContext);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [cancellingId, setCancellingId] = useState(null);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState(null);
+
+  const handleReorder = (order) => {
+    if (!order.items || order.items.length === 0) {
+      navigate('/#coffee-shop');
+      return;
+    }
+    order.items.forEach(item => {
+      addToCart?.(
+        item.product || { _id: item.productId, name: item.name, price: item.price, images: item.image ? [item.image] : [] },
+        item.quantity || 1,
+        item.size || '250g',
+        item.grind || 'Whole Bean'
+      );
+    });
+    setIsCartOpen?.(true);
+    showNotification?.('Items added to your bag!', 'success');
+  };
 
   const store = publicSettings?.store || {};
 
@@ -74,7 +91,10 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
           'Authorization': `Bearer ${activeToken}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ cancellationReason: 'customer_portal_cancellation' })
+        body: JSON.stringify({
+          cancellationReason: 'changed_mind',
+          cancellationNote: 'Cancelled via customer portal'
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -91,61 +111,138 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
   };
 
   return (
-    <div className="ord-luxury-canvas">
-      {/* ══ Editorial Header ══ */}
-      <div className="ord-luxury-header">
-        <span className="ord-luxury-tag">ORDERS</span>
-        <h2 className="ord-luxury-title">My Orders</h2>
-        <p className="ord-luxury-sub">
-          View your order history, track deliveries, and view invoices.
+    <div className="ord-luxury-canvas" style={{ padding: 0 }}>
+      {/* ══ Editorial Header (Matching Image 2) ══ */}
+      <div style={{ marginBottom: '1.25rem' }}>
+        <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
+        <h2 className="rc-dash-title">My orders</h2>
+        <p className="rc-dash-sub">
+          Every order, from the first confirmation to the final delivery.
         </p>
-        <div className="ord-luxury-h-line" />
       </div>
 
-      {/* ══ Search & Minimal Filters Strip ══ */}
-      <div className="ord-luxury-controls">
-        <div className="ord-filter-pills-row">
+      {/* ══ Search & Filter Pills Row (Matching Image 2) ══ */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        marginBottom: '1.5rem',
+        background: '#ffffff',
+        padding: '0.65rem 1rem',
+        borderRadius: '16px',
+        border: '1px solid #EBE4D8'
+      }}>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className={`ord-pill-filter ${statusFilter === 'all' ? 'active' : ''}`}
             onClick={() => setStatusFilter('all')}
+            style={{
+              padding: '0.5rem 1.15rem',
+              borderRadius: '20px',
+              border: 'none',
+              background: statusFilter === 'all' ? '#EFE7DA' : 'transparent',
+              color: statusFilter === 'all' ? '#1E140E' : '#69584B',
+              fontWeight: statusFilter === 'all' ? 700 : 500,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
           >
-            All ({orders.length})
+            All orders
           </button>
           <button
             type="button"
-            className={`ord-pill-filter ${statusFilter === 'active' ? 'active' : ''}`}
             onClick={() => setStatusFilter('active')}
+            style={{
+              padding: '0.5rem 1.15rem',
+              borderRadius: '20px',
+              border: 'none',
+              background: statusFilter === 'active' ? '#EFE7DA' : 'transparent',
+              color: statusFilter === 'active' ? '#1E140E' : '#69584B',
+              fontWeight: statusFilter === 'active' ? 700 : 500,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
           >
-            Active
+            In progress
           </button>
           <button
             type="button"
-            className={`ord-pill-filter ${statusFilter === 'delivered' ? 'active' : ''}`}
             onClick={() => setStatusFilter('delivered')}
+            style={{
+              padding: '0.5rem 1.15rem',
+              borderRadius: '20px',
+              border: 'none',
+              background: statusFilter === 'delivered' ? '#EFE7DA' : 'transparent',
+              color: statusFilter === 'delivered' ? '#1E140E' : '#69584B',
+              fontWeight: statusFilter === 'delivered' ? 700 : 500,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
           >
             Delivered
           </button>
-          <button
-            type="button"
-            className={`ord-pill-filter ${statusFilter === 'cancelled' ? 'active' : ''}`}
-            onClick={() => setStatusFilter('cancelled')}
-          >
-            Cancelled
-          </button>
         </div>
 
-        <div className="ord-search-minimal">
-          <FaSearch className="search-ico" />
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.65rem',
+          background: '#FAF7F2',
+          padding: '0.45rem 1rem',
+          borderRadius: '12px',
+          border: '1px solid #ECE4D8',
+          minWidth: '220px'
+        }}>
+          <FaSearch style={{ color: '#8E7D70', fontSize: '0.8rem' }} />
           <input
             type="text"
-            placeholder="Search orders..."
+            placeholder="Search your order history"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="ord-search-minimal-input"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              outline: 'none',
+              fontSize: '0.84rem',
+              color: '#1E140E',
+              width: '100%'
+            }}
           />
         </div>
       </div>
+
+      {/* ══ Order History Container (Matching Image 2) ══ */}
+      <div className="rc-card-white" style={{ padding: '1.75rem 2rem', marginBottom: '1.75rem' }}>
+        {/* Card Header: Icon + Title + Orders Placed */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: 'rgba(202, 160, 88, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#B58838',
+            fontSize: '0.85rem',
+            flexShrink: 0
+          }}>
+            📦
+          </div>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1E140E', margin: '0 0 2px 0' }}>
+              Order history
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#69584B', margin: 0 }}>
+              {filteredOrders.length === 1 ? '1 order placed so far' : `${filteredOrders.length} orders placed so far`}
+            </p>
+          </div>
+        </div>
 
       {/* ══ Orders List ══ */}
       {loading ? (
@@ -182,7 +279,47 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                     <span className="ord-clean-date">{formattedDate}</span>
                   </div>
 
-                  <div className="ord-clean-badges-right">
+                  <div className="ord-clean-badges-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {order.paymentMethod === 'paybill' && (
+                      <span
+                        className="ord-clean-pay-pill"
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          background: order.paymentStatus === 'paid' ? '#E8F5E9' : order.paymentStatus === 'partially_paid' ? '#FEF3C7' : (order.paymentStatus === 'payment_reported' || order.paymentReporting?.reported) ? '#FEF3C7' : order.paymentStatus === 'expired' ? '#F1F5F9' : '#FFFBEB',
+                          color: order.paymentStatus === 'paid' ? '#1B5E20' : order.paymentStatus === 'partially_paid' ? '#92400E' : (order.paymentStatus === 'payment_reported' || order.paymentReporting?.reported) ? '#92400E' : order.paymentStatus === 'expired' ? '#64748B' : '#B45309',
+                          border: `1px solid ${order.paymentStatus === 'paid' ? '#C8E6C9' : '#FDE68A'}`
+                        }}
+                      >
+                        {order.paymentStatus === 'paid'
+                          ? '✓ Paid (M-Pesa)'
+                          : order.paymentStatus === 'partially_paid'
+                          ? 'Partially Paid'
+                          : (order.paymentStatus === 'payment_reported' || order.paymentReporting?.reported)
+                          ? 'Payment Reported'
+                          : order.paymentStatus === 'expired'
+                          ? 'Expired'
+                          : 'Awaiting Payment'}
+                      </span>
+                    )}
+                    {order.paymentMethod === 'cod' && (
+                      <span
+                        className="ord-clean-pay-pill"
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          background: order.paymentStatus === 'paid' ? '#E8F5E9' : '#F1F5F9',
+                          color: order.paymentStatus === 'paid' ? '#1B5E20' : '#475569',
+                          border: '1px solid #E2E8F0'
+                        }}
+                      >
+                        {order.paymentStatus === 'paid' ? '✓ COD Settled' : 'Cash on Delivery'}
+                      </span>
+                    )}
                     <span className={`ord-clean-status-pill ${statusClass}`}>
                       {statusLabel}
                     </span>
@@ -228,22 +365,58 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                     </span>
                   </div>
 
-                  <div className="ord-clean-actions">
-                    <button
-                      type="button"
-                      className="ord-action-btn outline"
-                      onClick={() => setSelectedInvoiceOrder(order)}
-                    >
-                      <FaReceipt /> View Receipt
-                    </button>
+                  <div className="ord-clean-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {!isCancelled && order.paymentMethod === 'paybill' && ['pending', 'payment_reported', 'partially_paid'].includes(order.paymentStatus) && (
+                      <button
+                        type="button"
+                        className="ord-action-btn outline"
+                        style={{ color: '#D97706', borderColor: '#FCD34D', background: '#FEF3C7' }}
+                        onClick={() => navigate(`/track-order/${order._id}`)}
+                      >
+                        {order.paymentStatus === 'payment_reported' || order.paymentReporting?.reported ? 'Payment Reported' : 'Complete / Report Payment'}
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      className="ord-action-btn solid"
-                      onClick={() => navigate(`/order-tracking/${order._id}`)}
-                    >
-                      Track Order <FaArrowRight style={{ fontSize: '0.7rem' }} />
-                    </button>
+                    {!isCancelled && (order.paymentStatus === 'paid' && order.receipt?.receiptNumber) && (
+                      <a
+                        href={`/api/orders/${order._id}/receipt`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ord-action-btn outline"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                      >
+                        <FaReceipt /> Download PDF Receipt
+                      </a>
+                    )}
+
+                    {!isCancelled ? (
+                      <button
+                        type="button"
+                        className="ord-action-btn solid"
+                        onClick={() => navigate(`/track-order/${order._id}`)}
+                      >
+                        Track Order <FaArrowRight style={{ fontSize: '0.7rem' }} />
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="ord-action-btn outline"
+                          style={{ borderColor: '#E2DDD5', color: '#64748B' }}
+                          onClick={() => navigate(`/track-order/${order._id}`)}
+                        >
+                          Order Details
+                        </button>
+                        <button
+                          type="button"
+                          className="ord-action-btn solid"
+                          style={{ background: '#1E140E', color: '#FFFFFF' }}
+                          onClick={() => handleReorder(order)}
+                        >
+                          Order Again
+                        </button>
+                      </>
+                    )}
 
                     {isCancelable && (
                       <button
@@ -262,25 +435,103 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
           })}
         </div>
       ) : (
-        /* Empty State */
-        <div className="ord-clean-empty">
-          <h3 className="ord-clean-empty-title">
-            {searchTerm ? 'No matching orders found' : 'No orders yet'}
-          </h3>
-          <p className="ord-clean-empty-text">
-            {searchTerm
-              ? `No orders match your search for "${searchTerm}".`
-              : 'You have not placed any orders yet. Discover our fresh roasted coffee.'}
+        /* Empty State (Matching Image 2) */
+        <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '16px',
+            background: '#FAF6EE',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 1.5rem',
+            color: '#B58838',
+            fontSize: '1.6rem'
+          }}>
+            📦
+          </div>
+          <h4 style={{
+            fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
+            fontSize: '1.45rem',
+            fontWeight: 700,
+            color: '#1E140E',
+            margin: '0 0 0.65rem'
+          }}>
+            Your order history starts here
+          </h4>
+          <p style={{ color: '#665548', fontSize: '0.9rem', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.5 }}>
+            When you place an order, you'll find its receipt, delivery progress and tracking details right here.
           </p>
+
+          {/* 3 Step Row (Matching Image 2) */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '2rem',
+            padding: '1.25rem 0',
+            borderTop: '1px solid #F2ECE3',
+            borderBottom: '1px solid #F2ECE3',
+            maxWidth: '560px',
+            margin: '0 auto 2rem',
+            fontSize: '0.85rem',
+            color: '#69584B',
+            fontWeight: 500
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span>📦</span>
+              <span>Order confirmed</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span>🔍</span>
+              <span>Track your parcel</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <span>🚚</span>
+              <span>Delivered to you</span>
+            </div>
+          </div>
+
           <button
             type="button"
-            className="ord-action-btn solid"
+            className="rc-btn-gold"
             onClick={() => navigate('/#coffee-shop')}
           >
-            Shop Coffee
+            Back to your account →
           </button>
         </div>
       )}
+      </div>
+
+      {/* ══ Need a Hand Banner (Matching Image 2) ══ */}
+      <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: 0 }}>
+        <div>
+          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+            Need a hand with an order?
+          </h4>
+          <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+            Our team can help with delivery questions and order updates.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate('/account?tab=tickets')}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#B58838',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            padding: 0
+          }}
+        >
+          Visit help & support ↗
+        </button>
+      </div>
 
       {/* ══ Floating Liceria Luxury Invoice Modal ══ */}
       <AnimatePresence>
@@ -305,17 +556,32 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                 <FaTimes />
               </button>
 
-              <div className="or-toolbar no-print" style={{ padding: '1.25rem 2rem 0', margin: 0 }}>
+              <div className="or-toolbar no-print" style={{ padding: '1.25rem 2rem 0', margin: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--inv-text-muted)' }}>
-                  Official Digital Invoice · #{selectedInvoiceOrder.orderNumber}
+                  {(selectedInvoiceOrder.paymentStatus === 'paid' && selectedInvoiceOrder.receipt?.receiptNumber)
+                    ? `Official Payment Receipt · #${selectedInvoiceOrder.receipt.receiptNumber}`
+                    : `Official Digital Invoice · #${selectedInvoiceOrder.orderNumber}`}
                 </span>
-                <button
-                  type="button"
-                  className="or-btn primary"
-                  onClick={() => window.print()}
-                >
-                  <FaPrint /> Print Official Invoice
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {(selectedInvoiceOrder.paymentStatus === 'paid' && selectedInvoiceOrder.receipt?.receiptNumber) && (
+                    <a
+                      href={`/api/orders/${selectedInvoiceOrder._id || selectedInvoiceOrder.orderNumber}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="or-btn primary"
+                      style={{ textDecoration: 'none', background: '#10B981', color: '#FFFFFF', borderColor: '#10B981', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <FaDownload /> Download PDF
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="or-btn primary"
+                    onClick={() => window.print()}
+                  >
+                    <FaPrint /> Print {selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber ? 'Receipt' : 'Invoice'}
+                  </button>
+                </div>
               </div>
 
               {/* Exact Liceria Editorial Sheet */}
@@ -337,10 +603,24 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                   <circle cx="430" cy="50" r="140" stroke="#E2DDD5" strokeWidth="1" />
                 </svg>
 
+                {/* Top Centered Brand Logo & Title */}
+                <div className="or-center-logo-header">
+                  <img
+                    src={store.logo || '/rerendet-logo.png'}
+                    alt={store.name || 'Rerendet Coffee'}
+                    className="or-center-brand-logo"
+                    onError={(e) => { e.target.src = '/rerendet-logo.png'; }}
+                  />
+                  <h2 className="or-center-brand-name">{store.name || 'RERENDET COFFEE ROASTERS'}</h2>
+                  <p className="or-center-brand-sub">Great Rift Valley Highlands · Bomet, Kenya</p>
+                </div>
+
                 <div className="or-body-grid">
                   <div className="or-left-col">
                     <div className="or-title-wrapper">
-                      <h1 className="or-vertical-title">Invoice.</h1>
+                      <h1 className="or-vertical-title">
+                        {selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber ? 'Receipt.' : 'Invoice.'}
+                      </h1>
                       <div className="or-vertical-accent-line">
                         <div className="or-accent-dot" />
                       </div>
@@ -364,6 +644,19 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                         {`${selectedInvoiceOrder.shippingAddress?.town ? selectedInvoiceOrder.shippingAddress.town + ', ' : ''}${selectedInvoiceOrder.shippingAddress?.county ? selectedInvoiceOrder.shippingAddress.county + ', ' : ''}${selectedInvoiceOrder.shippingAddress?.country || 'Kenya'}`}
                       </p>
 
+                      <div className="or-paymethod-capsule">
+                        <span className="or-paymethod-title">Payment Method</span>
+                        <span className="or-paymethod-val">
+                          {selectedInvoiceOrder.paymentMethod === 'paybill' ? 'M-Pesa Paybill' : (selectedInvoiceOrder.paymentMethod === 'cod' ? 'Cash on Delivery' : (selectedInvoiceOrder.paymentMethod === 'card' ? 'Credit / Debit Card' : 'M-Pesa'))}
+                        </span>
+                        <span
+                          className="or-paymethod-status"
+                          style={{ color: (selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber) ? '#10B981' : '#F59E0B' }}
+                        >
+                          {(selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber) ? '✓ PAID IN FULL (Verified)' : '⏳ Awaiting Payment'}
+                        </span>
+                      </div>
+
                       <div className="or-three-dots">
                         <span />
                         <span />
@@ -374,25 +667,26 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
 
                   <div className="or-right-col">
                     <div className="or-header-meta">
-                      <div className="or-brand-capsule">
-                        <span className="or-capsule-name">
-                          {store.name || 'Rerendet Co.'}
-                        </span>
-                        <img
-                          src={store.logo || '/rerendet-emblem.png'}
-                          alt="Rerendet Emblem"
-                          className="or-capsule-emblem"
-                          onError={(e) => { e.target.src = '/rerendet-logo.png'; }}
-                        />
-                      </div>
+                      {(selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber) && selectedInvoiceOrder.receipt?.receiptNumber ? (
+                        <>
+                          <div className="or-meta-item">
+                            <span className="or-meta-title">Receipt No :</span>
+                            <span className="or-meta-val" style={{ color: '#10B981', fontWeight: 800 }}>{selectedInvoiceOrder.receipt.receiptNumber}</span>
+                          </div>
+                          <div className="or-meta-item">
+                            <span className="or-meta-title">Order No :</span>
+                            <span className="or-meta-val">#{selectedInvoiceOrder.orderNumber}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="or-meta-item">
+                          <span className="or-meta-title">Invoice No :</span>
+                          <span className="or-meta-val">No. {selectedInvoiceOrder.orderNumber}</span>
+                        </div>
+                      )}
 
                       <div className="or-meta-item">
-                        <span className="or-meta-title">Invoice No :</span>
-                        <span className="or-meta-val">No. {selectedInvoiceOrder.orderNumber}</span>
-                      </div>
-
-                      <div className="or-meta-item">
-                        <span className="or-meta-title">Invoice Date:</span>
+                        <span className="or-meta-title">{selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber ? 'Receipt Date:' : 'Invoice Date:'}</span>
                         <span className="or-meta-val">
                           {selectedInvoiceOrder.createdAt
                             ? new Date(selectedInvoiceOrder.createdAt).toLocaleDateString('en-GB', {
@@ -401,6 +695,13 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                                 year: 'numeric'
                               })
                             : new Date().toLocaleDateString('en-GB')}
+                        </span>
+                      </div>
+
+                      <div className="or-meta-item">
+                        <span className="or-meta-title">Status :</span>
+                        <span className="or-meta-val" style={{ color: (selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber) ? '#10B981' : '#F59E0B', fontWeight: 700 }}>
+                          {(selectedInvoiceOrder.paymentStatus === 'paid' || selectedInvoiceOrder.receipt?.receiptNumber) ? 'PAID IN FULL (Verified)' : 'Awaiting Payment'}
                         </span>
                       </div>
 
@@ -474,45 +775,18 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                   </div>
                 </div>
 
-                <div className="or-dark-banner">
-                  <DotGrid className="top-right" />
-                  <DotGrid className="bottom-left" />
-
-                  <div className="or-signature-block">
-                    <div className="or-signature-area">
-                      {store.signature ? (
-                        <img
-                          src={store.signature}
-                          alt="Authorized Signature"
-                          className="or-signature-img"
-                        />
-                      ) : (
-                        <div className="or-signature-cursive">
-                          Rerendet
-                        </div>
-                      )}
-                    </div>
-                    <p className="or-signatory-name">
-                      {store.signatoryName || 'Authorized Signatory'}
-                    </p>
-                  </div>
-
-                  <div className="or-details-block">
-                    <div>
-                      <h3 className="or-banner-section-title">Payment Details:</h3>
-                      <p className="or-banner-text">
-                        <strong>Method:</strong> {selectedInvoiceOrder.paymentMethod === 'mpesa' ? 'M-PESA Express' : 'Credit / Debit Card'}<br />
-                        <strong>Receipt Ref:</strong> {selectedInvoiceOrder.transactionId || 'Completed Transaction'}
-                      </p>
-                    </div>
-
-                    <div>
-                      <h3 className="or-banner-section-title">Notes:</h3>
-                      <p className="or-banner-text">
-                        Payment verified. 100% shade-grown Arabica from the Great Rift Valley highlands.
-                      </p>
-                    </div>
-                  </div>
+                {/* Clean Minimalist Single-Page Roastery Footer */}
+                <div className="or-minimal-footer">
+                  <div className="or-footer-divider" />
+                  <p className="or-footer-policy">
+                    Goods once sold are not returnable unless damaged upon delivery.
+                  </p>
+                  <p className="or-footer-contact">
+                    Support Email: {store.email || 'rerendet@gmail.com'} &bull; Contact / WhatsApp: {store.phone || '+254 705 684 894'}
+                  </p>
+                  <p className="or-footer-estate">
+                    {store.name || 'Rerendet Coffee Roasters Limited'} &bull; Bomet Highlands, Great Rift Valley, Kenya
+                  </p>
                 </div>
               </div>
             </motion.div>

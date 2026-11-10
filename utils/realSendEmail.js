@@ -1,14 +1,22 @@
 // utils/realSendEmail.js
 import nodemailer from 'nodemailer';
+import mongoose from 'mongoose';
 import Settings from '../models/Settings.js';
 
 const realSendEmail = async (options) => {
   try {
     console.log('[Direct SMTP] Attempting to send email to:', options.email || options.to);
 
-    // Fetch dynamic settings from DB
-    const settings = await Settings.getSettings();
-    const emailConfig = settings.email;
+    // Fetch dynamic settings from DB if connected
+    let emailConfig = null;
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const settings = await Settings.getSettings();
+        emailConfig = settings?.email;
+      } catch (err) {
+        console.warn('⚠️ Could not fetch email settings from DB, using ENV:', err.message);
+      }
+    }
     const isMock = options.mock || false;
 
     // Determine config source: DB or ENV

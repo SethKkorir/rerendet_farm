@@ -1,128 +1,144 @@
 /* ==========================================================================
-   RERENDET COFFEE — HERO SECTION
-   Quiet Luxury • 1-Second Hook • Deep Espresso & Warm Crema Gold
+   RERENDET COFFEE — HERO SECTION (PREMIUM RESTRUCTURE)
+   Clean Editorial • Conveyor Belt Showcase • Quiet Luxury
    ========================================================================== */
 
+/* ── 1. HERO CONTAINER ── */
 .hero-modern {
   position: relative;
-  min-height: 88vh;
+  min-height: 94vh;
   display: flex;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
-  background-color: var(--bg-home, #201104);
+  background-color: var(--bg-home, #0f0a06);
   color: var(--text-main, #ffffff);
-  padding: 4.5rem 1.5rem 3.5rem;
+  padding: 7rem 1.5rem 3.5rem;
 }
 
-/* Background Burlap Texture */
-.hero-coffee-texture {
+/* ── 2. BACKGROUND LAYERS ── */
+
+/* Film grain texture overlay */
+.hero-bg-grain {
   position: absolute;
   inset: 0;
+  background-image: url("/coffee_burlap_texture_1772078391678.png");
   background-size: cover;
   background-position: center;
-  opacity: 0.04;
+  opacity: 0.03;
   mix-blend-mode: overlay;
   pointer-events: none;
   z-index: 1;
 }
 
-/* Soft Ambient Golden Crema Spotlight */
-.hero-ambient-spotlight {
-  position: absolute;
-  top: 15%;
-  right: 12%;
-  width: 650px;
-  height: 650px;
-  background: radial-gradient(circle, rgba(212, 163, 89, 0.12) 0%, rgba(184, 134, 40, 0.04) 45%, transparent 70%);
-  pointer-events: none;
-  z-index: 1;
-  filter: blur(50px);
-}
-
-.hero-modern::before {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 5%;
-  width: 500px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(139, 90, 43, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 1;
-  filter: blur(60px);
-}
-
-/* Floating Ambient Beans */
-.hero-floating-beans {
+/* Smooth radial gradient behind content */
+.hero-bg-gradient {
   position: absolute;
   inset: 0;
+  background:
+    radial-gradient(ellipse 70% 60% at 75% 45%, rgba(45, 28, 12, 0.7) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 70% at 20% 80%, rgba(30, 18, 8, 0.5) 0%, transparent 60%);
   pointer-events: none;
   z-index: 1;
-  overflow: hidden;
 }
 
-.floating-bean {
+/* Cinematic vignette */
+.hero-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(8, 4, 2, 0.6) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Warm ambient light pools */
+.hero-ambient-pool {
   position: absolute;
   pointer-events: none;
-  user-select: none;
-  will-change: transform, opacity;
+  z-index: 1;
+  border-radius: 50%;
 }
 
-/* ── GRID LAYOUT ── */
+.hero-ambient-pool--right {
+  top: 10%;
+  right: 5%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(212, 163, 89, 0.08) 0%, rgba(184, 134, 40, 0.02) 50%, transparent 70%);
+  filter: blur(80px);
+}
+
+.hero-ambient-pool--left {
+  bottom: 5%;
+  left: 0;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(139, 90, 43, 0.06) 0%, transparent 65%);
+  filter: blur(70px);
+}
+
+/* ── 3. GRID LAYOUT — Centered Luxury Framework ── */
 .hero-grid {
   display: grid;
-  grid-template-columns: 1.15fr 0.95fr;
+  grid-template-columns: 1.08fr 0.92fr;
   gap: 3.5rem;
   align-items: center;
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 1.5rem;
   position: relative;
   z-index: 10;
   width: 100%;
 }
 
-/* ── LEFT COLUMN: TEXT CONTENT ── */
+/* ── 4. LEFT COLUMN — EDITORIAL TEXT CONTENT ── */
 .hero-text-content {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   z-index: 2;
+  padding-left: 0.5rem;
+  padding-right: 0.75rem;
 }
 
-/* Main Headline */
+/* Main Headline — Highland Mist on Top, Poured for Perfection Below */
 .hero-main-title {
   font-family: var(--font-heading, "Playfair Display", Georgia, serif);
-  font-size: clamp(2.4rem, 4.8vw, 3.85rem);
-  line-height: 1.14;
+  font-size: clamp(2.5rem, 4.2vw, 3.85rem);
+  line-height: 1.13;
   font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--text-main, #ffffff);
-  margin: 0 0 1.25rem 0;
+  margin: 0 0 1.4rem 0;
   text-align: left;
 }
 
+/* Line 1: Highland Mist alone on top */
 .headline-first {
   display: block;
+  color: #fffaf5;
 }
 
+/* Line 2: Poured for Perfection below in radiant warm gold */
 .headline-accent {
   display: block;
-  background: linear-gradient(135deg, #fce99f 0%, #d4a359 50%, #b88628 100%);
+  background: linear-gradient(135deg, #fce5b8 0%, #e6b262 40%, #c98834 80%, #f0c988 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   font-style: italic;
   font-weight: 500;
-  margin-top: 0.2rem;
+  margin-top: 0.3rem;
+  text-shadow: 0 0 35px rgba(230, 178, 98, 0.25);
 }
 
 /* Subline */
 .hero-subline {
   font-size: 1.02rem;
-  line-height: 1.65;
-  color: var(--text-muted, #b3aba4);
-  max-width: 520px;
-  margin: 0 0 2rem 0;
+  line-height: 1.7;
+  color: var(--text-muted, #9e968e);
+  max-width: 480px;
+  margin: 0 0 2.25rem 0;
   font-weight: 350;
 }
 
@@ -130,129 +146,76 @@
 .hero-button-group {
   display: flex;
   align-items: center;
-  gap: 1.15rem;
+  gap: 1rem;
   flex-wrap: wrap;
   margin-bottom: 0;
 }
 
 .btn-hero-primary {
-  padding: 0.95rem 2.15rem;
+  padding: 1rem 2.25rem;
   border-radius: 999px;
   background: linear-gradient(135deg, #d4a359 0%, #b88628 100%);
   color: #0b0806;
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 6px 24px rgba(212, 163, 89, 0.35);
+  gap: 0.6rem;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(212, 163, 89, 0.3);
 }
 
 .btn-hero-primary:hover {
   background: linear-gradient(135deg, #fce99f 0%, #d4a359 100%);
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(212, 163, 89, 0.48);
+  box-shadow: 0 8px 32px rgba(212, 163, 89, 0.45);
 }
 
 .hero-btn-arrow {
-  font-size: 0.85rem;
-  transition: transform 0.2s ease;
+  font-size: 0.8rem;
+  transition: transform 0.25s ease;
 }
 
 .btn-hero-primary:hover .hero-btn-arrow {
-  transform: translateX(3px);
+  transform: translateX(4px);
 }
 
 .btn-hero-ghost {
-  padding: 0.95rem 1.85rem;
+  padding: 1rem 2rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: var(--text-main, #ffffff);
   font-family: inherit;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  border: 1px solid rgba(212, 163, 89, 0.3);
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  transition: all 0.25s ease;
+  transition: all 0.35s ease;
 }
 
 .btn-hero-ghost:hover {
   border-color: var(--color-primary, #d4a359);
   color: var(--color-primary, #d4a359);
-  background: rgba(212, 163, 89, 0.08);
+  background: rgba(212, 163, 89, 0.06);
   transform: translateY(-2px);
 }
 
-/* ── RIGHT COLUMN: PRODUCT SHOWCASE ── */
+
+/* ── 5. RIGHT COLUMN — PRODUCT SHOWCASE ── */
 .hero-image-container {
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 5;
-}
-
-.hero-product-stage {
-  position: relative;
-  width: 100%;
-  max-width: 480px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  perspective: 1200px;
-}
-
-/* Radial Stage Spotlight */
-.hero-stage-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 120%;
-  height: 120%;
-  background: radial-gradient(circle, rgba(212, 163, 89, 0.16) 0%, rgba(184, 134, 40, 0.05) 50%, transparent 70%);
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Product Frame (GSAP Animated 3D Tilt) */
-.hero-product-frame {
-  position: relative;
-  z-index: 2;
-  transform-style: preserve-3d;
-  will-change: transform;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.hero-product-img {
-  max-width: 100%;
-  max-height: 460px;
-  object-fit: contain;
-  filter: drop-shadow(0 25px 45px rgba(0, 0, 0, 0.85));
-  display: block;
-  transform-style: preserve-3d;
-  will-change: transform;
-}
-
-.hero-img-glare {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(125deg, transparent 40%, rgba(255, 255, 255, 0.08) 50%, transparent 60%);
-  background-size: 200% 200%;
-  pointer-events: none;
-  border-radius: 20px;
 }
 
 /* Floating Promo Discount Seal */
@@ -298,7 +261,7 @@
   margin-top: 1px;
 }
 
-/* Floating Origin Heritage Card (Top Left) */
+/* Floating Origin Heritage Card */
 .hero-floating-origin {
   position: absolute;
   top: 30px;
@@ -308,12 +271,12 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.65rem 1rem;
-  border-radius: 12px;
-  background: rgba(44, 24, 11, 0.94);
-  border: 1px solid rgba(216, 150, 78, 0.25);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  border-radius: 14px;
+  background: rgba(18, 10, 5, 0.85);
+  border: 1px solid rgba(212, 163, 89, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .origin-icon {
@@ -327,9 +290,9 @@
 }
 
 .origin-sub {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--color-primary, #d4a359);
   font-weight: 700;
 }
@@ -341,7 +304,7 @@
   letter-spacing: -0.01em;
 }
 
-/* Floating Sensory Roast Profile Card (Bottom Right) */
+/* Floating Sensory Roast Profile Card */
 .hero-floating-sensory {
   position: absolute;
   bottom: 0px;
@@ -351,12 +314,12 @@
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.7rem 1.05rem;
-  border-radius: 12px;
-  background: rgba(44, 24, 11, 0.94);
-  border: 1px solid rgba(216, 150, 78, 0.25);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.6);
+  border-radius: 14px;
+  background: rgba(18, 10, 5, 0.85);
+  border: 1px solid rgba(212, 163, 89, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .sensory-meter {
@@ -367,10 +330,10 @@
 }
 
 .sensory-tag {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted, #a1a1aa);
+  letter-spacing: 0.1em;
+  color: var(--text-muted, #8a8078);
   font-weight: 600;
 }
 
@@ -383,14 +346,15 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(212, 163, 89, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.4s ease;
 }
 
 .sensory-dot.filled {
   background: var(--color-primary, #d4a359);
   border-color: var(--color-primary, #d4a359);
-  box-shadow: 0 0 6px rgba(212, 163, 89, 0.6);
+  box-shadow: 0 0 6px rgba(212, 163, 89, 0.5);
 }
 
 .sensory-label {
@@ -400,33 +364,20 @@
   letter-spacing: 0.02em;
 }
 
-/* Floor Shadow */
-.hero-floor-shadow {
-  position: absolute;
-  bottom: -25px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 75%;
-  height: 25px;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.3) 40%, transparent 70%);
-  filter: blur(8px);
-  z-index: 1;
-}
-
-/* ── Minimalist Scroll Indicator ── */
+/* ── 6. SCROLL INDICATOR ── */
 .hero-scroll-indicator {
   position: absolute;
-  bottom: 1.25rem;
+  bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   cursor: pointer;
   z-index: 10;
-  opacity: 0.75;
-  transition: opacity 0.2s ease;
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
 }
 
 .hero-scroll-indicator:hover {
@@ -434,23 +385,66 @@
 }
 
 .scroll-text {
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.2em;
   color: var(--color-primary, #d4a359);
   font-weight: 700;
 }
 
-.scroll-pill-line {
-  width: 1px;
-  height: 24px;
-  background: linear-gradient(180deg, var(--color-primary, #d4a359) 0%, transparent 100%);
+.scroll-pill-track {
+  width: 2px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
 }
 
-/* ── Light Mode Adaptations ── */
+.scroll-pill {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--color-primary, #d4a359) 0%, transparent 100%);
+  animation: scrollPillDrop 2.4s ease-in-out infinite;
+}
+
+@keyframes scrollPillDrop {
+  0% {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+}
+
+/* ── 7. LIGHT MODE ── */
 [data-theme='light'] .hero-modern {
   background-color: #faf8f5;
   color: #1a1410;
+}
+
+[data-theme='light'] .hero-bg-gradient {
+  background:
+    radial-gradient(ellipse 70% 60% at 75% 45%, rgba(250, 245, 235, 0.8) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 70% at 20% 80%, rgba(245, 240, 230, 0.6) 0%, transparent 60%);
+}
+
+[data-theme='light'] .hero-bg-vignette {
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(245, 240, 232, 0.5) 100%);
+}
+
+[data-theme='light'] .hero-ambient-pool--right {
+  background: radial-gradient(circle, rgba(212, 163, 89, 0.06) 0%, transparent 65%);
+}
+
+[data-theme='light'] .hero-ambient-pool--left {
+  background: radial-gradient(circle, rgba(139, 90, 43, 0.04) 0%, transparent 60%);
 }
 
 [data-theme='light'] .hero-main-title {
@@ -461,17 +455,34 @@
   color: #63574d;
 }
 
-[data-theme='light'] .btn-hero-ghost {
-  background: rgba(0, 0, 0, 0.03);
+[data-theme='light'] .headline-first {
   color: #1a1410;
-  border-color: rgba(212, 163, 89, 0.5);
+}
+
+[data-theme='light'] .headline-accent {
+  background: linear-gradient(135deg, #b87c28 0%, #8c5812 60%, #a46d1e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+}
+
+[data-theme='light'] .btn-hero-ghost {
+  background: transparent;
+  color: #1a1410;
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+[data-theme='light'] .btn-hero-ghost:hover {
+  border-color: #9a7b4e;
+  color: #9a7b4e;
 }
 
 [data-theme='light'] .hero-floating-origin,
 [data-theme='light'] .hero-floating-sensory {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme='light'] .origin-main,
@@ -479,22 +490,36 @@
   color: #1a1410;
 }
 
-/* ── RESPONSIVE BREAKPOINTS ── */
+[data-theme='light'] .origin-sub {
+  color: #9a7b4e;
+}
+
+[data-theme='light'] .sensory-dot {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='light'] .scroll-pill-track {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ── 8. RESPONSIVE ── */
 @media (max-width: 1024px) {
   .hero-modern {
     min-height: auto;
-    padding: 3.5rem 1.25rem 3rem;
+    padding: 7.25rem 1.5rem 3.5rem;
   }
 
   .hero-grid {
     grid-template-columns: 1fr;
-    gap: 2.75rem;
+    gap: 3rem;
     text-align: center;
   }
 
   .hero-text-content {
     align-items: center;
     text-align: center;
+    padding-right: 0;
   }
 
   .hero-main-title {
@@ -510,10 +535,6 @@
     justify-content: center;
   }
 
-  .hero-product-stage {
-    max-width: 380px;
-  }
-
   .hero-floating-origin {
     left: 0;
   }
@@ -525,11 +546,18 @@
 
 @media (max-width: 640px) {
   .hero-modern {
-    padding: 2.5rem 1rem 2rem;
+    padding: calc(5.75rem + env(safe-area-inset-top, 0px)) 1.25rem 2.5rem;
   }
 
   .hero-main-title {
-    font-size: 2.15rem;
+    font-size: clamp(1.85rem, 7vw, 2.45rem);
+    line-height: 1.2;
+    white-space: normal;
+  }
+
+  .headline-first,
+  .headline-accent {
+    white-space: normal;
   }
 
   .hero-subline {
@@ -546,15 +574,7 @@
   .btn-hero-ghost {
     width: 100%;
     justify-content: center;
-    padding: 0.85rem 1.5rem;
-  }
-
-  .hero-product-stage {
-    max-width: 300px;
-  }
-
-  .hero-product-img {
-    max-height: 320px;
+    padding: 0.9rem 1.5rem;
   }
 
   .hero-promo-seal {

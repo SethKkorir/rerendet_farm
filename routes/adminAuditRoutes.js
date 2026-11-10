@@ -18,6 +18,7 @@ router.get('/', asyncHandler(async (req, res) => {
     orderId,
     startDate,
     endDate,
+    search,
     page = 1,
     limit = 50
   } = req.query;
@@ -28,10 +29,23 @@ router.get('/', asyncHandler(async (req, res) => {
   if (actionCategory) filter['details.actionCategory'] = actionCategory;
   if (orderId) filter.entityId = orderId;
 
+  if (search && search.trim()) {
+    const s = search.trim();
+    filter.$or = [
+      { action: { $regex: s, $options: 'i' } },
+      { entityName: { $regex: s, $options: 'i' } },
+      { ipAddress: { $regex: s, $options: 'i' } }
+    ];
+  }
+
   if (startDate || endDate) {
     filter.createdAt = {};
     if (startDate) filter.createdAt.$gte = new Date(startDate);
-    if (endDate) filter.createdAt.$lte = new Date(endDate);
+    if (endDate) {
+      const eDate = new Date(endDate);
+      eDate.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = eDate;
+    }
   }
 
   const skip = (parseInt(page) - 1) * parseInt(limit);

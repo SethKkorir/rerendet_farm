@@ -1,10 +1,10 @@
-import React, { useState, useContext, useEffect, useCallback } from 'react';
+import React, { useState, useContext, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleLogin, useGoogleLogin } from '@react-oauth/google';
 import { FaCoffee, FaTimes, FaEye, FaEyeSlash, FaArrowLeft, FaEnvelope, FaLock, FaUser, FaGoogle } from 'react-icons/fa';
 import { AppContext } from '../../context/AppContext';
-import { forgotPassword, verifyResetCode, resetPassword, verifyEmail, resendVerification, checkEmail } from '../../api/api';
+import { forgotPassword, verifyResetCode, resetPassword, resendResetCode, getResetStatus, verifyEmail, resendVerification, checkEmail } from '../../api/api';
 import './AuthModal.css';
 
 const defaultPolicies = {
@@ -42,6 +42,28 @@ We respect your right to privacy. You can permanently delete your account and wi
     `
 };
 
+// Helper to mask email for privacy (e.g. "kipzseth@gmail.com" -> "ki••••h@gmail.com")
+const maskEmail = (email) => {
+    if (!email || typeof email !== 'string') return '';
+    const trimmed = email.trim();
+    const atIndex = trimmed.indexOf('@');
+    if (atIndex <= 1) return trimmed;
+
+    const local = trimmed.slice(0, atIndex);
+    const domain = trimmed.slice(atIndex);
+
+    let maskedLocal;
+    if (local.length <= 3) {
+        maskedLocal = `${local[0]}••••`;
+    } else {
+        const first = local.slice(0, 2);
+        const last = local.slice(-1);
+        maskedLocal = `${first}••••${last}`;
+    }
+
+    return `${maskedLocal}${domain}`;
+};
+
 const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = false }) => {
     const { login, register, loginWithGoogle, verify2FA, verifyEmail, loading: authLoading, showSuccess, showError, showNotification, publicSettings } = useContext(AppContext);
     const navigate = useNavigate();
@@ -57,12 +79,17 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
 
     // Form States
     const [loginData, setLoginData] = useState({ email: '', password: '' });
+    const [checkingLoginEmail, setCheckingLoginEmail] = useState(false);
+    const loginEmailCache = useRef(new Map());
+    const loginEmailDebounceTimer = useRef(null);
     const [signupData, setSignupData] = useState({
         firstName: '', lastName: '', email: '', password: '', confirmPassword: '',
         phone: '', gender: '', dob: '', agreeTerms: false
     });
     const [signupStep, setSignupStep] = useState(1);
     const [forgotEmail, setForgotEmail] = useState('');
+    const [pending2FAEmail, setPending2FAEmail] = useState('');
+    const isSubmittingRef = useRef(false);
     const [verifiedResetCode, setVerifiedResetCode] = useState('');
     const [resetData, setResetData] = useState({ code: '', newPassword: '', confirmPassword: '' });
     const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
@@ -80,6 +107,8 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
 
     // View switcher (syncs routes when embedded)
     const switchView = useCallback((newView) => {
+        if (loginEmailDebounceTimer.current) clearTimeout(loginEmailDebounceTimer.current);
+        setCheckingLoginEmail(false);
         setView(newView);
         setErrors({});
         if (embedded) {
@@ -111,17 +140,47 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                 setVerificationCode(['', '', '', '', '', '']);
             }
             setResetData({ code: '', newPassword: '', confirmPassword: '' });
+
+            // Restore active recovery state across browser refreshes if challenge cookies exist
+            if (!urlToken && !urlCode && initialView !== 'reset-password') {
+                getResetStatus()
+                    .then(res => {
+                        if (res.data?.success && res.data?.data) {
+                            const { status, maskedEmail, remainingCooldownSeconds } = res.data.data;
+                            if (status === 'OTP_VERIFIED') {
+                                setView('reset-password');
+                                if (maskedEmail) setForgotEmail(maskedEmail);
+                            } else if (status === 'OTP_PENDING') {
+                                setView('verify-reset-code');
+                                if (maskedEmail) setForgotEmail(maskedEmail);
+                                if (remainingCooldownSeconds > 0) setResendTimer(remainingCooldownSeconds);
+                            }
+                        }
+                    })
+                    .catch(() => {});
+            }
         }
     }, [isOpen, initialView, embedded, searchParams]);
 
-    // Resend Timer Logic
+    // Resend Timer Logic - counts down smoothly every second
     useEffect(() => {
         let timer;
         if (resendTimer > 0) {
-            timer = setInterval(() => setResendTimer(t => t - 1), 1000);
+            timer = setInterval(() => {
+                setResendTimer(t => (t > 1 ? t - 1 : 0));
+            }, 1000);
         }
-        return () => clearInterval(timer);
+        return () => {
+            if (timer) clearInterval(timer);
+        };
     }, [resendTimer]);
+
+    // Automatically trigger a 60s cooldown counter whenever entering a verification view
+    useEffect(() => {
+        if (view === 'verify-email' || view === '2fa-login' || view === 'verify-reset-code') {
+            setResendTimer(prev => (prev > 0 ? prev : 60));
+        }
+    }, [view]);
 
     // GOOGLE LOGIN (Custom Hook)
     const handleGoogleLogin = useGoogleLogin({
@@ -132,6 +191,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                     setLoginData(prev => ({ ...prev, email: data.email }));
                     setSignupData(prev => ({ ...prev, email: data.email }));
                     setView('2fa-login');
+                    setResendTimer(60);
                 } else {
                     handleAuthSuccess();
                 }
@@ -156,28 +216,159 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
     };
 
-    const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const validateEmail = (email) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(String(email).trim());
+
+    // Pre-validate and check customer email existence even before password entry
+    const checkLoginEmail = useCallback(async (emailVal) => {
+        const email = String(emailVal || '').trim().toLowerCase();
+        if (!email) {
+            setErrors(prev => ({ ...prev, email: 'Please enter your email address' }));
+            return false;
+        }
+
+        if (!validateEmail(email)) {
+            setErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
+            return false;
+        }
+
+        if (loginEmailCache.current.has(email)) {
+            const exists = loginEmailCache.current.get(email);
+            if (!exists) {
+                setErrors(prev => ({
+                    ...prev,
+                    email: 'No account found with this email. Please check your email or sign up.'
+                }));
+                return false;
+            }
+            setErrors(prev => {
+                if (prev.email) {
+                    const next = { ...prev };
+                    delete next.email;
+                    return next;
+                }
+                return prev;
+            });
+            return true;
+        }
+
+        setCheckingLoginEmail(true);
+        try {
+            const res = await checkEmail(email);
+            const exists = Boolean(res.data?.exists ?? res.data?.data?.exists);
+            const detectedUserType = res.data?.userType ?? res.data?.data?.userType;
+            loginEmailCache.current.set(email, exists);
+
+            if (!exists) {
+                setErrors(prev => ({
+                    ...prev,
+                    email: 'No account found with this email. Please check your email or sign up.'
+                }));
+                return false;
+            } else if (detectedUserType === 'admin') {
+                setErrors(prev => ({
+                    ...prev,
+                    email: 'This is an administrator account. Please use the Admin Portal to sign in.'
+                }));
+                return false;
+            } else {
+                setErrors(prev => {
+                    if (prev.email) {
+                        const next = { ...prev };
+                        delete next.email;
+                        return next;
+                    }
+                    return prev;
+                });
+                return true;
+            }
+        } catch {
+            return true;
+        } finally {
+            setCheckingLoginEmail(false);
+        }
+    }, []);
+
+    const handleLoginEmailChange = (e) => {
+        const val = e.target.value;
+        setLoginData(prev => ({ ...prev, email: val }));
+        if (errors.email) {
+            setErrors(prev => ({ ...prev, email: '' }));
+        }
+        if (errors.general) {
+            setErrors(prev => ({ ...prev, general: '' }));
+        }
+
+        if (loginEmailDebounceTimer.current) {
+            clearTimeout(loginEmailDebounceTimer.current);
+        }
+
+        const trimmed = val.trim();
+        if (trimmed && /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
+            loginEmailDebounceTimer.current = setTimeout(() => {
+                checkLoginEmail(trimmed);
+            }, 600);
+        }
+    };
+
+    const handleLoginEmailBlur = () => {
+        if (loginEmailDebounceTimer.current) {
+            clearTimeout(loginEmailDebounceTimer.current);
+        }
+        const email = (loginData.email || '').trim();
+        if (!email) return;
+        checkLoginEmail(email);
+    };
+
+    const handlePasswordFocus = () => {
+        if (loginEmailDebounceTimer.current) {
+            clearTimeout(loginEmailDebounceTimer.current);
+        }
+        const email = (loginData.email || '').trim();
+        if (!email) {
+            setErrors(prev => ({ ...prev, email: 'Please enter your email address first' }));
+            return;
+        }
+        checkLoginEmail(email);
+    };
 
     // LOGIN
     const handleLogin = async (e) => {
         e.preventDefault();
-        if (!loginData.email || !loginData.password) return setErrors({ general: 'All fields are required' });
+        const email = (loginData.email || '').trim().toLowerCase();
+        if (!email) {
+            return setErrors(prev => ({ ...prev, email: 'Please enter your email address' }));
+        }
+
+        // Verify email existence before attempting credentials check
+        const isEmailValid = await checkLoginEmail(email);
+        if (!isEmailValid) {
+            return;
+        }
+
+        if (!loginData.password) {
+            return setErrors(prev => ({ ...prev, password: 'Password is required' }));
+        }
 
         setLoading(true);
         setErrors({});
         try {
             const data = await login(loginData);
             if (data?.requires2FA) {
-                // If 2FA required, switch to 2FA view
+                // If 2FA required, switch to 2FA view and persist target email
+                setPending2FAEmail(loginData.email || data.email || '');
                 setView('2fa-login');
                 setVerificationCode(['', '', '', '', '', '']); // Clear code
+                setResendTimer(60);
             } else {
                 handleAuthSuccess();
             }
         } catch (err) {
-            // Explicitly set the error here so it shows in the modal
             const msg = err.response?.data?.message || err.message || 'Login failed';
-            setErrors({ general: msg });
+            if (/user not found|account not found|no user|email not found/i.test(msg)) {
+                setErrors({ email: msg });
+            } else {
+                setErrors({ general: msg });
+            }
         } finally {
             setLoading(false);
         }
@@ -240,7 +431,9 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
         setErrors({});
         try {
             await register(signupData); // This triggers email sending on backend
+            setPending2FAEmail(signupData.email);
             setView('verify-email');
+            setResendTimer(60);
         } catch (err) {
             const msg = err.response?.data?.message || err.message || 'Registration failed';
             setErrors({ general: msg });
@@ -260,12 +453,14 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
     // VERIFICATION
     const handleVerification = async (e, forcedCode = null) => {
         if (e) e.preventDefault();
+        if (isSubmittingRef.current) return;
         const code = (forcedCode || verificationCode.join('')).trim();
         if (code.length !== 6) return setErrors({ code: 'Enter full 6-digit code' });
 
+        isSubmittingRef.current = true;
         setLoading(true);
         try {
-            const email = signupData.email || loginData.email;
+            const email = pending2FAEmail || signupData.email || loginData.email;
 
             if (view === '2fa-login') {
                 return await handle2FASubmit(null, code);
@@ -282,6 +477,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                 document.getElementById('v-0')?.focus();
             }, 50);
         } finally {
+            isSubmittingRef.current = false;
             setLoading(false);
         }
     };
@@ -305,6 +501,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
         if (fullCode.length === 6) {
             setErrors(prev => ({ ...prev, code: '', general: '' }));
             setTimeout(() => {
+                if (isSubmittingRef.current) return;
                 if (view === 'verify-email') handleVerification(null, fullCode);
                 else if (view === '2fa-login') handle2FASubmit(null, fullCode);
                 else if (view === 'verify-reset-code') handleVerifyResetCode(null, fullCode);
@@ -345,6 +542,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
         if (upperPasted.length === 6) {
             setErrors(prev => ({ ...prev, code: '', general: '' }));
             setTimeout(() => {
+                if (isSubmittingRef.current) return;
                 if (view === 'verify-email') handleVerification(null, upperPasted);
                 else if (view === '2fa-login') handle2FASubmit(null, upperPasted);
                 else if (view === 'verify-reset-code') handleVerifyResetCode(null, upperPasted);
@@ -353,20 +551,26 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
     };
 
     const handleResendCode = async () => {
-        if (resendTimer > 0) return;
+        if (resendTimer > 0 || isSubmittingRef.current) return;
 
         setLoading(true);
         try {
             const isResetFlow = view === 'verify-reset-code' || view === 'reset-password';
-            const email = isResetFlow ? forgotEmail : signupData.email || loginData.email;
+            const email = isResetFlow ? (forgotEmail || pending2FAEmail) : (pending2FAEmail || loginData.email || signupData.email);
 
-            if (isResetFlow) {
-                await forgotPassword({ email });
-            } else {
-                await resendVerification(email);
+            if (!email) {
+                setErrors({ general: 'Email address missing. Please try logging in again.' });
+                setLoading(false);
+                return;
             }
 
-            showSuccess('A new verification code has been sent.');
+            if (isResetFlow) {
+                await resendResetCode({ email });
+            } else {
+                await resendVerification({ email });
+            }
+
+            showSuccess('A fresh verification code has been sent.');
             setResendTimer(60); // 60s cooldown
             setVerificationCode(['', '', '', '', '', '']);
             setErrors({});
@@ -374,7 +578,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                 document.getElementById('v-0')?.focus();
             }, 50);
         } catch (err) {
-            showError(err.response?.data?.message || 'Failed to resend code');
+            showError(err.response?.data?.message || err.message || 'Failed to resend code');
         } finally {
             setLoading(false);
         }
@@ -389,6 +593,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
         setErrors({});
         try {
             await forgotPassword({ email: forgotEmail });
+            setPending2FAEmail(forgotEmail);
             showSuccess('Reset code sent to your email');
             setVerificationCode(['', '', '', '', '', '']);
             setVerifiedResetCode('');
@@ -407,15 +612,18 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
     // STEP 2: VERIFY RESET CODE (Confirm Code Before Entering New Password)
     const handleVerifyResetCode = async (e, forcedCode = null) => {
         if (e) e.preventDefault();
+        if (isSubmittingRef.current) return;
         const code = (forcedCode || verificationCode.join('')).trim();
         if (code.length !== 6) {
             return setErrors({ code: 'Please enter the complete 6-digit verification code' });
         }
 
+        isSubmittingRef.current = true;
         setLoading(true);
         setErrors({});
         try {
-            await verifyResetCode({ email: forgotEmail, code });
+            const email = pending2FAEmail || forgotEmail;
+            await verifyResetCode({ email, code });
             setVerifiedResetCode(code);
             showSuccess('Code confirmed! You can now set your new password.');
             setErrors({});
@@ -429,6 +637,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                 document.getElementById('v-0')?.focus();
             }, 50);
         } finally {
+            isSubmittingRef.current = false;
             setLoading(false);
         }
     };
@@ -486,22 +695,26 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
     // 2FA SUBMIT
     const handle2FASubmit = async (e, forcedCode = null) => {
         if (e) e.preventDefault();
+        if (isSubmittingRef.current) return;
         const code = (forcedCode || verificationCode.join('')).trim();
         if (code.length !== 6) return setErrors({ code: 'Enter full 6-digit code' });
 
+        isSubmittingRef.current = true;
         setLoading(true);
         try {
             // Determine email to use
-            const email = loginData.email || signupData.email; // Should be in loginData for login flow
+            const email = pending2FAEmail || loginData.email || signupData.email;
             await verify2FA(email, code);
             handleAuthSuccess(); // Success handled in context (showSuccess)
         } catch (err) {
-            setErrors({ general: err.response?.data?.message || '2FA Verification failed' });
+            const errorMsg = err.response?.data?.message || err.message || '2FA Verification failed';
+            setErrors({ general: errorMsg });
             setVerificationCode(['', '', '', '', '', '']);
             setTimeout(() => {
                 document.getElementById('v-0')?.focus();
             }, 50);
         } finally {
+            isSubmittingRef.current = false;
             setLoading(false);
         }
     };
@@ -648,14 +861,30 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                         {view === '2fa-login' && 'Security Verification'}
                         {view === 'policies' && (policyType === 'termsConditions' ? 'Terms & Conditions' : 'Privacy Policy')}
                     </h2>
-                    <p className="auth-subtitle">
+                    <p
+                        className="auth-subtitle"
+                        style={['verify-reset-code', 'verify-email', '2fa-login'].includes(view) ? {
+                            textTransform: 'none',
+                            letterSpacing: '0.2px',
+                            fontSize: '0.86rem',
+                            fontWeight: 500,
+                            color: 'var(--auth-title-color)',
+                            lineHeight: 1.45
+                        } : {}}
+                    >
                         {view === 'login' && 'Log in to manage your orders and profile'}
                         {view === 'signup' && 'Sign up to manage your orders and profile'}
                         {view === 'forgot-password' && "Enter your email to receive a recovery code"}
-                        {view === 'verify-reset-code' && (forgotEmail ? `Enter code sent to ${forgotEmail}` : 'Enter the code sent to your email')}
+                        {view === 'verify-reset-code' && (forgotEmail ? (
+                            <>Enter code sent to <strong style={{ color: 'var(--color-primary, #D4AF37)', fontWeight: 700 }}>{maskEmail(forgotEmail)}</strong></>
+                        ) : 'Enter the code sent to your email')}
                         {view === 'reset-password' && 'Create a strong new password for your account'}
-                        {view === 'verify-email' && 'We sent a code to your email'}
-                        {view === '2fa-login' && 'Enter the code sent to your email'}
+                        {view === 'verify-email' && (signupData.email ? (
+                            <>Enter code sent to <strong style={{ color: 'var(--color-primary, #D4AF37)', fontWeight: 700 }}>{maskEmail(signupData.email)}</strong></>
+                        ) : 'We sent a code to your email')}
+                        {view === '2fa-login' && (loginData.email ? (
+                            <>Enter code sent to <strong style={{ color: 'var(--color-primary, #D4AF37)', fontWeight: 700 }}>{maskEmail(loginData.email)}</strong></>
+                        ) : 'Enter the code sent to your email')}
                         {view === 'policies' && 'Please review our guiding principles'}
                     </p>
                 </div>
@@ -684,11 +913,17 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                                                 autoComplete="email"
                                                 className={`form-input ${errors.email ? 'error' : ''}`}
                                                 value={loginData.email}
-                                                onChange={handleInputChange(setLoginData)}
+                                                onChange={handleLoginEmailChange}
+                                                onBlur={handleLoginEmailBlur}
                                                 placeholder="hello@example.com"
                                             />
-                                            <FaEnvelope className="input-icon-btn" />
+                                            {checkingLoginEmail ? (
+                                                <FaCoffee className="input-icon-btn logo-spin" style={{ color: 'var(--color-primary, #FF5A36)' }} />
+                                            ) : (
+                                                <FaEnvelope className="input-icon-btn" />
+                                            )}
                                         </div>
+                                        {errors.email && <span className="error-text">{errors.email}</span>}
                                     </div>
 
                                     <div className="form-group">
@@ -697,16 +932,18 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                                             <input
                                                 name="password"
                                                 type={showPassword ? 'text' : 'password'}
-                                                className="form-input"
+                                                className={`form-input ${errors.password ? 'error' : ''}`}
                                                 autoComplete="current-password"
                                                 value={loginData.password}
                                                 onChange={handleInputChange(setLoginData)}
+                                                onFocus={handlePasswordFocus}
                                                 placeholder="••••••••"
                                             />
                                             <button type="button" className="input-icon-btn" onClick={() => setShowPassword(!showPassword)}>
                                                 {showPassword ? <FaEyeSlash /> : <FaEye />}
                                             </button>
                                         </div>
+                                        {errors.password && <span className="error-text">{errors.password}</span>}
                                         <button type="button" className="forgot-password-link" onClick={() => setView('forgot-password')}>
                                             Forgot Password?
                                         </button>
@@ -984,13 +1221,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                                     className="auth-form"
                                     onSubmit={handleVerifyResetCode}
                                 >
-                                    <div className="verification-info" style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-                                        <p className="auth-subtitle" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
-                                            Code sent to <strong>{forgotEmail}</strong>
-                                        </p>
-                                    </div>
-
-                                    <div className="verification-grid" onPaste={handlePaste}>
+                                    <div className="verification-grid" onPaste={handlePaste} style={{ marginTop: '0.35rem' }}>
                                         {verificationCode.map((digit, i) => (
                                             <input
                                                 key={i} id={`v-${i}`}
@@ -1058,7 +1289,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                                             color: 'var(--color-primary)',
                                             marginBottom: '1rem'
                                         }}>
-                                            <span>🔒 Resetting password for: <strong>{forgotEmail || searchParams.get('email')}</strong></span>
+                                            <span>🔒 Resetting password for: <strong>{maskEmail(forgotEmail || searchParams.get('email'))}</strong></span>
                                         </div>
                                     ) : (
                                         <div className="form-group">
@@ -1192,16 +1423,7 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
                                     className="auth-form"
                                     onSubmit={view === '2fa-login' ? handle2FASubmit : handleVerification}
                                 >
-                                    <div className="verification-info" style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                                        {view === 'verify-email' && (
-                                            <p className="auth-subtitle">Code sent to <strong>{signupData.email || loginData.email}</strong></p>
-                                        )}
-                                        {view === '2fa-login' && (
-                                            <p className="auth-subtitle">Code sent to <strong>{loginData.email}</strong></p>
-                                        )}
-                                    </div>
-
-                                    <div className="verification-grid" onPaste={handlePaste}>
+                                    <div className="verification-grid" onPaste={handlePaste} style={{ marginTop: '0.35rem' }}>
                                         {verificationCode.map((digit, i) => (
                                             <input
                                                 key={i} id={`v-${i}`}

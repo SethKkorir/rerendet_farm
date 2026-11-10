@@ -14,6 +14,8 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [step, setStep] = useState('login');
   const [code, setCode] = useState('');
+  const [submittedEmail, setSubmittedEmail] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [formDestroyed, setFormDestroyed] = useState(false);
 
@@ -41,9 +43,14 @@ const AdminLogin = () => {
     }
   };
 
+  // Seamless redirect if already authenticated as admin
   useEffect(() => {
-    if (isAuthenticated && user && (user.role === 'admin' || user.role === 'super-admin' || user.userType === 'admin')) {
-      navigate('/admin');
+    if (isAuthenticated && user) {
+      const roleName = (user.role || user.userType || '').toLowerCase();
+      const isAdmin = ['admin', 'super-admin', 'super_admin', 'owner'].includes(roleName);
+      if (isAdmin) {
+        navigate('/admin', { replace: true });
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -95,10 +102,25 @@ const AdminLogin = () => {
     }
   };
 
-  // DOM Integrity Monitoring (Layer 6)
+  // Resend timer countdown effect
+  useEffect(() => {
+    let timer;
+    if (resendTimer > 0) {
+      timer = setInterval(() => {
+        setResendTimer(prev => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendTimer]);
+
+  // DOM Integrity Monitoring (Layer 6) — Monitored specifically in primary login view
   useEffect(() => {
     let integrityInterval = null;
-    
+
+    if (step !== 'login') {
+      return;
+    }
+
     const sanitizeFormHTML = (html) => {
       if (!html) return '';
       return html
@@ -121,11 +143,11 @@ const AdminLogin = () => {
     };
 
     const setupIntegrity = async () => {
-      if (formRef.current) {
+      if (formRef.current && step === 'login') {
         initialFormHash = await computeHash(formRef.current.innerHTML);
-        
+
         integrityInterval = setInterval(async () => {
-          if (formRef.current) {
+          if (formRef.current && step === 'login') {
             const currentHash = await computeHash(formRef.current.innerHTML);
             if (initialFormHash && currentHash !== initialFormHash) {
               // DOM Tampered!
@@ -156,12 +178,13 @@ const AdminLogin = () => {
     };
 
     // Wait slightly for DOM to settle
-    setTimeout(setupIntegrity, 500);
+    const timeout = setTimeout(setupIntegrity, 500);
 
     return () => {
+      clearTimeout(timeout);
       if (integrityInterval) clearInterval(integrityInterval);
     };
-  }, []);
+  }, [step]);
 
   const handleChange = () => {
     setError('');
@@ -231,14 +254,17 @@ const AdminLogin = () => {
           });
 
           if (response.requires2FA) {
+            setSubmittedEmail(emailVal);
             setStep('2fa');
+            setResendTimer(60);
             setShowPassword(false);
             showNotification('Verification code sent to your email', 'info');
           } else {
             navigate('/admin');
           }
         } else {
-          await verifyAdmin2FA(emailVal, code);
+          const targetEmail = submittedEmail || emailVal;
+          await verifyAdmin2FA(targetEmail, code);
           navigate('/admin');
         }
       } catch (err) {
@@ -258,14 +284,35 @@ const AdminLogin = () => {
       }
     };
 
-    const currentEmail = emailRef.current?.value || '';
-    const currentPassword = passwordRef.current?.value || '';
+    if (step === 'login') {
+      const currentEmail = emailRef.current?.value || '';
+      const currentPassword = passwordRef.current?.value || '';
+      setSubmittedEmail(currentEmail);
 
-    // Clear DOM inputs immediately to prevent memory leaks/sniffing (Layer 1)
-    if (emailRef.current) emailRef.current.value = '';
-    if (passwordRef.current) passwordRef.current.value = '';
+      // Clear DOM inputs immediately to prevent memory leaks/sniffing (Layer 1)
+      if (emailRef.current) emailRef.current.value = '';
+      if (passwordRef.current) passwordRef.current.value = '';
 
-    attemptLogin(currentEmail, currentPassword, false);
+      attemptLogin(currentEmail, currentPassword, false);
+    } else {
+      attemptLogin(submittedEmail, '', false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendTimer > 0 || loading || !submittedEmail) return;
+    setLoading(true);
+    try {
+      await API.post('/auth/resend-verification', { email: submittedEmail });
+      showNotification('A fresh verification code has been sent to your email.', 'success');
+      setResendTimer(60);
+      setCode('');
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to resend verification code');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoBack = () => {
@@ -299,10 +346,6 @@ const AdminLogin = () => {
               <FaArrowLeft /> <span>Store</span>
             </a>
           )}
-          <span className="adl-badge">
-            <FaShieldAlt className="adl-badge-icon" />
-            SECURE PORTAL
-          </span>
         </div>
 
         <div className="adl-header">
@@ -433,6 +476,30 @@ const AdminLogin = () => {
                       autoFocus
                       autoComplete="one-time-code"
                     />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.25rem' }}>
+                    {resendTimer > 0 ? (
+                      <span style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                        Resend code in {resendTimer}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendCode}
+                        disabled={loading}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#d8964e',
+                          fontSize: '0.82rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Resend Verification Code
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
