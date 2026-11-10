@@ -31,6 +31,7 @@ import generateToken, {
   setTokenCookie,
   clearTokenCookie,
   getClientIp,
+  getAuthCookieOptions,
   ADMIN_ACCESS_COOKIE,
   ADMIN_REFRESH_COOKIE,
   CUSTOMER_ACCESS_COOKIE,
