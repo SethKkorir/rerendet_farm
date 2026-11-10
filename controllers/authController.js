@@ -1949,14 +1949,43 @@ const createAdmin = asyncHandler(async (req, res) => {
 // Verify email
 const verifyEmail = asyncHandler(async (req, res) => {
   const { email, code } = req.body;
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanCode = String(code || '').trim();
 
-  const user = await User.findOne({
-    email,
-    verificationCode: code,
+  let user = await User.findOne({
+    email: cleanEmail,
+    verificationCode: cleanCode,
     verificationCodeExpires: { $gt: Date.now() }
   });
 
+  // If user is already verified (e.g. from rapid submit or network retry), return success seamlessly
   if (!user) {
+    const existingVerifiedUser = await User.findOne({ email: cleanEmail });
+    if (existingVerifiedUser && existingVerifiedUser.isVerified) {
+      console.log(`ℹ️ User ${cleanEmail} is already verified. Generating session.`);
+      await existingVerifiedUser.populate('cart.product');
+      const accessToken = await createSession(req, res, existingVerifiedUser);
+      const userPayload = {
+        _id: existingVerifiedUser._id,
+        firstName: existingVerifiedUser.firstName,
+        lastName: existingVerifiedUser.lastName,
+        email: existingVerifiedUser.email,
+        phone: existingVerifiedUser.phone,
+        userType: existingVerifiedUser.userType,
+        role: existingVerifiedUser.role,
+        isVerified: true,
+        cart: existingVerifiedUser.cart || []
+      };
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...userPayload,
+          user: userPayload,
+          token: accessToken
+        }
+      });
+    }
+
     res.status(400);
     throw new Error('Invalid or expired verification code');
   }
@@ -1971,7 +2000,6 @@ const verifyEmail = asyncHandler(async (req, res) => {
 
   // Send welcome email
   try {
-    // Fetch store logo for email
     let logoUrl;
     try {
       const settings = await Settings.getSettings();
@@ -1986,22 +2014,26 @@ const verifyEmail = asyncHandler(async (req, res) => {
       html: getWelcomeEmail(user.firstName, logoUrl)
     });
   } catch (welcomeError) {
-    // Email failure doesn't stop flow
     console.error('Failed to send welcome email:', welcomeError);
   }
+
+  const userPayload = {
+    _id: user._id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    userType: user.userType,
+    role: user.role,
+    isVerified: user.isVerified,
+    cart: user.cart || []
+  };
 
   res.status(200).json({
     success: true,
     data: {
-      _id: user._id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      userType: user.userType,
-      role: user.role,
-      isVerified: user.isVerified,
-      cart: user.cart || [],
+      ...userPayload,
+      user: userPayload,
       token: accessToken
     }
   });

@@ -471,7 +471,8 @@ const AuthModal = ({ isOpen = true, onClose, initialView = 'login', embedded = f
             handleAuthSuccess(); // Auto-login and complete auth on success
 
         } catch (err) {
-            setErrors({ general: err.response?.data?.message || 'Verification failed' });
+            const errorMsg = err.response?.data?.message || err.message || 'Verification failed';
+            setErrors({ general: errorMsg, code: errorMsg });
             setVerificationCode(['', '', '', '', '', '']);
             setTimeout(() => {
                 document.getElementById('v-0')?.focus();

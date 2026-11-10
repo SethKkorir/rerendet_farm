@@ -940,17 +940,22 @@ export function AppProvider({ children }) {
   const verifyEmail = useCallback(async (email, code) => {
     setLoading(true);
     try {
-      const response = await API.post('/auth/verify-email', { email, code });
-      const { user: userData, token: authToken } = response.data.data;
+      const response = await API.post('/auth/verify-email', { 
+        email: email ? String(email).trim().toLowerCase() : '', 
+        code: String(code || '').trim() 
+      });
+      const rawData = response.data?.data || {};
+      const userData = rawData.user || rawData;
+      const authToken = rawData.token || response.data?.token;
 
       if (!validateToken(authToken)) throw new Error('Invalid token received');
 
-      const isPrivilegedAdmin = userData.userType === 'admin' || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
+      const isPrivilegedAdmin = (userData.userType === 'admin') || ['admin', 'super-admin', 'super_admin', 'owner', 'fulfillment_staff'].includes(userData.role);
       setAuth(userData, authToken, isPrivilegedAdmin ? 'admin' : 'customer');
       showSuccess('Email verified! You are now logged in.');
       return response.data;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Verification failed';
+      const errorMessage = error.response?.data?.message || error.message || 'Verification failed';
       showError(errorMessage);
       throw error;
     } finally {
