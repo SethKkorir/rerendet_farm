@@ -1,4 +1,4 @@
-// components/Admin/ProductsManagement.jsx — Category-Aware Rewrite
+// components/Admin/ProductsManagement.jsx — Verified Multi-Step Coffee Management
 import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AppContext } from '../../context/AppContext';
@@ -8,97 +8,49 @@ import {
   FaTimes, FaTag, FaStar, FaCoffee, FaLeaf,
   FaGlobe, FaLayerGroup, FaBoxOpen, FaBell, FaCheckCircle,
   FaTools, FaShoppingBag, FaGift, FaCheck, FaCog, FaEye, FaEyeSlash,
-  FaHeartbeat, FaThLarge, FaListUl, FaFire
+  FaHeartbeat, FaThLarge, FaListUl, FaFire, FaArrowLeft, FaArrowRight
 } from 'react-icons/fa';
 import './ProductsManagement.css';
-import { updateProductStock } from '../../api/api';
+import API, { tokenStore, updateProductStock } from '../../api/api';
 import InventoryHealth from './InventoryHealth';
 
-/* ─── Constants ──────────────────────────────────────────────── */
-const ROAST_LEVELS = [
-  { value: 'light', label: 'Light', color: '#e8c99a', emoji: '☀️' },
-  { value: 'medium-light', label: 'Med. Light', color: '#c8955a', emoji: '🌤️' },
-  { value: 'medium', label: 'Medium', color: '#a0672e', emoji: '⛅' },
-  { value: 'medium-dark', label: 'Med. Dark', color: '#7a4520', emoji: '🌥️' },
-  { value: 'dark', label: 'Dark', color: '#4a2010', emoji: '🌑' },
-  { value: 'espresso', label: 'Espresso', color: '#1a0a04', emoji: '☕' },
+/* ─── Strictly the 4 Store Varieties ─────────────────────────── */
+export const ROAST_LEVELS = [
+  { value: 'raw', label: 'Raw', color: '#10b981', emoji: '🌱', desc: 'Raw Green Unroasted Beans' },
+  { value: 'light', label: 'Light', color: '#e8c99a', emoji: '☀️', desc: 'Light Roast' },
+  { value: 'medium', label: 'Medium', color: '#a0672e', emoji: '⛅', desc: 'Medium Roast' },
+  { value: 'dark', label: 'Dark Roast', color: '#4a2010', emoji: '☕', desc: 'Dark Roast' },
 ];
 
-// Default built-in categories
+// Built-in primary store category
 const DEFAULT_CATEGORIES = [
-  { value: 'coffee-beans', label: 'Coffee Beans', icon: '☕', color: '#D4AF37' },
-  { value: 'brewing-equipment', label: 'Brewing Equipment', icon: '⚙️', color: '#3b82f6' },
-  { value: 'accessories', label: 'Accessories', icon: '🎒', color: '#8b5cf6' },
-  { value: 'merchandise', label: 'Merchandise', icon: '🛍️', color: '#10b981' },
+  { value: 'coffee-beans', slug: 'coffee-beans', label: 'Coffee Beans', icon: '☕', color: '#D4AF37' },
 ];
 
 // Category-specific configurations
 const CATEGORY_CONFIG = {
   'coffee-beans': {
     label: 'Coffee Beans',
-    detailsTab: '☕ Coffee Details',
+    detailsTab: '☕ Variety & Details',
     hasRoast: true,
     hasOrigin: true,
     hasFlavors: true,
-    sizeOptions: ['100g', '250g', '500g', '1000g', '2000g'],
+    sizeOptions: ['250g', '500g', '1kg', '2kg', '5kg Bag'],
     sizeDefault: '250g',
     sizePlaceholder: 'e.g., 250g, 500g, 1kg',
-    detailsHint: 'Roast level, origin, and flavor notes help customers find the right coffee.',
-  },
-  'brewing-equipment': {
-    label: 'Brewing Equipment',
-    detailsTab: '⚙️ Product Details',
-    hasRoast: false,
-    hasOrigin: false,
-    hasFlavors: false,
-    hasMaterial: true,
-    hasCapacity: true,
-    hasBrand: true,
-    sizeOptions: ['Small', 'Medium', 'Large', 'XL', 'Standard', '1L', '0.5L', '300ml', '600ml', '1L'],
-    sizeDefault: 'Standard',
-    sizePlaceholder: 'e.g., Small, Large, 1L',
-    detailsHint: 'Provide material, capacity and brand details to help customers make informed choices.',
-  },
-  'accessories': {
-    label: 'Accessories',
-    detailsTab: '🎒 Product Details',
-    hasRoast: false,
-    hasOrigin: false,
-    hasFlavors: false,
-    hasMaterial: true,
-    hasBrand: true,
-    sizeOptions: ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard'],
-    sizeDefault: 'One Size',
-    sizePlaceholder: 'e.g., One Size, S, M, L',
-    detailsHint: 'Add material and brand info to help customers understand what they are getting.',
-  },
-  'merchandise': {
-    label: 'Merchandise',
-    detailsTab: '🛍️ Product Details',
-    hasRoast: false,
-    hasOrigin: false,
-    hasFlavors: false,
-    hasMaterial: true,
-    hasBrand: false,
-    sizeOptions: ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard'],
-    sizeDefault: 'One Size',
-    sizePlaceholder: 'e.g., One Size, S, M, L',
-    detailsHint: 'Add material details for clothing or product specifics for merchandise.',
-  },
+    detailsHint: 'Select variety/roast level, origin, and grind options for this coffee.',
+  }
 };
 
-// Default config for custom categories
 const DEFAULT_CATEGORY_CONFIG = {
   detailsTab: '📋 Product Details',
-  hasRoast: false,
+  hasRoast: true,
   hasOrigin: true,
-  hasFlavors: false,
-  hasMaterial: true,
-  hasBrand: true,
-  sizeOptions: ['Standard', 'Small', 'Medium', 'Large', 'XL', 'One Size'],
-  sizeDefault: 'Standard',
-  sizePlaceholder: 'e.g., Standard, Small, Large',
-  detailsHint: 'Add any relevant product details.',
+  hasFlavors: true,
+  sizeOptions: ['250g', '500g', '1kg', '2kg'],
+  sizeDefault: '250g',
+  sizePlaceholder: 'e.g., 250g, 500g, 1kg',
+  detailsHint: 'Add variety, roast, origin, and pricing details.',
 };
 
 const getCategoryConfig = (cat) => CATEGORY_CONFIG[cat] || DEFAULT_CATEGORY_CONFIG;
@@ -142,42 +94,37 @@ const ProductsManagement = () => {
 
   const getToken = useCallback(() => {
     if (token) return token;
+    const fromStore = tokenStore.get();
+    if (fromStore) return fromStore;
     try { return JSON.parse(localStorage.getItem('auth'))?.token; } catch { return null; }
   }, [token]);
 
   const fetchCategories = useCallback(async () => {
     try {
-      const authToken = getToken();
-      const res = await fetch('/api/admin/categories', {
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCategoriesList(data.data || []);
+      const res = await API.get('/admin/categories');
+      if (res.data?.success) {
+        setCategoriesList(res.data.data || []);
       }
     } catch (err) {
       console.error('Failed to load categories', err);
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
 
-  // Combined default & database categories
+  // Store categories (Default Coffee Beans + DB custom)
   const allCategories = useMemo(() => {
     const defaults = [
-      { value: 'coffee-beans', slug: 'coffee-beans', label: 'Coffee Beans', icon: '☕', color: '#D4AF37' },
-      { value: 'brewing-equipment', slug: 'brewing-equipment', label: 'Brewing Equipment', icon: '⚙️', color: '#3B82F6' },
-      { value: 'accessories', slug: 'accessories', label: 'Accessories', icon: '🎒', color: '#8B5CF6' },
-      { value: 'merchandise', slug: 'merchandise', label: 'Merchandise', icon: '🛍️', color: '#10B981' },
+      { value: 'coffee-beans', slug: 'coffee-beans', label: 'Coffee Beans', icon: '☕', color: '#D4AF37' }
     ];
 
     const custom = categoriesList.map(c => ({
       value: c._id,
-      slug: c.slug,
+      slug: c.slug || c.name.toLowerCase().replace(/\s+/g, '-'),
       label: c.name,
-      icon: c.icon || '📦',
+      icon: c.icon || '☕',
       color: '#D4AF37',
       attributeSchema: c.attributeSchema,
       isCustom: true
@@ -215,38 +162,36 @@ const ProductsManagement = () => {
       c.slug === catId ||
       c.label?.toLowerCase() === String(catId).toLowerCase()
     );
-    return found?.icon || '📦';
+    return found?.icon || '☕';
   };
 
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const authToken = getToken();
-      const queryParams = new URLSearchParams(filters).toString();
-      const response = await fetch(`/api/admin/products?${queryParams}`, {
-        headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' }
-      });
-      if (!response.ok) throw new Error('Failed to fetch products');
-      const data = await response.json();
-      if (data.success) setProducts(data.data.products || []);
-    } catch { showAlert('Failed to load products', 'error'); }
-    finally { setLoading(false); }
-  }, [filters, showAlert, getToken]);
+      const res = await API.get('/admin/products', { params: filters });
+      if (res.data?.success) {
+        setProducts(res.data.data.products || []);
+      }
+    } catch (err) {
+      console.error('Fetch products error:', err);
+      showAlert('Failed to load products', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, showAlert]);
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   const handleDeleteProduct = async (productId) => {
     if (!window.confirm('Delete this product? This cannot be undone.')) return;
     try {
-      const authToken = getToken();
-      const response = await fetch(`/api/admin/products/${productId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${authToken}` }
-      });
-      if (!response.ok) throw new Error('Failed to delete');
+      await API.delete(`/admin/products/${productId}`);
       showAlert('Product deleted', 'success');
       fetchProducts();
-    } catch { showAlert('Failed to delete product', 'error'); }
+    } catch (err) {
+      console.error('Delete product error:', err);
+      showAlert('Failed to delete product', 'error');
+    }
   };
 
   const handleQuickStockUpdate = async (productId, adjustment) => {
@@ -268,18 +213,20 @@ const ProductsManagement = () => {
     if (!selectedProducts.length || !window.confirm(`Delete ${selectedProducts.length} products?`)) return;
     try {
       setLoading(true);
-      await Promise.all(selectedProducts.map(id =>
-          fetch(`/api/admin/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } })
-      ));
+      await Promise.all(selectedProducts.map(id => API.delete(`/admin/products/${id}`)));
       showAlert(`${selectedProducts.length} products deleted`, 'success');
       setSelectedProducts([]);
       fetchProducts();
-    } catch { showAlert('Failed to delete some products', 'error'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error('Bulk delete error:', err);
+      showAlert('Failed to delete some products', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddCategory = async () => {
-    const name = window.prompt('Enter new category name (e.g., "Gift Sets", "Tea", "Mugs"):');
+    const name = window.prompt('Enter new category name:');
     if (!name?.trim()) return;
     const label = name.trim();
     const value = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -288,25 +235,20 @@ const ProductsManagement = () => {
       return;
     }
     try {
-      const authToken = getToken();
-      const res = await fetch('/api/admin/categories', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name: label, icon: '📦', description: label })
+      const res = await API.post('/admin/categories', {
+        name: label,
+        icon: '☕',
+        description: label
       });
-      const data = await res.json();
-      if (data.success) {
+      if (res.data?.success) {
         showAlert(`Category "${label}" added`, 'success');
         fetchCategories();
       } else {
-        showAlert(data.message || 'Failed to add category', 'error');
+        showAlert(res.data?.message || 'Failed to add category', 'error');
       }
     } catch (err) {
-      console.error(err);
-      showAlert('Failed to add category', 'error');
+      console.error('Add category error:', err);
+      showAlert(err.response?.data?.message || 'Failed to add category', 'error');
     }
   };
 
@@ -316,30 +258,22 @@ const ProductsManagement = () => {
       : [...hiddenCategories, value];
     setHiddenCategories(next);
     localStorage.setItem('pm_hidden_categories', JSON.stringify(next));
-    // If current filter is now hidden, reset to all
     if (next.includes(filters.category)) setFilters(p => ({ ...p, category: 'all' }));
   };
 
   const handleDeleteCategory = async (cat) => {
     if (!window.confirm(`Delete category "${cat.label}"? Products in this category won't be deleted.`)) return;
     try {
-      const authToken = getToken();
-      const res = await fetch(`/api/admin/categories/${cat.value}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`
-        }
-      });
-      const data = await res.json();
-      if (data.success) {
+      const res = await API.delete(`/admin/categories/${cat.value}`);
+      if (res.data?.success) {
         showAlert(`Category "${cat.label}" deleted`, 'success');
         fetchCategories();
       } else {
-        showAlert(data.message || 'Failed to delete category', 'error');
+        showAlert(res.data?.message || 'Failed to delete category', 'error');
       }
     } catch (err) {
-      console.error(err);
-      showAlert('Failed to delete category', 'error');
+      console.error('Delete category error:', err);
+      showAlert(err.response?.data?.message || 'Failed to delete category', 'error');
     }
   };
 
@@ -812,17 +746,13 @@ const ProductsManagement = () => {
   );
 };
 
-/* ─── Product Modal ──────────────────────────────────────────── */
-const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAddCategory }) => {
+/* ─── Product Modal — Strict 4-Variety Step-by-Step Flow ────── */
+const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }) => {
   const { showAlert } = useContext(AppContext);
-  const isEditing = !!product;
-  const [editViewMode, setEditViewMode] = useState('quick'); // 'quick' | 'full'
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [activeSection, setActiveSection] = useState(isEditing ? 'pricing' : 'basic');
+  const [activeSection, setActiveSection] = useState('basic');
   const [saving, setSaving] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [flavorInput, setFlavorInput] = useState('');
-  const [customSizeInput, setCustomSizeInput] = useState('');
   const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -830,25 +760,21 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     description: product?.description || '',
     sizes: (product?.sizes && product.sizes.length > 0)
       ? product.sizes.map(s => ({
-          size: s.size,
+          size: s.size || '250g',
           price: s.price ?? '',
           originalPrice: s.originalPrice ?? ''
         }))
       : [{ size: '250g', price: '', originalPrice: '' }],
-    category: product?.categoryId?._id || product?.categoryId || product?.category || (allCategories[0]?.value || ''),
+    category: product?.categoryId?._id || product?.categoryId || product?.category || (allCategories[0]?.value || 'coffee-beans'),
     categoryAttributes: product?.categoryAttributes || {},
-    roastLevel: product?.roastLevel || '',
-    origin: product?.origin || '',
+    roastLevel: product?.roastLevel || 'Medium',
+    origin: product?.origin || 'Bomet, Kenya (1,950m ASL)',
     flavorNotes: product?.flavorNotes || [],
     badge: product?.badge || '',
     discountBadge: product?.discountBadge || '',
-    compareAtPrice: product?.compareAtPrice ?? '',
-    material: product?.material || '',
-    brand: product?.brand || '',
-    capacity: product?.capacity || '',
     inventory: {
-      physicalStock: product?.inventory?.physicalStock !== undefined ? product.inventory.physicalStock : '',
-      lowStockThreshold: product?.inventory?.lowStockThreshold !== undefined ? product.inventory.lowStockThreshold : '',
+      physicalStock: product?.inventory?.physicalStock !== undefined ? product.inventory.physicalStock : 50,
+      lowStockThreshold: product?.inventory?.lowStockThreshold !== undefined ? product.inventory.lowStockThreshold : 5,
     },
     grindOptions: (product?.grindOptions && product.grindOptions.length > 0)
       ? product.grindOptions
@@ -857,17 +783,18 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     tags: product?.tags?.join(', ') || '',
     isFeatured: product?.isFeatured || false,
   });
+
   const [images, setImages] = useState(product?.images || []);
 
   const set = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
-  const catObj = allCategories.find(c => c.value === formData.category || c.slug === formData.category);
-  const cfg = getCategoryConfig(catObj?.slug || formData.category);
 
-  // Filter out attributes already handled by dedicated inputs (roast, origin, weight/size)
-  const DEDICATED_ATTR_KEYS = ['roastlevel', 'roast_level', 'origin', 'packageweight', 'package_weight', 'size', 'sizes'];
-  const customCategoryAttributes = (catObj?.attributeSchema || []).filter(
-    attr => !DEDICATED_ATTR_KEYS.includes((attr.key || '').toLowerCase().replace(/[-_]/g, ''))
-  );
+  const STEPS = [
+    { id: 'basic', num: 1, label: 'Basic Info', icon: '🏷️' },
+    { id: 'pricing', num: 2, label: 'Sizes & Pricing', icon: '💰' },
+    { id: 'details', num: 3, label: 'Variety & Roast', icon: '☕' },
+    { id: 'media', num: 4, label: 'Images', icon: '🖼️' },
+    { id: 'stock', num: 5, label: 'Inventory', icon: '📦' },
+  ];
 
   const updateRoastLevel = (val) => {
     setFormData(prev => ({
@@ -918,22 +845,23 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     set('defaultGrind', 'Whole Beans');
   };
 
-  // Quick Start Templates
+  // Quick 4-variety presets matching Rerendet coffee offerings
   const QUICK_TEMPLATES = [
     {
-      label: 'Single-Origin Coffee',
+      label: 'Rerendet AA Reserve',
+      variety: 'Medium',
       icon: '☕',
       data: {
         name: 'Rerendet AA Arabica Reserve',
-        description: 'Single-origin specialty Arabica harvested at high altitude in Bomet, Kenya. Rich tasting notes of citrus, blackcurrant, and smooth dark chocolate with a creamy finish.',
+        description: 'Single-origin specialty Arabica harvested at high altitude in Bomet, Kenya. Rich tasting notes of citrus, blackcurrant, and smooth caramel with a creamy velvet finish.',
         sizes: [
-          { size: '250g', price: 750 },
-          { size: '500g', price: 1400 },
-          { size: '1000g', price: 2700 }
+          { size: '250g', price: 750, originalPrice: '' },
+          { size: '500g', price: 1450, originalPrice: '' },
+          { size: '1kg', price: 2800, originalPrice: '' }
         ],
-        roastLevel: 'medium-dark',
+        roastLevel: 'Medium',
         origin: 'Bomet, Kenya (1,950m ASL)',
-        flavorNotes: ['Blackcurrant', 'Citrus', 'Caramel'],
+        flavorNotes: ['Citrus', 'Blackcurrant', 'Caramel'],
         badge: 'Top Harvest',
         tags: 'specialty, arabica, single-origin, rerendet',
         inventory: { physicalStock: 50, lowStockThreshold: 10 },
@@ -941,102 +869,89 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
       }
     },
     {
-      label: 'Organic Hass Avocados',
-      icon: '🥑',
+      label: 'Dark Forest Volcanic',
+      variety: 'Dark Roast',
+      icon: '🌑',
       data: {
-        name: 'Organic Fresh Hass Avocados',
-        description: 'Naturally tree-ripened organic Hass avocados harvested directly from the fertile soils of Rerendet Farm. Exceptionally creamy, rich in natural oils, and chemical-free.',
+        name: 'Dark Forest Volcanic Blend',
+        description: 'Deep, bold dark roast crafted from volcanic rich soils. Intense dark chocolate notes, molasses richness, and a robust velvet crema.',
         sizes: [
-          { size: '1kg Bag (~4-5 pcs)', price: 250 },
-          { size: '5kg Family Crate', price: 1100 }
+          { size: '250g', price: 900, originalPrice: '' },
+          { size: '500g', price: 1700, originalPrice: '' },
+          { size: '1kg', price: 3200, originalPrice: '' }
         ],
-        origin: 'Rerendet Farm, Kenya',
-        badge: 'Farm Fresh',
-        tags: 'organic, avocado, produce, fresh-harvest',
-        inventory: { physicalStock: 40, lowStockThreshold: 8 },
+        roastLevel: 'Dark Roast',
+        origin: 'Bomet Highlands, Kenya',
+        flavorNotes: ['Dark Chocolate', 'Molasses', 'Spices'],
+        badge: 'Bold Roast',
+        tags: 'dark-roast, espresso, bold, rerendet',
+        inventory: { physicalStock: 45, lowStockThreshold: 10 },
         isFeatured: true
       }
     },
     {
-      label: 'Pure Raw Honey',
-      icon: '🍯',
+      label: 'Bomet Sunrise Light',
+      variety: 'Light',
+      icon: '☀️',
       data: {
-        name: 'Rerendet Pure Raw Honey',
-        description: '100% pure unfiltered raw multi-floral forest honey. Harvested sustainably from our indigenous acacia apiaries on the farm with natural health enzymes preserved.',
+        name: 'Bomet Sunrise Blend',
+        description: 'Vibrant and bright morning roast with floral jasmine aromas, crisp citrus sweetness, and a sparkling clean finish.',
         sizes: [
-          { size: '500g Glass Jar', price: 650 },
-          { size: '1kg Glass Jar', price: 1200 }
+          { size: '250g', price: 850, originalPrice: '' },
+          { size: '500g', price: 1600, originalPrice: '' },
+          { size: '1kg', price: 3000, originalPrice: '' }
         ],
-        origin: 'Rerendet Forest Apiary',
-        badge: '100% Raw',
-        tags: 'honey, raw, organic, pure, apiary',
-        inventory: { physicalStock: 30, lowStockThreshold: 5 },
+        roastLevel: 'Light',
+        origin: 'Bomet High Altitudes, Kenya',
+        flavorNotes: ['Jasmine', 'Honey', 'Citrus'],
+        badge: 'Morning Cup',
+        tags: 'light-roast, bright, floral, morning',
+        inventory: { physicalStock: 50, lowStockThreshold: 10 },
         isFeatured: false
       }
     },
     {
-      label: 'Brewing Equipment',
-      icon: '⚙️',
+      label: 'Raw Green Coffee',
+      variety: 'Raw',
+      icon: '🌱',
       data: {
-        name: 'Artisan French Press / Glass Brewer',
-        description: 'Heat-resistant borosilicate glass with stainless steel multi-layer micro-filtration. Delivers a clean, aromatic extraction for specialty coffees and teas.',
+        name: 'Rerendet Raw Green Coffee Reserve',
+        description: '100% natural, unroasted green Arabica coffee beans directly from Rerendet Farm. Ideal for home roasters and raw coffee brewing.',
         sizes: [
-          { size: 'Standard (600ml / 4 Cups)', price: 3200 },
-          { size: 'Large (1000ml / 8 Cups)', price: 4200 }
+          { size: '500g', price: 700, originalPrice: '' },
+          { size: '1kg', price: 1300, originalPrice: '' },
+          { size: '5kg Bag', price: 6000, originalPrice: '' }
         ],
-        badge: 'Barista Grade',
-        tags: 'equipment, brewer, barista, french-press',
-        inventory: { physicalStock: 15, lowStockThreshold: 3 },
+        roastLevel: 'Raw',
+        origin: 'Rerendet Farm Estate, Bomet',
+        flavorNotes: ['Herbal', 'Sweet Grass', 'Raw Grain'],
+        badge: 'Raw Unroasted',
+        tags: 'raw, green-coffee, unroasted, artisan',
+        inventory: { physicalStock: 60, lowStockThreshold: 10 },
         isFeatured: false
       }
     }
   ];
 
   const applyTemplate = (tpl) => {
-    let catMatch = formData.category;
-    if (tpl.icon === '☕') {
-      const found = allCategories.find(c => c.slug?.includes('coffee') || c.label?.toLowerCase().includes('coffee'));
-      if (found) catMatch = found.value;
-    } else if (tpl.icon === '⚙️') {
-      const found = allCategories.find(c => c.slug?.includes('brew') || c.label?.toLowerCase().includes('equipment'));
-      if (found) catMatch = found.value;
-    }
-
     setFormData(prev => ({
       ...prev,
       ...tpl.data,
-      category: catMatch || prev.category,
+      category: prev.category || 'coffee-beans',
       categoryAttributes: {
         ...(prev.categoryAttributes || {}),
-        ...(tpl.data.roastLevel ? { roastLevel: tpl.data.roastLevel.toLowerCase() } : {}),
-        ...(tpl.data.origin ? { origin: tpl.data.origin } : {})
+        roastLevel: (tpl.data.roastLevel || '').toLowerCase(),
+        origin: tpl.data.origin || ''
       }
     }));
     showAlert(`Applied ${tpl.label} template!`, 'success');
   };
 
-  const QUICK_SIZE_PILLS = [
-    '250g', '500g', '1000g', '2000g', '1kg Bag', '5kg Crate', '500g Jar', '1kg Jar', 'Standard', 'One Size'
-  ];
+  const QUICK_SIZE_PILLS = ['250g', '500g', '1kg', '2kg', '5kg Bag'];
 
   const handleQuickAddSize = (sz) => {
     set('sizes', [...formData.sizes, { size: sz, price: '', originalPrice: '' }]);
   };
-
-  // Update size default when category changes
-  const handleCategoryChange = (val) => {
-    set('category', val);
-    set('categoryAttributes', {});
-  };
-
-  // Build nav sections dynamically based on category
-  const SECTIONS = [
-    { id: 'basic', label: 'Basic Info', icon: '🏷️' },
-    { id: 'pricing', label: 'Pricing', icon: '💰' },
-    { id: 'details', label: '📋 Product Details', icon: '📋' },
-    { id: 'media', label: 'Media', icon: '🖼️' },
-    { id: 'stock', label: 'Inventory', icon: '📦' },
-  ];
 
   /* ── Image handling ── */
   const processFiles = (files) => {
@@ -1044,29 +959,17 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     setImages(prev => [...prev, ...newImgs]);
   };
   const handleDrop = (e) => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); };
-  const removeImage = async (index) => {
+  const removeImage = (index) => {
     const img = images[index];
-    if (img.file) { URL.revokeObjectURL(img.url); setImages(prev => prev.filter((_, i) => i !== index)); return; }
-    if (!window.confirm('Delete this image permanently?')) return;
-    try {
-      const r = await fetch(`/api/admin/products/${product._id}/images`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageUrl: img.url }),
-      });
-      if (r.ok) setImages(prev => prev.filter((_, i) => i !== index));
-      else showAlert('Failed to delete image', 'error');
-    } catch { showAlert('Error deleting image', 'error'); }
+    if (img.file) URL.revokeObjectURL(img.url);
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   /* ── Size handling ── */
-  const addSize = () => set('sizes', [...formData.sizes, { size: 'Standard', price: '', originalPrice: '' }]);
+  const addSize = () => set('sizes', [...formData.sizes, { size: '250g', price: '', originalPrice: '' }]);
   const removeSize = (i) => set('sizes', formData.sizes.filter((_, idx) => idx !== i));
   const updateSize = (i, field, value) => set('sizes', formData.sizes.map((s, idx) =>
-    idx === i ? {
-      ...s,
-      [field]: value
-    } : s
+    idx === i ? { ...s, [field]: value } : s
   ));
 
   /* ── Flavor tag handling ── */
@@ -1077,42 +980,125 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   };
   const removeFlavor = (note) => set('flavorNotes', formData.flavorNotes.filter(n => n !== note));
 
+  /* ── Step Validation (Strict Enforcers) ── */
+  const validateStep = (stepId) => {
+    if (stepId === 'basic') {
+      if (!formData.name.trim()) {
+        showAlert('Product name is required before proceeding.', 'error');
+        document.getElementById('pm-name-input')?.focus();
+        return false;
+      }
+      if (!formData.description.trim()) {
+        showAlert('Product description is required before proceeding.', 'error');
+        document.getElementById('pm-desc-input')?.focus();
+        return false;
+      }
+      if (!formData.category) {
+        showAlert('Please select a category before proceeding.', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    if (stepId === 'pricing') {
+      if (!formData.sizes || formData.sizes.length === 0) {
+        showAlert('At least one size/variant is required.', 'error');
+        return false;
+      }
+      for (let i = 0; i < formData.sizes.length; i++) {
+        const s = formData.sizes[i];
+        if (!s.size || !String(s.size).trim()) {
+          showAlert(`Variant #${i + 1} needs a size name (e.g. 250g, 500g, 1kg).`, 'error');
+          return false;
+        }
+        const p = parseFloat(s.price);
+        if (isNaN(p) || p <= 0) {
+          showAlert(`Variant "${s.size}" needs a valid price greater than KES 0.`, 'error');
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (stepId === 'details') {
+      if (!formData.roastLevel) {
+        showAlert('Please select one of the 4 varieties: Raw, Light, Medium, or Dark Roast.', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    if (stepId === 'stock') {
+      const rawStock = formData.inventory.physicalStock;
+      const stock = parseInt(rawStock, 10);
+      if (rawStock === '' || rawStock === undefined || isNaN(stock) || stock < 0) {
+        showAlert('Physical stock is required and must be a number ≥ 0.', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    return true;
+  };
+
+  const handleNext = () => {
+    if (!validateStep(activeSection)) return;
+    const ids = STEPS.map(s => s.id);
+    const idx = ids.indexOf(activeSection);
+    if (idx < ids.length - 1) {
+      setActiveSection(ids[idx + 1]);
+    }
+  };
+
+  const handleBack = () => {
+    const ids = STEPS.map(s => s.id);
+    const idx = ids.indexOf(activeSection);
+    if (idx > 0) {
+      setActiveSection(ids[idx - 1]);
+    }
+  };
+
+  const handleTabClick = (targetId) => {
+    const ids = STEPS.map(s => s.id);
+    const targetIdx = ids.indexOf(targetId);
+    const currentIdx = ids.indexOf(activeSection);
+    if (targetIdx > currentIdx) {
+      for (let i = currentIdx; i < targetIdx; i++) {
+        if (!validateStep(ids[i])) return;
+      }
+    }
+    setActiveSection(targetId);
+  };
+
   /* ── Submit ── */
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.description.trim() || !formData.sizes.length) {
-      showAlert('Please fill in name, description, and at least one size.', 'error'); return;
+    if (e) e.preventDefault();
+    for (const step of STEPS) {
+      if (!validateStep(step.id)) {
+        setActiveSection(step.id);
+        return;
+      }
     }
-    const invalidSizes = formData.sizes.filter(s => !s.size || !s.price || parseFloat(s.price) <= 0);
-    if (invalidSizes.length) { showAlert('All sizes need a valid price > 0.', 'error'); return; }
-    const rawStock = formData.inventory.physicalStock !== undefined && formData.inventory.physicalStock !== '' 
-      ? formData.inventory.physicalStock 
-      : (formData.inventory.stock !== undefined && formData.inventory.stock !== '' ? formData.inventory.stock : 0);
-    const stock = parseInt(rawStock, 10);
-    if (isNaN(stock) || stock < 0) { showAlert('Stock must be a valid number ≥ 0.', 'error'); return; }
 
     setSaving(true);
     try {
-      const authToken = getToken();
-      if (!authToken) { showAlert('Session expired. Please log in again.', 'error'); return; }
-
-      const url = product ? `/api/admin/products/${product._id}` : '/api/admin/products';
-      const method = product ? 'PUT' : 'POST';
+      const rawStock = formData.inventory.physicalStock;
+      const stock = parseInt(rawStock, 10) || 0;
 
       const mergedCategoryAttributes = {
         ...(formData.categoryAttributes || {}),
-        ...(formData.roastLevel ? { roastLevel: formData.roastLevel.trim().toLowerCase() } : {}),
-        ...(formData.origin ? { origin: formData.origin.trim() } : {}),
-        ...(formData.sizes?.[0]?.size ? { packageWeight: formData.sizes[0].size } : {})
+        roastLevel: (formData.roastLevel || '').trim().toLowerCase(),
+        origin: (formData.origin || '').trim(),
+        packageWeight: formData.sizes?.[0]?.size || '250g'
       };
 
-      const productData = {
+      const productPayload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         sizes: formData.sizes.map(s => ({
-          size: s.size,
+          size: s.size.trim(),
           price: parseFloat(s.price),
-          originalPrice: (s.originalPrice !== undefined && s.originalPrice !== null && s.originalPrice !== '' && parseFloat(s.originalPrice) > 0)
+          originalPrice: (s.originalPrice !== '' && parseFloat(s.originalPrice) > 0)
             ? parseFloat(s.originalPrice)
             : null
         })),
@@ -1120,95 +1106,105 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
         categoryAttributes: mergedCategoryAttributes,
         badge: formData.badge ? formData.badge.trim() : '',
         discountBadge: formData.discountBadge ? formData.discountBadge.trim() : undefined,
-        compareAtPrice: (formData.compareAtPrice && parseFloat(formData.compareAtPrice) > 0)
-          ? parseFloat(formData.compareAtPrice)
-          : undefined,
-        inventory: { 
-          physicalStock: stock, 
-          lowStockThreshold: parseInt(formData.inventory.lowStockThreshold) || 5 
+        inventory: {
+          physicalStock: stock,
+          lowStockThreshold: parseInt(formData.inventory.lowStockThreshold, 10) || 5
         },
         roastLevel: formData.roastLevel ? formData.roastLevel.trim() : undefined,
-        origin: formData.origin ? formData.origin.trim() : undefined,
+        origin: formData.origin ? formData.origin.trim() : 'Bomet, Kenya',
         flavorNotes: Array.isArray(formData.flavorNotes) ? formData.flavorNotes : [],
         grindOptions: formData.grindOptions || ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'],
         defaultGrind: formData.defaultGrind || 'Whole Beans',
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        isFeatured: formData.isFeatured,
+        isFeatured: formData.isFeatured
       };
 
       const filesToUpload = images.filter(img => img.file).map(img => img.file);
-      let response;
+      const url = product ? `/admin/products/${product._id}` : '/admin/products';
 
       if (filesToUpload.length > 0) {
         const fd = new FormData();
-        Object.entries(productData).forEach(([k, v]) => {
+        Object.entries(productPayload).forEach(([k, v]) => {
           if (v === undefined || v === null) return;
           if (typeof v === 'object' && !Array.isArray(v)) fd.append(k, JSON.stringify(v));
           else if (Array.isArray(v)) fd.append(k, JSON.stringify(v));
           else fd.append(k, v);
         });
         filesToUpload.forEach(file => fd.append('images', file));
-        response = await fetch(url, { method, headers: { 'Authorization': `Bearer ${authToken}` }, body: fd });
+        if (product) {
+          await API.put(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        } else {
+          await API.post(url, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        }
       } else {
-        response = await fetch(url, {
-          method,
-          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(productData),
-        });
+        if (product) {
+          await API.put(url, productPayload);
+        } else {
+          await API.post(url, productPayload);
+        }
       }
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        if (response.status === 401) { showAlert('Session expired. Please log in again.', 'error'); return; }
-        throw new Error(err.message || `Failed to ${product ? 'update' : 'create'} product`);
-      }
-      const data = await response.json();
-      if (data.success) {
-        showAlert(product ? 'Product updated!' : 'Product created!', 'success');
-        onSave(); onClose();
-      } else throw new Error(data.message);
-    } catch (error) {
-      showAlert(error.message || 'Something went wrong', 'error');
-    } finally { setSaving(false); }
+      showAlert(product ? 'Product updated successfully!' : 'Product created successfully!', 'success');
+      onSave();
+      onClose();
+    } catch (err) {
+      console.error('Save product error:', err);
+      const msg = err.response?.data?.message || err.message || 'Failed to save product';
+      showAlert(msg, 'error');
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const primaryImage = images.find(i => !i.file) || images[0];
 
   return (
     <motion.div className="pm-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
-      <motion.div className="pm-modal"
-        initial={{ opacity: 0, scale: 0.96, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 30 }}
+      <motion.div
+        className="pm-modal pm-modal-clean"
+        initial={{ opacity: 0, scale: 0.96, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 20 }}
         transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-        onClick={e => e.stopPropagation()}>
-
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="pm-modal-header">
           <div className="pm-modal-title">
-            <div className="pm-modal-icon" style={{ background: `${catObj?.color || '#D4AF37'}22`, color: catObj?.color || '#D4AF37' }}>
+            <div className="pm-modal-icon" style={{ background: '#D4AF3722', color: '#D4AF37' }}>
               {product ? <FaEdit /> : <FaPlus />}
             </div>
             <div>
-              <h2>{product ? (editViewMode === 'quick' ? 'Quick Update' : 'Edit Product') : (editViewMode === 'quick' ? 'New Product (Streamlined)' : 'New Product')}</h2>
-              {product && <span className="pm-modal-subtitle">{product.name}</span>}
+              <h2>{product ? 'Edit Coffee Product' : 'Add New Coffee Product'}</h2>
+              <span className="pm-modal-subtitle">
+                {product ? product.name : 'Create a new coffee offering for Rerendet Farm'}
+              </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <button
-              type="button"
-              className="btn-toggle-edit-mode"
-              onClick={() => setEditViewMode(m => m === 'quick' ? 'full' : 'quick')}
-            >
-              {editViewMode === 'quick' ? 'Switch to Multi-Step Form' : '⚡ Streamlined Mode'}
-            </button>
-            <button className="pm-close-btn" onClick={onClose}><FaTimes /></button>
-          </div>
+          <button className="pm-close-btn" onClick={onClose} title="Close"><FaTimes /></button>
         </div>
 
-        {/* 1-Click Templates (available for new products in both modes) */}
+        {/* ── Modern Responsive Stepper (Mobile & Desktop) ── */}
+        <div className="pm-stepper-wrap">
+          {STEPS.map((s, idx) => {
+            const isCurrent = activeSection === s.id;
+            const isPassed = STEPS.findIndex(st => st.id === activeSection) > idx;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                className={`pm-stepper-step ${isCurrent ? 'active' : ''} ${isPassed ? 'completed' : ''}`}
+                onClick={() => handleTabClick(s.id)}
+              >
+                <span className="pm-step-circle">{isPassed ? '✓' : s.num}</span>
+                <span className="pm-step-label">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Quick Presets for New Products */}
         {!product && (
           <div className="pm-tpl-strip">
-            <span className="pm-tpl-label">⚡ 1-Click Templates:</span>
+            <span className="pm-tpl-label">⚡ 1-Click Variety Presets:</span>
             <div className="pm-tpl-chips">
               {QUICK_TEMPLATES.map((tpl, idx) => (
                 <button
@@ -1218,686 +1214,101 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                   onClick={() => applyTemplate(tpl)}
                 >
                   <span>{tpl.icon}</span>
-                  <span>{tpl.label}</span>
+                  <span>{tpl.label} ({tpl.variety})</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {editViewMode === 'quick' ? (
-          <form className="pm-streamlined-form" onSubmit={handleSubmit}>
-            <div className="pm-modal-body-streamlined">
-              {/* ── Top Bar: Product Name, Category & Homepage Featured Toggle ── */}
-              <div className="pm-streamlined-header-bar">
-                <div className="pm-streamlined-name-field">
-                  <label>Product Name <span className="req">*</span></label>
-                  <input
-                    type="text"
-                    className="pm-streamlined-name-input"
-                    value={formData.name}
-                    onChange={e => set('name', e.target.value)}
-                    placeholder="e.g. Rerendet AA Arabica Reserve"
-                    required
-                  />
-                </div>
-                <div className="pm-streamlined-meta-group">
-                  <div className="pm-streamlined-cat-select-wrap" title="Select Category">
-                    <select
-                      className="pm-streamlined-cat-select"
-                      value={formData.category}
-                      onChange={e => handleCategoryChange(e.target.value)}
-                    >
-                      {allCategories.map(cat => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.icon} {cat.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <label className={`pm-featured-switch ${formData.isFeatured ? 'active' : ''}`}>
-                    <input
-                      type="checkbox"
-                      checked={formData.isFeatured}
-                      onChange={e => set('isFeatured', e.target.checked)}
-                    />
-                    <FaStar className="star-icon" />
-                    <span>{formData.isFeatured ? 'Featured on Storefront' : 'Feature on Storefront'}</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* ── Product Description Card (Upfront, no hidden accordion) ── */}
-              <div className="pm-streamlined-card">
-                <div className="pm-card-section-title">
-                  <span>📝 Product Description <span className="req">*</span></span>
-                </div>
-                <div className="pm-field" style={{ margin: 0 }}>
-                  <textarea
-                    value={formData.description}
-                    onChange={e => set('description', e.target.value)}
-                    rows={3}
-                    placeholder="Describe product tasting notes, origin story, processing, or brewing tips..."
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* ── Card 1: Sizes & Pricing ── */}
-              <div className="pm-streamlined-card">
-                <div className="pm-card-section-title">
-                  <span>💰 Sizes &amp; Pricing</span>
-                  <div className="pm-qs-chips">
-                    {QUICK_SIZE_PILLS.slice(0, 5).map(sz => (
-                      <button
-                        key={sz}
-                        type="button"
-                        className="pm-qs-chip"
-                        onClick={() => handleQuickAddSize(sz)}
-                      >
-                        + {sz}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="sizes-builder">
-                  {formData.sizes.map((size, i) => {
-                    const hasDiscount = size.originalPrice && Number(size.originalPrice) > Number(size.price);
-                    const discountPct = hasDiscount ? Math.round(((Number(size.originalPrice) - Number(size.price)) / Number(size.originalPrice)) * 100) : 0;
-                    const savingsAmt = hasDiscount ? (Number(size.originalPrice) - Number(size.price)) : 0;
-
-                    return (
-                      <div key={i} className="size-row-premium">
-                        <div className="size-num">{i + 1}</div>
-                        <div className="pm-field flex-1">
-                          <label>Size / Variant</label>
-                          <div className="size-input-combo">
-                            <select
-                              value={cfg.sizeOptions.includes(size.size) ? size.size : '__custom__'}
-                              onChange={e => {
-                                if (e.target.value !== '__custom__') updateSize(i, 'size', e.target.value);
-                              }}
-                            >
-                              {cfg.sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                              <option value="__custom__">✏️ Custom…</option>
-                            </select>
-                            {(!cfg.sizeOptions.includes(size.size) || size.size === '') && (
-                              <input
-                                type="text"
-                                value={size.size}
-                                className="size-custom-input"
-                                onChange={e => updateSize(i, 'size', e.target.value)}
-                                placeholder={cfg.sizePlaceholder}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="pm-field flex-1">
-                          <label>Selling Price (KES) <span className="req">*</span></label>
-                          <input
-                            type="number"
-                            value={size.price ?? ''}
-                            onChange={e => updateSize(i, 'price', e.target.value)}
-                            onFocus={e => e.target.select()}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            required
-                          />
-                        </div>
-
-                        <div className="pm-field flex-1">
-                          <label>Original Price (KES) <span className="hint">(Crossed-out)</span></label>
-                          <input
-                            type="number"
-                            value={size.originalPrice ?? ''}
-                            onChange={e => updateSize(i, 'originalPrice', e.target.value)}
-                            onFocus={e => e.target.select()}
-                            placeholder="e.g. 2400 (Old price)"
-                            min="0"
-                            step="0.01"
-                          />
-                        </div>
-
-                        {hasDiscount && (
-                          <div className="size-discount-chip" title={`Save KES ${savingsAmt.toLocaleString()}`}>
-                            <span>-{discountPct}%</span>
-                          </div>
-                        )}
-
-                        {formData.sizes.length > 1 && (
-                          <button type="button" className="size-remove-btn" onClick={() => removeSize(i)}>
-                            <FaTimes />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="pm-sizes-action-row" style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                  <button type="button" className="btn-add-size" onClick={addSize}>
-                    <FaPlus /> Add Another Variant
-                  </button>
-                </div>
-
-                {/* ── Black November & Campaign Preset Block ── */}
-                <div className="pm-promo-campaign-box" style={{ marginTop: '1.25rem' }}>
-                  <div className="pm-promo-header">
-                    <span className="pm-promo-badge">🔥 Black November &amp; Sale Campaigns</span>
-                    <p className="pm-promo-desc">
-                      Set a discount badge and crossed-out original prices to show discount deals on storefront.
-                    </p>
-                  </div>
-
-                  <div className="pm-field">
-                    <label>Promotional Badge / Banner Text</label>
-                    <input
-                      type="text"
-                      value={formData.discountBadge || ''}
-                      onChange={e => set('discountBadge', e.target.value)}
-                      placeholder="e.g. 🔥 Black November: 25% OFF / Limited Harvest Sale"
-                    />
-                  </div>
-
-                  <div className="pm-quick-promo-presets">
-                    <span className="pm-qs-label">⚡ 1-Click Discount Presets:</span>
-                    <div className="pm-qs-chips">
-                      <button
-                        type="button"
-                        className="pm-qs-chip promo"
-                        onClick={() => {
-                          set('discountBadge', '🔥 Black November: 20% OFF');
-                          set('sizes', formData.sizes.map(s => {
-                            const cur = parseFloat(s.price) || 0;
-                            if (cur <= 0) return s;
-                            const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.8);
-                            return { ...s, price: Math.round(orig * 0.8), originalPrice: orig };
-                          }));
-                        }}
-                      >
-                        🔥 20% Off All Sizes
-                      </button>
-                      <button
-                        type="button"
-                        className="pm-qs-chip promo"
-                        onClick={() => {
-                          set('discountBadge', '⚡ Black November: 25% OFF');
-                          set('sizes', formData.sizes.map(s => {
-                            const cur = parseFloat(s.price) || 0;
-                            if (cur <= 0) return s;
-                            const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.75);
-                            return { ...s, price: Math.round(orig * 0.75), originalPrice: orig };
-                          }));
-                        }}
-                      >
-                        ⚡ 25% Off All Sizes
-                      </button>
-                      <button
-                        type="button"
-                        className="pm-qs-chip promo"
-                        onClick={() => {
-                          set('discountBadge', '💥 Black November: 30% OFF');
-                          set('sizes', formData.sizes.map(s => {
-                            const cur = parseFloat(s.price) || 0;
-                            if (cur <= 0) return s;
-                            const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.7);
-                            return { ...s, price: Math.round(orig * 0.7), originalPrice: orig };
-                          }));
-                        }}
-                      >
-                        💥 30% Off All Sizes
-                      </button>
-                      <button
-                        type="button"
-                        className="pm-qs-chip"
-                        onClick={() => {
-                          set('discountBadge', '');
-                          set('sizes', formData.sizes.map(s => ({
-                            ...s,
-                            originalPrice: ''
-                          })));
-                        }}
-                      >
-                        ✕ Clear Promo / Reset
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Card 1.4: Roast Level & Harvest Origin ── */}
-              <div className="pm-streamlined-card">
-                <div className="pm-card-section-title">
-                  <span>🔥 Coffee Roast Level &amp; Origin</span>
-                  <div className="pm-qs-chips">
-                    {ROAST_LEVELS.map(r => {
-                      const isSel = formData.roastLevel?.toLowerCase() === r.value.toLowerCase() || formData.roastLevel?.toLowerCase() === r.label.toLowerCase();
-                      return (
-                        <button
-                          key={r.value}
-                          type="button"
-                          className={`pm-qs-chip ${isSel ? 'promo' : ''}`}
-                          onClick={() => updateRoastLevel(r.label)}
-                        >
-                          {r.emoji} {r.label}
-                        </button>
-                      );
-                    })}
-                    {formData.roastLevel && (
-                      <button
-                        type="button"
-                        className="pm-qs-chip"
-                        onClick={() => updateRoastLevel('')}
-                      >
-                        ✕ Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem', marginTop: '0.85rem' }}>
-                  <div className="pm-field">
-                    <label>Roast Level / Profile Name</label>
-                    <input
-                      type="text"
-                      value={formData.roastLevel}
-                      onChange={e => updateRoastLevel(e.target.value)}
-                      placeholder="e.g. Light, Medium, Dark, Espresso, or Custom..."
-                    />
-                    <span className="pm-field-hint">Select a preset above or type custom. Dynamically creates the shop's roast filter pill.</span>
-                  </div>
-                  <div className="pm-field">
-                    <label>Harvest Origin / Terroir</label>
-                    <input
-                      type="text"
-                      value={formData.origin}
-                      onChange={e => updateOrigin(e.target.value)}
-                      placeholder="e.g. Nandi Hills, Bomet (2,000m ASL)"
-                    />
-                    <span className="pm-field-hint">Displayed on storefront coffee cards and modal</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Card 1.5: Select Grind Profile ── */}
-              <div className="pm-streamlined-card pm-grind-profile-card">
-                <div className="pm-card-section-title">
-                  <span>☕ Select Grind Profile</span>
-                  <div className="pm-qs-chips">
-                    <button
-                      type="button"
-                      className="pm-qs-chip"
-                      onClick={selectAllGrinds}
-                    >
-                      ✓ All 5 Profiles
-                    </button>
-                    <button
-                      type="button"
-                      className="pm-qs-chip"
-                      onClick={selectWholeBeansOnly}
-                    >
-                      Whole Beans Only
-                    </button>
-                  </div>
-                </div>
-                <p className="pm-field-hint" style={{ marginBottom: '0.85rem' }}>
-                  Choose which grind profiles customers can select for this coffee. Click cards to toggle.
-                </p>
-
-                <div className="pm-grind-options-grid">
-                  {[
-                    { name: 'Whole Beans', icon: '🫘', desc: 'Fresh roasted whole beans' },
-                    { name: 'French Press', icon: '⚱️', desc: 'Coarse immersion grind' },
-                    { name: 'Pour-Over', icon: '☕', desc: 'Medium-fine drip & V60 grind' },
-                    { name: 'AeroPress', icon: '⏳', desc: 'Fine-medium pressure grind' },
-                    { name: 'Espresso', icon: '⚡', desc: 'Fine 9-bar espresso grind' }
-                  ].map(g => {
-                    const isSelected = formData.grindOptions?.includes(g.name);
-                    const isDefault = formData.defaultGrind === g.name;
-
-                    return (
-                      <div
-                        key={g.name}
-                        className={`pm-grind-pill-card ${isSelected ? 'active' : ''}`}
-                        onClick={() => toggleGrindOption(g.name)}
-                      >
-                        <div className="pm-grind-pill-header">
-                          <span className="pm-grind-icon">{g.icon}</span>
-                          <div className="pm-grind-meta">
-                            <span className="pm-grind-name">{g.name}</span>
-                            <span className="pm-grind-desc">{g.desc}</span>
-                          </div>
-                          <div className={`pm-grind-checkbox ${isSelected ? 'checked' : ''}`}>
-                            {isSelected ? <FaCheck /> : null}
-                          </div>
-                        </div>
-                        {isSelected && (
-                          <div className="pm-grind-pill-footer" onClick={e => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              className={`pm-grind-default-badge ${isDefault ? 'is-default' : ''}`}
-                              onClick={() => set('defaultGrind', g.name)}
-                            >
-                              {isDefault ? '★ Default Choice' : 'Set as Default'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ── Card 2: Warehouse Stock & Inventory ── */}
-              <div className="pm-streamlined-card">
-                <div className="pm-card-section-title">
-                  <span>📦 Warehouse Stock &amp; Availability</span>
-                </div>
-                <div className="stock-cards">
-                  <div className="stock-card">
-                    <div className="stock-card-icon green"><FaCheckCircle /></div>
-                    <div className="pm-field" style={{ flex: 1 }}>
-                      <label>Physical Stock <span className="req">*</span></label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                          type="number"
-                          value={formData.inventory.physicalStock ?? ''}
-                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: e.target.value })}
-                          onFocus={e => e.target.select()}
-                          placeholder="0"
-                          min="0"
-                          required
-                          style={{ flex: 1 }}
-                        />
-                        <button
-                          type="button"
-                          className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: Math.max(0, (parseInt(formData.inventory.physicalStock, 10) || 0) - 5) })}
-                        >
-                          -5
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 5 })}
-                        >
-                          +5
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 10 })}
-                        >
-                          +10
-                        </button>
-                      </div>
-                      <span className="pm-field-hint">Current actual units in inventory</span>
-                    </div>
-                  </div>
-
-                  <div className="stock-card">
-                    <div className="stock-card-icon amber"><FaBell /></div>
-                    <div className="pm-field" style={{ flex: 1 }}>
-                      <label>Low Stock Warning Threshold</label>
-                      <input
-                        type="number"
-                        value={formData.inventory.lowStockThreshold ?? ''}
-                        onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: e.target.value })}
-                        onFocus={e => e.target.select()}
-                        placeholder="5"
-                        min="0"
-                      />
-                      <span className="pm-field-hint">Triggers low stock telemetry on storefront</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Card 3: Compact Media (Images) ── */}
-              <div className="pm-streamlined-card">
-                <div className="pm-card-section-title">
-                  <span>🖼️ Product Images ({images.length})</span>
-                </div>
-                <div className="pm-media-compact-strip">
-                  {images.map((img, i) => (
-                    <div key={i} className="pm-thumb-compact">
-                      <img src={img.url} alt={`thumb-${i}`} />
-                      <button
-                        type="button"
-                        className="pm-thumb-remove-btn"
-                        title="Remove image"
-                        onClick={() => removeImage(i)}
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="pm-media-add-btn"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <FaUpload />
-                    <span>+ Add</span>
-                  </button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    multiple
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={e => processFiles(e.target.files)}
-                  />
-                </div>
-              </div>
-
-              {/* ── Card 4: Additional Details & Custom Attributes (Collapsible) ── */}
-              <div className="pm-advanced-accordion">
-                <button
-                  type="button"
-                  className="pm-advanced-accordion-btn"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                >
-                  <span>⚙️ Additional Details, Tags &amp; Category Attributes</span>
-                  <span>{showAdvanced ? '▲ Hide' : '▼ Show'}</span>
-                </button>
-                {showAdvanced && (
-                  <div className="pm-advanced-content">
-                    <div className="pm-row">
-                      <div className="pm-field">
-                        <label>Badge Label</label>
-                        <input
-                          type="text"
-                          value={formData.badge || ''}
-                          onChange={e => set('badge', e.target.value)}
-                          placeholder="e.g. Best Seller, New Arrival, Limited Lot"
-                        />
-                      </div>
-                      <div className="pm-field">
-                        <label>Tags <span className="hint">(comma separated)</span></label>
-                        <input
-                          type="text"
-                          value={formData.tags}
-                          onChange={e => set('tags', e.target.value)}
-                          placeholder="specialty, arabica, beans"
-                        />
-                      </div>
-                    </div>
-
-                    {customCategoryAttributes.length > 0 && (
-                      <div className="pm-custom-attributes-grid" style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-                        {customCategoryAttributes.map(attr => (
-                          <div key={attr.key} className="pm-field">
-                            <label>
-                              {attr.label} {attr.required && <span className="req">*</span>} {attr.unit && <span className="hint">({attr.unit})</span>}
-                            </label>
-                            {attr.type === 'select' ? (
-                              <select
-                                value={formData.categoryAttributes[attr.key] || attr.defaultValue || ''}
-                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                                required={attr.required}
-                              >
-                                <option value="">Select option...</option>
-                                {attr.options && attr.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                              </select>
-                            ) : attr.type === 'boolean' ? (
-                              <input
-                                type="checkbox"
-                                checked={!!(formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? false)}
-                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.checked })}
-                              />
-                            ) : attr.type === 'number' ? (
-                              <input
-                                type="number"
-                                value={formData.categoryAttributes[attr.key] ?? ''}
-                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                                onFocus={e => e.target.select()}
-                                placeholder={`Enter ${attr.label.toLowerCase()}`}
-                                required={attr.required}
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
-                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                                placeholder={`Enter ${attr.label.toLowerCase()}`}
-                                required={attr.required}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pm-form-footer">
-              <button type="button" className="btn-pm-cancel" onClick={onClose} disabled={saving}>
-                Cancel
-              </button>
-              <button type="submit" className="btn-pm-save" disabled={saving}>
-                {saving ? 'Saving...' : (product ? '💾 Save Updates' : '✨ Create Product')}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <>
-            <div className="pm-modal-body">
-              {/* LEFT nav */}
-              <nav className="pm-form-nav">
-                {SECTIONS.map(sec => (
-                  <button key={sec.id} type="button"
-                    className={`pm-nav-btn ${activeSection === sec.id ? 'active' : ''}`}
-                    onClick={() => setActiveSection(sec.id)}>
-                    <span className="pm-nav-icon">{sec.icon}</span>
-                    {sec.label}
-                  </button>
-                ))}
-
-                {/* Mini Preview */}
-                <div className="pm-mini-preview">
-                  {primaryImage
-                    ? <img src={primaryImage.url} alt="preview" />
-                    : <div className="pm-preview-placeholder" style={{ fontSize: '2.5rem' }}>{catObj?.icon || '📦'}</div>}
-                  <p className="pm-preview-name">{formData.name || 'Product name'}</p>
-                  <p className="pm-preview-price">
-                    {formData.sizes?.[0]?.price ? `KES ${parseFloat(formData.sizes[0].price).toLocaleString()}` : 'No price set'}
-                  </p>
-                  <div className="pm-preview-cat" style={{ color: catObj?.color || '#9ca3af' }}>
-                    {catObj?.icon} {catObj?.label || formData.category}
-                  </div>
-                  <div className="pm-preview-tags">
-                    {formData.isFeatured && <span className="preview-tag gold"><FaStar /> Featured</span>}
-                    {(formData.inventory?.stock || 0) <= 10 && <span className="preview-tag red"><FaBell /> Low stock</span>}
-                  </div>
-                </div>
-              </nav>
-
-              {/* RIGHT form */}
-              <form className="pm-form" onSubmit={handleSubmit}>
+        {/* Modal Scrollable Body */}
+        <div className="pm-modal-body-unified">
+          <form className="pm-form-unified" onSubmit={handleSubmit}>
             <AnimatePresence mode="wait">
 
-              {/* ═══ BASIC INFO ═══ */}
+              {/* ═══ STEP 1: BASIC INFO ═══ */}
               {activeSection === 'basic' && (
-                <motion.div key="basic" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">🏷️ Basic Information</h3>
-
-                  <div className="pm-field">
-                    <label>Product Name <span className="req">*</span></label>
-                    <input type="text" value={formData.name} onChange={e => set('name', e.target.value)}
-                      placeholder="e.g., Rerendet AA Premium Blend" required />
+                <motion.div key="basic" className="pm-section" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}>
+                  <div className="pm-section-header">
+                    <h3>🏷️ Step 1: Basic Information</h3>
+                    <p className="pm-section-hint">Enter the coffee name, description, and storefront visibility.</p>
                   </div>
 
                   <div className="pm-field">
-                    <label>Description <span className="req">*</span></label>
-                    <textarea value={formData.description} onChange={e => set('description', e.target.value)}
-                      rows={5} placeholder="Describe the product..." required />
+                    <label>Coffee Name <span className="req">*</span></label>
+                    <input
+                      id="pm-name-input"
+                      type="text"
+                      value={formData.name}
+                      onChange={e => set('name', e.target.value)}
+                      placeholder="e.g. Rerendet AA Arabica Reserve"
+                      required
+                    />
+                  </div>
+
+                  <div className="pm-field">
+                    <label>Description &amp; Origin Notes <span className="req">*</span></label>
+                    <textarea
+                      id="pm-desc-input"
+                      value={formData.description}
+                      onChange={e => set('description', e.target.value)}
+                      rows={4}
+                      placeholder="Describe the aroma, volcanic terroir, processing, and tasting profile..."
+                      required
+                    />
                   </div>
 
                   <div className="pm-row">
                     <div className="pm-field">
-                      <label>Badge Label</label>
-                      <input type="text" value={formData.badge} onChange={e => set('badge', e.target.value)}
-                        placeholder="e.g., Best Seller, New Arrival" />
+                      <label>Store Category <span className="req">*</span></label>
+                      <select
+                        value={formData.category}
+                        onChange={e => set('category', e.target.value)}
+                        className="pm-select-styled"
+                      >
+                        {allCategories.map(cat => (
+                          <option key={cat.value} value={cat.value}>
+                            {cat.icon} {cat.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
+
                     <div className="pm-field">
-                      <label>Tags <span className="hint">(comma separated)</span></label>
-                      <input type="text" value={formData.tags} onChange={e => set('tags', e.target.value)}
-                        placeholder="premium, organic, handmade" />
+                      <label>Highlight Badge <span className="hint">(Optional)</span></label>
+                      <input
+                        type="text"
+                        value={formData.badge}
+                        onChange={e => set('badge', e.target.value)}
+                        placeholder="e.g. Top Harvest, Best Seller, Limited Lot"
+                      />
                     </div>
                   </div>
 
-                  {/* ── Category Selector ── */}
-                  <div className="pm-field">
-                    <div className="pm-field-label-row">
-                      <label>Category <span className="req">*</span></label>
-                      <button type="button" className="btn-inline-add" onClick={onAddCategory}>
-                        <FaPlus /> Add Category
-                      </button>
-                    </div>
-                    <div className="category-selector">
-                      {allCategories.map(cat => (
-                        <button key={cat.value} type="button"
-                          className={`cat-option ${formData.category === cat.value ? 'active' : ''}`}
-                          style={{ '--cat-color': cat.color || '#D4AF37' }}
-                          onClick={() => handleCategoryChange(cat.value)}>
-                          <span className="cat-icon">{cat.icon}</span>
-                          <span>{cat.label}</span>
-                          {formData.category === cat.value && <FaCheck className="cat-check" />}
-                        </button>
-                      ))}
-                    </div>
-                    {formData.category && (
-                      <p className="pm-field-hint" style={{ marginTop: '0.5rem' }}>
-                        {cfg.detailsHint}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="pm-field">
-                    <label>
-                      <input type="checkbox" checked={formData.isFeatured}
+                  <div className="pm-featured-box">
+                    <label className="pm-featured-toggle">
+                      <input
+                        type="checkbox"
+                        checked={formData.isFeatured}
                         onChange={e => set('isFeatured', e.target.checked)}
-                        style={{ marginRight: '0.5rem', accentColor: 'var(--color-primary)' }} />
-                      Feature this product on homepage
+                      />
+                      <FaStar className={formData.isFeatured ? 'gold-star' : ''} />
+                      <span>Feature this coffee prominently on the homepage storefront</span>
                     </label>
                   </div>
                 </motion.div>
               )}
 
-              {/* ═══ PRICING ═══ */}
+              {/* ═══ STEP 2: SIZES & PRICING ═══ */}
               {activeSection === 'pricing' && (
-                <motion.div key="pricing" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">💰 Sizes &amp; Pricing</h3>
-                  <p className="pm-section-hint">Add one or more size/variant options with prices. Use names that make sense for <strong>{catObj?.label || formData.category}</strong>.</p>
+                <motion.div key="pricing" className="pm-section" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}>
+                  <div className="pm-section-header">
+                    <h3>💰 Step 2: Sizes &amp; Pricing</h3>
+                    <p className="pm-section-hint">Configure sizes (e.g. 250g, 500g, 1kg) and prices in KES.</p>
+                  </div>
 
                   <div className="pm-quick-sizes-bar">
-                    <span className="pm-qs-label">⚡ Quick Add Variant:</span>
+                    <span className="pm-qs-label">⚡ Add Common Size:</span>
                     <div className="pm-qs-chips">
                       {QUICK_SIZE_PILLS.map((sz) => (
                         <button
@@ -1916,28 +1327,19 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                     {formData.sizes.map((size, i) => {
                       const hasDiscount = size.originalPrice && Number(size.originalPrice) > Number(size.price);
                       const discountPct = hasDiscount ? Math.round(((Number(size.originalPrice) - Number(size.price)) / Number(size.originalPrice)) * 100) : 0;
-                      const savingsAmt = hasDiscount ? (Number(size.originalPrice) - Number(size.price)) : 0;
 
                       return (
-                        <motion.div key={i} className="size-row-premium"
-                          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                        <div key={i} className="size-row-premium">
                           <div className="size-num">{i + 1}</div>
                           <div className="pm-field flex-1">
-                            <label>Size / Variant</label>
-                            <div className="size-input-combo">
-                              <select value={cfg.sizeOptions.includes(size.size) ? size.size : '__custom__'}
-                                onChange={e => {
-                                  if (e.target.value !== '__custom__') updateSize(i, 'size', e.target.value);
-                                }}>
-                                {cfg.sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                                <option value="__custom__">✏️ Custom…</option>
-                              </select>
-                              {(!cfg.sizeOptions.includes(size.size) || size.size === '') && (
-                                <input type="text" value={size.size} className="size-custom-input"
-                                  onChange={e => updateSize(i, 'size', e.target.value)}
-                                  placeholder={cfg.sizePlaceholder} />
-                              )}
-                            </div>
+                            <label>Size / Weight <span className="req">*</span></label>
+                            <input
+                              type="text"
+                              value={size.size}
+                              onChange={e => updateSize(i, 'size', e.target.value)}
+                              placeholder="e.g. 250g, 500g, 1kg"
+                              required
+                            />
                           </div>
 
                           <div className="pm-field flex-1">
@@ -1946,10 +1348,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                               type="number"
                               value={size.price ?? ''}
                               onChange={e => updateSize(i, 'price', e.target.value)}
-                              onFocus={e => e.target.select()}
-                              placeholder="0.00"
-                              min="0"
-                              step="0.01"
+                              placeholder="e.g. 750"
+                              min="1"
+                              step="1"
                               required
                             />
                           </div>
@@ -1960,353 +1361,222 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                               type="number"
                               value={size.originalPrice ?? ''}
                               onChange={e => updateSize(i, 'originalPrice', e.target.value)}
-                              onFocus={e => e.target.select()}
-                              placeholder="e.g. 2400 (Old price)"
-                              min="0"
-                              step="0.01"
+                              placeholder="Optional old price"
+                              min="1"
+                              step="1"
                             />
                           </div>
 
                           {hasDiscount && (
-                            <div className="size-discount-chip" title={`Save KES ${savingsAmt.toLocaleString()}`}>
+                            <div className="size-discount-chip">
                               <span>-{discountPct}%</span>
                             </div>
                           )}
 
                           {formData.sizes.length > 1 && (
-                            <button type="button" className="size-remove-btn" onClick={() => removeSize(i)}><FaTimes /></button>
+                            <button
+                              type="button"
+                              className="size-remove-btn"
+                              onClick={() => removeSize(i)}
+                              title="Remove size"
+                            >
+                              <FaTimes />
+                            </button>
                           )}
-                        </motion.div>
+                        </div>
                       );
                     })}
                   </div>
 
-                  <div className="pm-sizes-action-row" style={{ display: 'flex', gap: '0.75rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                    <button type="button" className="btn-add-size" onClick={addSize}>
-                      <FaPlus /> Add Another Variant
-                    </button>
-                  </div>
+                  <button type="button" className="btn-add-size" onClick={addSize}>
+                    <FaPlus /> Add Another Size Variant
+                  </button>
 
-                  {/* ── Black November & Promotional Campaign Block ── */}
-                  <div className="pm-promo-campaign-box">
-                    <div className="pm-promo-header">
-                      <span className="pm-promo-badge">🔥 Black November & Seasonal Campaigns</span>
-                      <p className="pm-promo-desc">
-                        Set a promotional discount badge and crossed-out old prices to highlight Black November deals.
-                      </p>
-                    </div>
-
+                  <div className="pm-promo-campaign-box" style={{ marginTop: '1.25rem' }}>
                     <div className="pm-field">
-                      <label>Promotional Badge / Banner Text</label>
+                      <label>Promotional Badge / Banner <span className="hint">(Optional)</span></label>
                       <input
                         type="text"
                         value={formData.discountBadge || ''}
                         onChange={e => set('discountBadge', e.target.value)}
-                        placeholder="e.g. 🔥 Black November: 25% OFF / Limited Harvest Sale"
+                        placeholder="e.g. 🔥 Black November: 20% OFF / Special Harvest Offer"
                       />
                     </div>
+                  </div>
+                </motion.div>
+              )}
 
-                    <div className="pm-quick-promo-presets">
-                      <span className="pm-qs-label">⚡ Quick Black November Presets:</span>
-                      <div className="pm-qs-chips">
-                        <button
-                          type="button"
-                          className="pm-qs-chip promo"
-                          onClick={() => {
-                            set('discountBadge', '🔥 Black November: 20% OFF');
-                            // Apply 20% off to all sizes (set originalPrice if not set)
-                            set('sizes', formData.sizes.map(s => {
-                              const cur = parseFloat(s.price) || 0;
-                              if (cur <= 0) return s;
-                              const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.8);
-                              const sale = Math.round(orig * 0.8);
-                              return { ...s, price: sale, originalPrice: orig };
-                            }));
-                          }}
-                        >
-                          🔥 20% Off All Sizes
-                        </button>
+              {/* ═══ STEP 3: VARIETY & DETAILS (STRICTLY THE 4 VARIETIES) ═══ */}
+              {activeSection === 'details' && (
+                <motion.div key="details" className="pm-section" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}>
+                  <div className="pm-section-header">
+                    <h3>☕ Step 3: Coffee Variety &amp; Roast</h3>
+                    <p className="pm-section-hint">Select strictly one of the 4 farm varieties below.</p>
+                  </div>
 
-                        <button
-                          type="button"
-                          className="pm-qs-chip promo"
-                          onClick={() => {
-                            set('discountBadge', '⚡ Black November: 25% OFF');
-                            set('sizes', formData.sizes.map(s => {
-                              const cur = parseFloat(s.price) || 0;
-                              if (cur <= 0) return s;
-                              const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.75);
-                              const sale = Math.round(orig * 0.75);
-                              return { ...s, price: sale, originalPrice: orig };
-                            }));
-                          }}
-                        >
-                          ⚡ 25% Off All Sizes
-                        </button>
-
-                        <button
-                          type="button"
-                          className="pm-qs-chip promo"
-                          onClick={() => {
-                            set('discountBadge', '💥 Black November: 30% OFF');
-                            set('sizes', formData.sizes.map(s => {
-                              const cur = parseFloat(s.price) || 0;
-                              if (cur <= 0) return s;
-                              const orig = s.originalPrice ? parseFloat(s.originalPrice) : Math.round(cur / 0.7);
-                              const sale = Math.round(orig * 0.7);
-                              return { ...s, price: sale, originalPrice: orig };
-                            }));
-                          }}
-                        >
-                          💥 30% Off All Sizes
-                        </button>
-
-                        <button
-                          type="button"
-                          className="pm-qs-chip"
-                          onClick={() => {
-                            set('discountBadge', '');
-                            set('sizes', formData.sizes.map(s => ({
-                              ...s,
-                              originalPrice: ''
-                            })));
-                          }}
-                        >
-                          ✕ Clear Promo / Reset
-                        </button>
-                      </div>
+                  {/* 4 Varieties Strict Selector */}
+                  <div className="pm-varieties-section">
+                    <label className="pm-variety-heading">Variety / Roast Level <span className="req">*</span></label>
+                    <div className="pm-varieties-grid">
+                      {ROAST_LEVELS.map(r => {
+                        const isSelected = formData.roastLevel?.toLowerCase() === r.label.toLowerCase() ||
+                                          formData.roastLevel?.toLowerCase() === r.value.toLowerCase();
+                        return (
+                          <div
+                            key={r.value}
+                            className={`pm-variety-card ${isSelected ? 'selected' : ''}`}
+                            onClick={() => updateRoastLevel(r.label)}
+                          >
+                            <div className="pm-variety-icon">{r.emoji}</div>
+                            <div className="pm-variety-info">
+                              <span className="pm-variety-title">{r.label}</span>
+                              <span className="pm-variety-desc">{r.desc}</span>
+                            </div>
+                            <div className={`pm-variety-radio ${isSelected ? 'checked' : ''}`}>
+                              {isSelected ? <FaCheck /> : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {formData.sizes.some(s => s.price) && (
-                    <div className="pricing-summary">
-                      <h4>Price Range</h4>
-                      <div className="price-range">
-                        <span>From</span>
-                        <strong>KES {Math.min(...formData.sizes.map(s => parseFloat(s.price) || 0)).toLocaleString()}</strong>
-                        <span>to</span>
-                        <strong>KES {Math.max(...formData.sizes.map(s => parseFloat(s.price) || 0)).toLocaleString()}</strong>
+                  <div className="pm-field" style={{ marginTop: '1.25rem' }}>
+                    <label>🌱 Origin / Terroir Region</label>
+                    <input
+                      type="text"
+                      value={formData.origin}
+                      onChange={e => updateOrigin(e.target.value)}
+                      placeholder="e.g. Bomet, Kenya (1,950m ASL) High Altitude"
+                    />
+                  </div>
+
+                  {/* Grind Profiles */}
+                  <div className="pm-grind-section" style={{ marginTop: '1.25rem' }}>
+                    <div className="pm-grind-header">
+                      <label className="pm-variety-heading">Grind Profiles Available to Customers</label>
+                      <div className="pm-qs-chips">
+                        <button type="button" className="pm-qs-chip" onClick={selectAllGrinds}>All 5 Profiles</button>
+                        <button type="button" className="pm-qs-chip" onClick={selectWholeBeansOnly}>Whole Beans Only</button>
                       </div>
                     </div>
-                  )}
-                </motion.div>
-              )}
 
-              {/* ═══ DETAILS (category-aware) ═══ */}
-              {activeSection === 'details' && (
-                <motion.div key="details" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">📋 Product Details</h3>
-                  <p className="pm-section-hint">Provide specific details for this category to help customers filter and browse.</p>
+                    <div className="pm-grind-options-grid">
+                      {[
+                        { name: 'Whole Beans', icon: '🫘', desc: 'Fresh roasted whole beans' },
+                        { name: 'French Press', icon: '⚱️', desc: 'Coarse immersion grind' },
+                        { name: 'Pour-Over', icon: '☕', desc: 'Medium drip grind' },
+                        { name: 'AeroPress', icon: '⏳', desc: 'Fine-medium pressure grind' },
+                        { name: 'Espresso', icon: '⚡', desc: 'Fine espresso grind' }
+                      ].map(g => {
+                        const isSelected = formData.grindOptions?.includes(g.name);
+                        const isDefault = formData.defaultGrind === g.name;
 
-                  {customCategoryAttributes.length > 0 && (
-                    customCategoryAttributes.map(attr => (
-                      <div key={attr.key} className="pm-field">
-                        <label>
-                          {attr.label} {attr.required && <span className="req">*</span>} {attr.unit && <span className="hint">({attr.unit})</span>}
-                        </label>
-                        {attr.type === 'select' ? (
-                          <select
-                            value={formData.categoryAttributes[attr.key] || attr.defaultValue || ''}
-                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                            required={attr.required}
+                        return (
+                          <div
+                            key={g.name}
+                            className={`pm-grind-pill-card ${isSelected ? 'active' : ''}`}
+                            onClick={() => toggleGrindOption(g.name)}
                           >
-                            <option value="">Select option...</option>
-                            {attr.options && attr.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                        ) : attr.type === 'boolean' ? (
-                          <input
-                            type="checkbox"
-                            checked={!!(formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? false)}
-                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.checked })}
-                          />
-                        ) : attr.type === 'number' ? (
-                          <input
-                            type="number"
-                            value={formData.categoryAttributes[attr.key] ?? ''}
-                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                            onFocus={e => e.target.select()}
-                            placeholder={`Enter ${attr.label.toLowerCase()}`}
-                            required={attr.required}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
-                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
-                            placeholder={`Enter ${attr.label.toLowerCase()}`}
-                            required={attr.required}
-                          />
-                        )}
-                      </div>
-                    ))
-                  )}
-
-                  {/* ── Coffee Specific Details (only for Coffee category or when generic) ── */}
-                  {(catObj?.slug?.includes('coffee') || formData.category?.toLowerCase().includes('coffee') || !catObj) && (
-                    <>
-                      <div className="pm-field" style={{ marginTop: '1.25rem', borderTop: '1px solid var(--admin-border, #334155)', paddingTop: '1.25rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <label style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>
-                            🔥 Coffee Roast Level
-                          </label>
-                          <div className="pm-qs-chips">
-                            {ROAST_LEVELS.map(r => {
-                              const isSel = formData.roastLevel?.toLowerCase() === r.value.toLowerCase() || formData.roastLevel?.toLowerCase() === r.label.toLowerCase();
-                              return (
+                            <div className="pm-grind-pill-header">
+                              <span className="pm-grind-icon">{g.icon}</span>
+                              <div className="pm-grind-meta">
+                                <span className="pm-grind-name">{g.name}</span>
+                                <span className="pm-grind-desc">{g.desc}</span>
+                              </div>
+                              <div className={`pm-grind-checkbox ${isSelected ? 'checked' : ''}`}>
+                                {isSelected ? <FaCheck /> : null}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="pm-grind-pill-footer" onClick={e => e.stopPropagation()}>
                                 <button
-                                  key={r.value}
                                   type="button"
-                                  className={`pm-qs-chip ${isSel ? 'promo' : ''}`}
-                                  onClick={() => updateRoastLevel(r.label)}
+                                  className={`pm-grind-default-badge ${isDefault ? 'is-default' : ''}`}
+                                  onClick={() => set('defaultGrind', g.name)}
                                 >
-                                  {r.emoji} {r.label}
+                                  {isDefault ? '★ Default Choice' : 'Set as Default'}
                                 </button>
-                              );
-                            })}
-                            {formData.roastLevel && (
-                              <button
-                                type="button"
-                                className="pm-qs-chip"
-                                onClick={() => updateRoastLevel('')}
-                              >
-                                ✕ Clear
-                              </button>
+                              </div>
                             )}
                           </div>
-                        </div>
-                        <input
-                          type="text"
-                          value={formData.roastLevel}
-                          onChange={e => updateRoastLevel(e.target.value)}
-                          placeholder="e.g. Light, Medium, Dark, Espresso, or Custom Roast Profile..."
-                        />
-                        <span className="pm-field-hint">
-                          Selected roast level appears on the storefront card and dynamically creates the roast filter pill on the customer shop.
-                        </span>
-                      </div>
-
-                      <div className="pm-field" style={{ marginTop: '1rem' }}>
-                        <label style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                          🌱 Coffee Origin / Terroir
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.origin}
-                          onChange={e => updateOrigin(e.target.value)}
-                          placeholder="e.g. Nandi Hills, Bomet (2,000m ASL)"
-                        />
-                        <span className="pm-field-hint">
-                          Origin region shown on coffee card badges and modal.
-                        </span>
-                      </div>
-
-                      {/* ── Coffee Grind Profile Configuration ── */}
-                      <div className="pm-field" style={{ marginTop: '1.5rem', borderTop: '1px solid var(--admin-border, #334155)', paddingTop: '1.25rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                          <label style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem' }}>
-                            ☕ Select Grind Profile
-                          </label>
-                          <div className="pm-qs-chips">
-                            <button
-                              type="button"
-                              className="pm-qs-chip"
-                              onClick={selectAllGrinds}
-                            >
-                              ✓ All 5 Profiles
-                            </button>
-                            <button
-                              type="button"
-                              className="pm-qs-chip"
-                              onClick={selectWholeBeansOnly}
-                            >
-                              Whole Beans Only
-                            </button>
-                          </div>
-                        </div>
-                        <span className="pm-field-hint">
-                          Choose which grind options customers can select when ordering this coffee. Click to toggle.
-                        </span>
-
-                        <div className="pm-grind-options-grid" style={{ marginTop: '0.75rem' }}>
-                          {[
-                            { name: 'Whole Beans', icon: '🫘', desc: 'Fresh roasted whole beans' },
-                            { name: 'French Press', icon: '⚱️', desc: 'Coarse immersion grind' },
-                            { name: 'Pour-Over', icon: '☕', desc: 'Medium-fine drip & V60 grind' },
-                            { name: 'AeroPress', icon: '⏳', desc: 'Fine-medium pressure grind' },
-                            { name: 'Espresso', icon: '⚡', desc: 'Fine 9-bar espresso grind' }
-                          ].map(g => {
-                            const isSelected = formData.grindOptions?.includes(g.name);
-                            const isDefault = formData.defaultGrind === g.name;
-
-                            return (
-                              <div
-                                key={g.name}
-                                className={`pm-grind-pill-card ${isSelected ? 'active' : ''}`}
-                                onClick={() => toggleGrindOption(g.name)}
-                              >
-                                <div className="pm-grind-pill-header">
-                                  <span className="pm-grind-icon">{g.icon}</span>
-                                  <div className="pm-grind-meta">
-                                    <span className="pm-grind-name">{g.name}</span>
-                                    <span className="pm-grind-desc">{g.desc}</span>
-                                  </div>
-                                  <div className={`pm-grind-checkbox ${isSelected ? 'checked' : ''}`}>
-                                    {isSelected ? <FaCheck /> : null}
-                                  </div>
-                                </div>
-                                {isSelected && (
-                                  <div className="pm-grind-pill-footer" onClick={e => e.stopPropagation()}>
-                                    <button
-                                      type="button"
-                                      className={`pm-grind-default-badge ${isDefault ? 'is-default' : ''}`}
-                                      onClick={() => set('defaultGrind', g.name)}
-                                    >
-                                      {isDefault ? '★ Default Choice' : 'Set as Default'}
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {customCategoryAttributes.length === 0 && !catObj?.slug?.includes('coffee') && !formData.category?.toLowerCase().includes('coffee') && (
-                    <div className="pm-no-coffee">
-                      <span style={{ fontSize: '2.5rem' }}>{catObj?.icon || '📦'}</span>
-                      <p>No specific extra details for this category. You can add product specifics in the <strong>Tags</strong> field (Basic Info tab) or add info in the description.</p>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Flavor Notes */}
+                  <div className="pm-field" style={{ marginTop: '1.25rem' }}>
+                    <label>Flavor Notes</label>
+                    <div className="flavor-notes-input-wrap">
+                      <input
+                        type="text"
+                        value={flavorInput}
+                        onChange={e => setFlavorInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFlavor(flavorInput); } }}
+                        placeholder="Type a flavor note and press Add (e.g. Citrus, Dark Chocolate, Caramel)"
+                      />
+                      <button type="button" className="btn-add-flavor" onClick={() => addFlavor(flavorInput)}>
+                        + Add Note
+                      </button>
+                    </div>
+                    {formData.flavorNotes?.length > 0 && (
+                      <div className="flavor-chips-list">
+                        {formData.flavorNotes.map((note, idx) => (
+                          <span key={idx} className="flavor-chip-tag">
+                            {note}
+                            <button type="button" onClick={() => removeFlavor(note)}><FaTimes /></button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </motion.div>
               )}
 
-              {/* ═══ MEDIA ═══ */}
+              {/* ═══ STEP 4: MEDIA ═══ */}
               {activeSection === 'media' && (
-                <motion.div key="media" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">🖼️ Product Images</h3>
-                  <p className="pm-section-hint">Upload up to 6 images. First image will be the main display image.</p>
-                  <div className={`drop-zone ${dragOver ? 'drag-active' : ''}`}
+                <motion.div key="media" className="pm-section" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}>
+                  <div className="pm-section-header">
+                    <h3>🖼️ Step 4: Product Images</h3>
+                    <p className="pm-section-hint">Upload high-resolution images of the roasted coffee or packaging.</p>
+                  </div>
+
+                  <div
+                    className={`drop-zone ${dragOver ? 'drag-active' : ''}`}
                     onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}>
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <FaUpload className="drop-icon" />
-                    <p className="drop-title">Drop images here or click to browse</p>
+                    <p className="drop-title">Drop coffee images here or click to browse</p>
                     <p className="drop-hint">JPG, PNG, WebP — max 5MB each</p>
-                    <input type="file" ref={fileInputRef} multiple accept="image/*"
-                      style={{ display: 'none' }} onChange={e => processFiles(e.target.files)} />
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      multiple
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={e => processFiles(e.target.files)}
+                    />
                   </div>
+
                   {images.length > 0 && (
-                    <div className="image-grid">
+                    <div className="image-grid" style={{ marginTop: '1rem' }}>
                       {images.map((img, i) => (
-                        <motion.div key={i} className={`image-tile ${i === 0 ? 'primary' : ''}`}
-                          initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}>
-                          <img src={img.url} alt={`img-${i}`} />
-                          {i === 0 && <span className="primary-badge">Main</span>}
+                        <motion.div key={i} className={`image-tile ${i === 0 ? 'primary' : ''}`}>
+                          <img src={img.url} alt={`coffee-${i}`} />
+                          {i === 0 && <span className="primary-badge">Cover</span>}
                           {img.file && <span className="new-badge">New</span>}
-                          <button type="button" className="img-remove-btn" onClick={() => removeImage(i)}><FaTimes /></button>
+                          <button
+                            type="button"
+                            className="img-remove-btn"
+                            onClick={() => removeImage(i)}
+                            title="Remove image"
+                          >
+                            <FaTimes />
+                          </button>
                         </motion.div>
                       ))}
                     </div>
@@ -2314,40 +1584,67 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                 </motion.div>
               )}
 
-              {/* ═══ INVENTORY ═══ */}
+              {/* ═══ STEP 5: STOCK & INVENTORY ═══ */}
               {activeSection === 'stock' && (
-                <motion.div key="stock" className="pm-section" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                  <h3 className="pm-section-title">📦 Inventory Management</h3>
+                <motion.div key="stock" className="pm-section" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }}>
+                  <div className="pm-section-header">
+                    <h3>📦 Step 5: Inventory Management</h3>
+                    <p className="pm-section-hint">Set current units in warehouse and low-stock notification triggers.</p>
+                  </div>
+
                   <div className="stock-cards">
                     <div className="stock-card">
                       <div className="stock-card-icon green"><FaCheckCircle /></div>
-                      <div className="pm-field">
-                        <label>Physical Stock <span className="req">*</span></label>
-                        <input
-                          type="number"
-                          value={formData.inventory.physicalStock ?? ''}
-                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: e.target.value })}
-                          onFocus={e => e.target.select()}
-                          placeholder="0"
-                          min="0"
-                          required
-                        />
-                        <span className="pm-field-hint">Actual physical stock in warehouse</span>
+                      <div className="pm-field" style={{ flex: 1 }}>
+                        <label>Physical Stock (Units Available) <span className="req">*</span></label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="number"
+                            value={formData.inventory.physicalStock ?? ''}
+                            onChange={e => set('inventory', { ...formData.inventory, physicalStock: e.target.value })}
+                            placeholder="e.g. 50"
+                            min="0"
+                            required
+                            style={{ flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            className="btn-quick-adjust"
+                            onClick={() => set('inventory', { ...formData.inventory, physicalStock: Math.max(0, (parseInt(formData.inventory.physicalStock, 10) || 0) - 5) })}
+                          >
+                            -5
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-quick-adjust"
+                            onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 5 })}
+                          >
+                            +5
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-quick-adjust"
+                            onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 10 })}
+                          >
+                            +10
+                          </button>
+                        </div>
+                        <span className="pm-field-hint">Actual physical stock available for immediate dispatch</span>
                       </div>
                     </div>
+
                     <div className="stock-card">
                       <div className="stock-card-icon amber"><FaBell /></div>
-                      <div className="pm-field">
-                        <label>Low Stock Alert Threshold</label>
+                      <div className="pm-field" style={{ flex: 1 }}>
+                        <label>Low Stock Warning Threshold</label>
                         <input
                           type="number"
                           value={formData.inventory.lowStockThreshold ?? ''}
                           onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: e.target.value })}
-                          onFocus={e => e.target.select()}
                           placeholder="5"
                           min="0"
                         />
-                        <span className="pm-field-hint">Alert threshold configured for warnings</span>
+                        <span className="pm-field-hint">Alerts admin when available stock drops to or below this level</span>
                       </div>
                     </div>
                   </div>
@@ -2355,29 +1652,58 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
               )}
 
             </AnimatePresence>
-
-            {/* Footer */}
-            <div className="pm-form-footer">
-              <button type="button" className="btn-pm-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-              <div className="pm-form-footer-right">
-                {activeSection !== 'stock' && (
-                  <button type="button" className="btn-pm-next" onClick={() => {
-                    const ids = ['basic', 'pricing', 'details', 'media', 'stock'];
-                    const next = ids.indexOf(activeSection) + 1;
-                    if (next < ids.length) setActiveSection(ids[next]);
-                  }}>Next →</button>
-                )}
-                <button type="submit" className="btn-pm-save" disabled={saving}>
-                  {saving
-                    ? <span className="saving-dots"><span>Saving</span><span className="dot">.</span><span className="dot">.</span><span className="dot">.</span></span>
-                    : product ? '💾 Update Product' : '✨ Create Product'}
-                </button>
-              </div>
-            </div>
           </form>
         </div>
-        </>
-      )}
+
+        {/* ── Sticky Mobile & Desktop Action Footer ── */}
+        <div className="pm-form-footer">
+          <div className="pm-form-footer-left">
+            {activeSection !== 'basic' ? (
+              <button
+                type="button"
+                className="btn-pm-prev"
+                onClick={handleBack}
+                disabled={saving}
+              >
+                <FaArrowLeft /> Back
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-pm-cancel"
+                onClick={onClose}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
+          <div className="pm-form-footer-right">
+            {activeSection !== 'stock' ? (
+              <button
+                type="button"
+                className="btn-pm-next"
+                onClick={handleNext}
+                disabled={saving}
+              >
+                Next Step <FaArrowRight />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-pm-save"
+                onClick={handleSubmit}
+                disabled={saving}
+              >
+                {saving
+                  ? <span className="saving-dots"><span>Saving</span><span className="dot">.</span><span className="dot">.</span><span className="dot">.</span></span>
+                  : product ? '💾 Update Product' : '✨ Create Product'}
+              </button>
+            )}
+          </div>
+        </div>
+
       </motion.div>
     </motion.div>
   );

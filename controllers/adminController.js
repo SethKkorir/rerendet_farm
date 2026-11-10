@@ -583,29 +583,34 @@ const createProduct = asyncHandler(async (req, res) => {
     throw new Error('Please fill in all required fields: name, description, sizes');
   }
 
-  let targetCategoryId = categoryId;
-  if (!targetCategoryId && category) {
-    const foundCategory = await Category.findOne({
+  // Resolve category safely (by ObjectId, slug, name, or auto-fallback)
+  let dbCategory = null;
+  const rawCat = categoryId || category;
+  if (rawCat && mongoose.Types.ObjectId.isValid(rawCat)) {
+    dbCategory = await Category.findById(rawCat);
+  }
+  if (!dbCategory && rawCat) {
+    dbCategory = await Category.findOne({
       $or: [
-        { slug: category },
-        { name: new RegExp('^' + category + '$', 'i') }
+        { slug: String(rawCat).toLowerCase().trim() },
+        { name: new RegExp('^' + String(rawCat).trim() + '$', 'i') }
       ]
     });
-    if (foundCategory) {
-      targetCategoryId = foundCategory._id.toString();
-    }
   }
-
-  if (!targetCategoryId) {
-    res.status(400);
-    throw new Error('Category ID is required');
-  }
-
-  const dbCategory = await Category.findById(targetCategoryId);
   if (!dbCategory) {
-    res.status(404);
-    throw new Error('Category not found');
+    dbCategory = await Category.findOne({ isActive: { $ne: false } });
   }
+  if (!dbCategory) {
+    dbCategory = await Category.create({
+      name: 'Coffee Beans',
+      slug: 'coffee-beans',
+      icon: '☕',
+      description: 'Single-origin & blended artisan specialty coffee beans',
+      sortOrder: 1,
+      isActive: true
+    });
+  }
+  const targetCategoryId = dbCategory._id.toString();
 
   let parsedCategoryAttributes = {};
   if (categoryAttributes) {
@@ -886,28 +891,26 @@ const updateProduct = asyncHandler(async (req, res) => {
   if (name !== undefined) product.name = name.toString().trim();
   if (description !== undefined) product.description = description.toString().trim();
 
-  let activeCategoryId = categoryId || product.categoryId;
-  if (!categoryId && category) {
-    const foundCategory = await Category.findOne({
-      $or: [
-        { slug: category },
-        { name: new RegExp('^' + category + '$', 'i') }
-      ]
-    });
-    if (foundCategory) {
-      activeCategoryId = foundCategory._id;
+  let rawCat = categoryId || category || product.categoryId;
+  let dbCategory = null;
+  if (rawCat) {
+    if (mongoose.Types.ObjectId.isValid(rawCat)) {
+      dbCategory = await Category.findById(rawCat);
+    }
+    if (!dbCategory) {
+      dbCategory = await Category.findOne({
+        $or: [
+          { slug: String(rawCat).toLowerCase().trim() },
+          { name: new RegExp('^' + String(rawCat).trim() + '$', 'i') }
+        ]
+      });
+    }
+    if (dbCategory) {
+      product.categoryId = dbCategory._id;
     }
   }
 
-  if (activeCategoryId) {
-    const dbCategory = await Category.findById(activeCategoryId);
-    if (!dbCategory) {
-      res.status(404);
-      throw new Error('Category not found');
-    }
-
-    product.categoryId = dbCategory._id;
-
+  if (categoryAttributes !== undefined || dbCategory) {
     let parsedCategoryAttributes = product.categoryAttributes ? Object.fromEntries(product.categoryAttributes) : {};
     if (categoryAttributes !== undefined) {
       try {
@@ -935,21 +938,23 @@ const updateProduct = asyncHandler(async (req, res) => {
       parsedCategoryAttributes.packageWeight = sizes[0].size;
     }
 
-    // Validate attributes
-    const missingAttributes = [];
-    for (const attr of dbCategory.attributeSchema) {
-      const val = parsedCategoryAttributes[attr.key];
-      if (attr.required && (val === undefined || val === null || val === '')) {
-        missingAttributes.push(attr.label || attr.key);
+    // Validate attributes if schema exists
+    if (dbCategory?.attributeSchema) {
+      const missingAttributes = [];
+      for (const attr of dbCategory.attributeSchema) {
+        const val = parsedCategoryAttributes[attr.key];
+        if (attr.required && (val === undefined || val === null || val === '')) {
+          missingAttributes.push(attr.label || attr.key);
+        }
       }
-    }
 
-    if (missingAttributes.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
-        missingAttributes
-      });
+      if (missingAttributes.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Validation failed: Missing required category attributes: ${missingAttributes.join(', ')}`,
+          missingAttributes
+        });
+      }
     }
 
     product.categoryAttributes = parsedCategoryAttributes;
