@@ -146,8 +146,8 @@ export const InventoryHealth = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          physicalStock: editForm.physicalStock,
-          lowStockThreshold: editForm.lowStockThreshold
+          physicalStock: Number(editForm.physicalStock) || 0,
+          lowStockThreshold: editForm.lowStockThreshold === '' ? 5 : Number(editForm.lowStockThreshold)
         })
       });
       const data = await res.json();
@@ -161,8 +161,8 @@ export const InventoryHealth = () => {
                 ...p,
                 inventory: {
                   ...p.inventory,
-                  physicalStock: editForm.physicalStock,
-                  lowStockThreshold: editForm.lowStockThreshold
+                  physicalStock: Number(editForm.physicalStock) || 0,
+                  lowStockThreshold: editForm.lowStockThreshold === '' ? 5 : Number(editForm.lowStockThreshold)
                 }
               }
               : p
@@ -468,13 +468,15 @@ export const InventoryHealth = () => {
                               type="number"
                               min="0"
                               className="ih-inline-input small"
-                              value={editForm.lowStockThreshold}
+                              value={editForm.lowStockThreshold ?? ''}
                               onChange={(e) =>
                                 setEditForm({
                                   ...editForm,
-                                  lowStockThreshold: parseInt(e.target.value) || 0
+                                  lowStockThreshold: e.target.value
                                 })
                               }
+                              onFocus={(e) => e.target.select()}
+                              placeholder="5"
                             />
                           </div>
                         ) : (
@@ -494,13 +496,15 @@ export const InventoryHealth = () => {
                               type="number"
                               min="0"
                               className="ih-inline-input"
-                              value={editForm.physicalStock}
+                              value={editForm.physicalStock ?? ''}
                               onChange={(e) =>
                                 setEditForm({
                                   ...editForm,
-                                  physicalStock: parseInt(e.target.value) || 0
+                                  physicalStock: e.target.value
                                 })
                               }
+                              onFocus={(e) => e.target.select()}
+                              placeholder="0"
                             />
                           </div>
                         ) : (

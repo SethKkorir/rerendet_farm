@@ -24,7 +24,7 @@ const CouponManagement = () => {
         discountAmount: '',
         expiryDate: '',
         usageLimit: 100,
-        minOrderAmount: 0
+        minOrderAmount: ''
     });
 
     useEffect(() => {
@@ -315,6 +315,8 @@ const CouponManagement = () => {
                                             style={{ paddingLeft: '2.5rem' }}
                                             value={formData.discountAmount}
                                             onChange={(e) => setFormData({ ...formData, discountAmount: e.target.value })}
+                                            onFocus={(e) => e.target.select()}
+                                            placeholder="0"
                                             required
                                         />
                                     </div>
@@ -327,6 +329,8 @@ const CouponManagement = () => {
                                         className="cp-input"
                                         value={formData.usageLimit}
                                         onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
+                                        onFocus={(e) => e.target.select()}
+                                        placeholder="100"
                                         required
                                     />
                                 </div>
@@ -341,6 +345,8 @@ const CouponManagement = () => {
                                             style={{ paddingLeft: '2.5rem' }}
                                             value={formData.minOrderAmount}
                                             onChange={(e) => setFormData({ ...formData, minOrderAmount: e.target.value })}
+                                            onFocus={(e) => e.target.select()}
+                                            placeholder="0"
                                         />
                                     </div>
                                 </div>

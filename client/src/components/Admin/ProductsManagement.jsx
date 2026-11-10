@@ -847,8 +847,8 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     brand: product?.brand || '',
     capacity: product?.capacity || '',
     inventory: {
-      physicalStock: product?.inventory?.physicalStock ?? 0,
-      lowStockThreshold: product?.inventory?.lowStockThreshold ?? 5,
+      physicalStock: product?.inventory?.physicalStock !== undefined ? product.inventory.physicalStock : '',
+      lowStockThreshold: product?.inventory?.lowStockThreshold !== undefined ? product.inventory.lowStockThreshold : '',
     },
     grindOptions: (product?.grindOptions && product.grindOptions.length > 0)
       ? product.grindOptions
@@ -1065,9 +1065,7 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
   const updateSize = (i, field, value) => set('sizes', formData.sizes.map((s, idx) =>
     idx === i ? {
       ...s,
-      [field]: (field === 'price' || field === 'originalPrice')
-        ? (value === '' ? '' : parseFloat(value) || 0)
-        : value
+      [field]: value
     } : s
   ));
 
@@ -1087,7 +1085,10 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
     }
     const invalidSizes = formData.sizes.filter(s => !s.size || !s.price || parseFloat(s.price) <= 0);
     if (invalidSizes.length) { showAlert('All sizes need a valid price > 0.', 'error'); return; }
-    const stock = parseInt(formData.inventory.stock || formData.inventory.physicalStock);
+    const rawStock = formData.inventory.physicalStock !== undefined && formData.inventory.physicalStock !== '' 
+      ? formData.inventory.physicalStock 
+      : (formData.inventory.stock !== undefined && formData.inventory.stock !== '' ? formData.inventory.stock : 0);
+    const stock = parseInt(rawStock, 10);
     if (isNaN(stock) || stock < 0) { showAlert('Stock must be a valid number ≥ 0.', 'error'); return; }
 
     setSaving(true);
@@ -1337,8 +1338,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                           <label>Selling Price (KES) <span className="req">*</span></label>
                           <input
                             type="number"
-                            value={size.price}
+                            value={size.price ?? ''}
                             onChange={e => updateSize(i, 'price', e.target.value)}
+                            onFocus={e => e.target.select()}
                             placeholder="0.00"
                             min="0"
                             step="0.01"
@@ -1350,8 +1352,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                           <label>Original Price (KES) <span className="hint">(Crossed-out)</span></label>
                           <input
                             type="number"
-                            value={size.originalPrice || ''}
+                            value={size.originalPrice ?? ''}
                             onChange={e => updateSize(i, 'originalPrice', e.target.value)}
+                            onFocus={e => e.target.select()}
                             placeholder="e.g. 2400 (Old price)"
                             min="0"
                             step="0.01"
@@ -1600,8 +1603,10 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <input
                           type="number"
-                          value={formData.inventory.physicalStock}
-                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: parseInt(e.target.value) || 0 })}
+                          value={formData.inventory.physicalStock ?? ''}
+                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: e.target.value })}
+                          onFocus={e => e.target.select()}
+                          placeholder="0"
                           min="0"
                           required
                           style={{ flex: 1 }}
@@ -1609,21 +1614,21 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                         <button
                           type="button"
                           className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: Math.max(0, (formData.inventory.physicalStock || 0) - 5) })}
+                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: Math.max(0, (parseInt(formData.inventory.physicalStock, 10) || 0) - 5) })}
                         >
                           -5
                         </button>
                         <button
                           type="button"
                           className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (formData.inventory.physicalStock || 0) + 5 })}
+                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 5 })}
                         >
                           +5
                         </button>
                         <button
                           type="button"
                           className="btn-quick-adjust"
-                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (formData.inventory.physicalStock || 0) + 10 })}
+                          onClick={() => set('inventory', { ...formData.inventory, physicalStock: (parseInt(formData.inventory.physicalStock, 10) || 0) + 10 })}
                         >
                           +10
                         </button>
@@ -1638,8 +1643,10 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                       <label>Low Stock Warning Threshold</label>
                       <input
                         type="number"
-                        value={formData.inventory.lowStockThreshold}
-                        onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: parseInt(e.target.value) || 5 })}
+                        value={formData.inventory.lowStockThreshold ?? ''}
+                        onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: e.target.value })}
+                        onFocus={e => e.target.select()}
+                        placeholder="5"
                         min="0"
                       />
                       <span className="pm-field-hint">Triggers low stock telemetry on storefront</span>
@@ -1744,8 +1751,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                             ) : attr.type === 'number' ? (
                               <input
                                 type="number"
-                                value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
-                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: parseFloat(e.target.value) || '' })}
+                                value={formData.categoryAttributes[attr.key] ?? ''}
+                                onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
+                                onFocus={e => e.target.select()}
                                 placeholder={`Enter ${attr.label.toLowerCase()}`}
                                 required={attr.required}
                               />
@@ -1934,16 +1942,29 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
 
                           <div className="pm-field flex-1">
                             <label>Selling Price (KES) <span className="req">*</span></label>
-                            <input type="number" value={size.price}
+                            <input
+                              type="number"
+                              value={size.price ?? ''}
                               onChange={e => updateSize(i, 'price', e.target.value)}
-                              placeholder="0.00" min="0" step="0.01" required />
+                              onFocus={e => e.target.select()}
+                              placeholder="0.00"
+                              min="0"
+                              step="0.01"
+                              required
+                            />
                           </div>
 
                           <div className="pm-field flex-1">
                             <label>Original Price (KES) <span className="hint">(Crossed-out)</span></label>
-                            <input type="number" value={size.originalPrice || ''}
+                            <input
+                              type="number"
+                              value={size.originalPrice ?? ''}
                               onChange={e => updateSize(i, 'originalPrice', e.target.value)}
-                              placeholder="e.g. 2400 (Old price)" min="0" step="0.01" />
+                              onFocus={e => e.target.select()}
+                              placeholder="e.g. 2400 (Old price)"
+                              min="0"
+                              step="0.01"
+                            />
                           </div>
 
                           {hasDiscount && (
@@ -2101,8 +2122,9 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                         ) : attr.type === 'number' ? (
                           <input
                             type="number"
-                            value={formData.categoryAttributes[attr.key] ?? attr.defaultValue ?? ''}
-                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: parseFloat(e.target.value) || '' })}
+                            value={formData.categoryAttributes[attr.key] ?? ''}
+                            onChange={e => set('categoryAttributes', { ...formData.categoryAttributes, [attr.key]: e.target.value })}
+                            onFocus={e => e.target.select()}
                             placeholder={`Enter ${attr.label.toLowerCase()}`}
                             required={attr.required}
                           />
@@ -2301,10 +2323,15 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                       <div className="stock-card-icon green"><FaCheckCircle /></div>
                       <div className="pm-field">
                         <label>Physical Stock <span className="req">*</span></label>
-                        <input type="number"
-                          value={formData.inventory.physicalStock}
-                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: parseInt(e.target.value) || 0 })}
-                          min="0" required />
+                        <input
+                          type="number"
+                          value={formData.inventory.physicalStock ?? ''}
+                          onChange={e => set('inventory', { ...formData.inventory, physicalStock: e.target.value })}
+                          onFocus={e => e.target.select()}
+                          placeholder="0"
+                          min="0"
+                          required
+                        />
                         <span className="pm-field-hint">Actual physical stock in warehouse</span>
                       </div>
                     </div>
@@ -2312,10 +2339,14 @@ const ProductModal = ({ product, onClose, onSave, getToken, allCategories, onAdd
                       <div className="stock-card-icon amber"><FaBell /></div>
                       <div className="pm-field">
                         <label>Low Stock Alert Threshold</label>
-                        <input type="number"
-                          value={formData.inventory.lowStockThreshold}
-                          onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: parseInt(e.target.value) || 5 })}
-                          min="0" />
+                        <input
+                          type="number"
+                          value={formData.inventory.lowStockThreshold ?? ''}
+                          onChange={e => set('inventory', { ...formData.inventory, lowStockThreshold: e.target.value })}
+                          onFocus={e => e.target.select()}
+                          placeholder="5"
+                          min="0"
+                        />
                         <span className="pm-field-hint">Alert threshold configured for warnings</span>
                       </div>
                     </div>

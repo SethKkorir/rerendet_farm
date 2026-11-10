@@ -389,7 +389,9 @@ const CreateInvoice = () => {
                     <input
                       type="number"
                       min="1"
-                      value={it.quantity}
+                      value={it.quantity ?? ''}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="1"
                       onChange={(e) => handleItemChange(it.id, 'quantity', e.target.value)}
                     />
                   </div>
@@ -398,7 +400,9 @@ const CreateInvoice = () => {
                     <input
                       type="number"
                       min="0"
-                      value={it.unitPrice}
+                      value={it.unitPrice ?? ''}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0.00"
                       onChange={(e) => handleItemChange(it.id, 'unitPrice', e.target.value)}
                     />
                   </div>
@@ -456,8 +460,9 @@ const CreateInvoice = () => {
                 <input
                   type="number"
                   min="0"
-                  value={shippingCost}
-                  onChange={(e) => setShippingCost(Number(e.target.value))}
+                  value={shippingCost === 0 ? '' : (shippingCost ?? '')}
+                  onChange={(e) => setShippingCost(e.target.value === '' ? '' : Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
                   placeholder="0"
                 />
               </div>
