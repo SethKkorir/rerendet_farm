@@ -15,26 +15,26 @@ const Features = () => {
     {
       num: '01',
       icon: <FaMugHot />,
-      title: "Year-Round Excellence",
-      description: "Our coffee is consistently fresh and flavorful throughout the seasons, roasted in artisanal micro-batches."
+      title: "Freshness & Quality",
+      description: "Our coffee is roasted fresh in small batches to preserve its natural aromas and rich character."
     },
     {
       num: '02',
       icon: <FaMountain />,
-      title: "Rich Volcanic Soils",
-      description: "Grown at 1,800m in nutrient-dense volcanic soil, allowing complex floral and berry flavors to develop slowly."
+      title: "Highland Grown",
+      description: "Cultivated in fertile highland soil, allowing our coffee to develop balanced, rich flavors naturally."
     },
     {
       num: '03',
       icon: <FaHandshake />,
-      title: "Ethically Sourced",
-      description: "We partner directly with local Kenyan highland farmers to ensure regenerative practices and fair compensation."
+      title: "Direct from the Farm",
+      description: "Sourced directly from our family farm in Kenya, ensuring pure origin and sustainable farming."
     },
     {
       num: '04',
       icon: <FaStar />,
-      title: "Unique Flavor Profile",
-      description: "A zesty, rich brew with chocolate undertones, sparkling blackcurrant notes, and a bold, unforgettable finish."
+      title: "Rich Flavor Profile",
+      description: "Smooth, balanced brew with warm cocoa undertones and a clean, satisfying finish."
     }
   ];
 

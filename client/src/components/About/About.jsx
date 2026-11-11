@@ -1,13 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FaMountain,
-  FaLeaf,
-  FaAward,
-  FaHistory,
   FaArrowRight,
-  FaTree,
-  FaFire,
   FaMugHot
 } from 'react-icons/fa';
 import { AppContext } from '../../context/AppContext';
@@ -19,9 +13,6 @@ const About = () => {
   const [isBrewGuideOpen, setIsBrewGuideOpen] = useState(false);
 
   const aboutData = publicSettings?.about || {};
-  const years = aboutData.yearsInBusiness || 0;
-  const organic = aboutData.organicPercentage || 0;
-  const awards = aboutData.awardsWon || 0;
   const story =
     aboutData.story ||
     'Founded in the highlands of Kenya, Rerendet Farm has been cultivating exceptional coffee for generations.';
@@ -31,25 +22,6 @@ const About = () => {
   const image =
     aboutData.imageUrl ||
     '/images/coffee/Rerendet_CoffeeFarm.png';
-  const image2 =
-    aboutData.imageUrl2 ||
-    '/images/coffee/bomet-sunrise.png';
-
-  const hasStats = years > 0 || organic > 0 || awards > 0;
-
-  const dynamicStats = [
-    years > 0 && { num: `${years}+`, lab: 'Years Tradition', icon: <FaHistory /> },
-    organic > 0 && { num: `${organic}%`, lab: 'Purely Organic', icon: <FaLeaf /> },
-    awards > 0 && { num: `${awards}`, lab: 'Awards Won', icon: <FaAward /> },
-  ].filter(Boolean);
-
-  const fallbackHallmarks = [
-    { num: '1,800m', lab: 'Highland Elevation', icon: <FaMountain /> },
-    { num: '100%', lab: 'Single Origin Arabica', icon: <FaLeaf /> },
-    { num: 'Grade 1', lab: 'Specialty Micro-Lot', icon: <FaAward /> },
-  ];
-
-  const displayedStats = hasStats ? dynamicStats : fallbackHallmarks;
 
   return (
     <>
@@ -95,16 +67,6 @@ const About = () => {
               <div className="about-narrative">
                 <p className="about-story-lead">{story}</p>
                 <p className="about-story-sub">{subStory}</p>
-              </div>
-
-              {/* Clean Metric Credentials Strip */}
-              <div className="about-clean-stats">
-                {displayedStats.map((item, idx) => (
-                  <div key={idx} className="about-clean-stat">
-                    <span className="about-clean-num">{item.num}</span>
-                    <span className="about-clean-label">{item.lab}</span>
-                  </div>
-                ))}
               </div>
 
               {/* Actions Row */}

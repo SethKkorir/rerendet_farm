@@ -188,7 +188,7 @@ function AccountDashboard() {
               </button>
             </div>
 
-            {/* ── User Identity Pill Card (Matching Screenshot Avatar + Name + Gold member) ── */}
+            {/* ── User Identity Pill Card ── */}
             <div className="portal-sidebar-user-card" onClick={() => setActiveTab('profile')}>
               <div className="portal-user-avatar">
                 {((activeUser?.firstName?.[0] || 'S') + (activeUser?.lastName?.[0] || 'K')).toUpperCase()}
@@ -197,7 +197,6 @@ function AccountDashboard() {
                 <span className="portal-user-name">
                   {activeUser?.firstName ? `${activeUser.firstName} ${activeUser.lastName || ''}`.trim() : (activeUser?.email || 'Customer')}
                 </span>
-                <span className="portal-user-tier">Gold member</span>
               </div>
               <FaChevronDown className="portal-user-chevron" />
             </div>

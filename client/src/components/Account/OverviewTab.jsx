@@ -314,14 +314,9 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
               Your account is in good standing
             </h4>
             <p className="rc-standing-desc">
-              Add two-step verification for an extra layer of protection.
+              {user?.twoFactorEnabled ? 'Two-step verification is active on your account.' : 'Add two-step verification for an extra layer of protection.'}
             </p>
           </div>
-        </div>
-
-        <div className="rc-standing-badge">
-          <span>✨</span>
-          <span>{user?.twoFactorEnabled ? 'Fortified' : 'Standard'}</span>
         </div>
       </div>
     </div>

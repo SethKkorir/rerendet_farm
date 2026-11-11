@@ -56,7 +56,7 @@ export default function MaintenanceMode({ publicSettings }) {
         {/* Body Message */}
         <p className="mm-description">
           {customMessage ||
-            'We are currently curating seasonal micro-lot harvests and enhancing our digital roasting suite. Our doors will reopen shortly.'}
+            'We are temporarily updating our website and store. Our doors will reopen shortly.'}
         </p>
 
         {/* Quick Contact & Check Buttons */}

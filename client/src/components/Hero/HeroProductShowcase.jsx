@@ -196,9 +196,6 @@ const HeroProductShowcase = ({
   const currentProduct = products[currentIndex] || products[0];
   const prevProduct = prevIndex !== null ? products[prevIndex] : null;
 
-  // Badge data: during slide show incoming product info, otherwise current
-  const badgeProduct = currentProduct;
-
   return (
     <div
       className={`hero-product-stage ${reducedMotion ? 'reduced-motion' : ''}`}
@@ -271,44 +268,6 @@ const HeroProductShowcase = ({
               <span className="seal-pct">{discountPercent}%</span>
               <span className="seal-lbl">OFF</span>
             </div>
-          </div>
-        )}
-
-        {/* ── Synchronized Origin Heritage Card (Top Left) ── */}
-        {cornerBadgeEnabled && (
-          <div
-            key={`origin-${badgeProduct.id}`}
-            className={`hero-floating-origin ${phase === 'sliding' ? 'badge-slide' : 'badge-idle'}`}
-            aria-hidden="true"
-          >
-            <span className="origin-icon">{badgeProduct.badgeIcon}</span>
-            <div className="origin-text-wrap">
-              <span className="origin-sub">{badgeProduct.subOrigin}</span>
-              <span className="origin-main">{badgeProduct.origin}</span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Synchronized Sensory Roast Profile Card (Bottom Right) ── */}
-        {roastTagEnabled && (
-          <div
-            key={`sensory-${badgeProduct.id}`}
-            className={`hero-floating-sensory ${phase === 'sliding' ? 'badge-slide' : 'badge-idle'}`}
-            aria-hidden="true"
-          >
-            <div className="sensory-meter">
-              <span className="sensory-tag">Roast Profile</span>
-              <div className="sensory-dots">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <span
-                    key={i}
-                    className={`sensory-dot ${i <= badgeProduct.roastDots ? 'filled' : ''}`}
-                    style={i <= badgeProduct.roastDots ? { backgroundColor: badgeProduct.accentColor, borderColor: badgeProduct.accentColor } : {}}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="sensory-label">{badgeProduct.roastText}</div>
           </div>
         )}
       </div>

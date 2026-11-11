@@ -138,48 +138,6 @@
   color: #dfccba;
 }
 
-/* Clean Minimalist Metrics Strip — Zero Badge Clutter */
-.about-clean-stats {
-  display: flex;
-  align-items: flex-start;
-  gap: 2.75rem;
-  margin-bottom: 2.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-light, rgba(214, 202, 184, 0.45));
-}
-
-[data-theme='dark'] .about-clean-stats {
-  border-top-color: rgba(216, 150, 78, 0.18);
-}
-
-.about-clean-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.about-clean-num {
-  font-family: var(--font-heading, "Playfair Display", Georgia, serif);
-  font-size: 1.85rem;
-  font-weight: 700;
-  color: var(--text-main, #18181B);
-  letter-spacing: -0.025em;
-  line-height: 1;
-}
-
-[data-theme='dark'] .about-clean-num {
-  color: #fffaf5;
-}
-
-.about-clean-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--text-dim, #8C827A);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  line-height: 1.3;
-}
-
 /* Call to Action Button */
 .about-actions-row {
   display: flex;
@@ -272,27 +230,12 @@
     font-size: 2.1rem;
   }
 
-  .about-clean-stats {
-    gap: 1.5rem;
-    flex-wrap: wrap;
-  }
-
   .about-main-image-wrap {
     aspect-ratio: 16 / 11;
   }
 }
 
 @media (max-width: 480px) {
-  .about-clean-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-  }
-
-  .about-clean-num {
-    font-size: 1.55rem;
-  }
-
   .about-cta-btn {
     width: 100%;
     justify-content: center;
