@@ -1,6 +1,7 @@
 // client/src/components/Account/OverviewTab.jsx — Minimalist Quiet Luxury Member Overview (Matching Image 3)
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppContext } from '../../context/AppContext';
 import {
   FaShoppingBag, FaShieldAlt, FaLock, FaClock, FaCheck, FaArrowRight,
   FaCheckCircle, FaReceipt
@@ -19,6 +20,35 @@ const getItemImage = (item) => {
 
 const OverviewTab = ({ user, orders = [], onNavigate }) => {
   const navigate = useNavigate();
+  const { token, showNotification } = useContext(AppContext);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+
+  const handleConfirmDelivery = async (order) => {
+    if (!window.confirm(`Has order #${order.orderNumber} arrived at your address?`)) return;
+    setConfirmingDelivery(true);
+    try {
+      const activeToken = token || (JSON.parse(localStorage.getItem('auth') || '{}').token);
+      const res = await fetch(`/api/orders/${order._id}/confirm-delivery`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${activeToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification?.('Package arrival confirmed! Thank you.', 'success');
+        order.fulfillmentStatus = 'delivered';
+        order.customerDeliveredConfirmed = true;
+      } else {
+        showNotification?.(data.message || 'Confirmation failed', 'error');
+      }
+    } catch {
+      showNotification?.('Network error during confirmation', 'error');
+    } finally {
+      setConfirmingDelivery(false);
+    }
+  };
 
   // Active (unfulfilled or in-transit) vs Delivered
   const { activeOrders, latestOrder } = useMemo(() => {
@@ -51,39 +81,28 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
   return (
     <div className="ord-luxury-canvas ov-overview-canvas" style={{ padding: 0 }}>
       {/* ══ Header Row (Matching Image 3) ══ */}
-      <div style={{ marginBottom: '1.5rem' }}>
+      <div className="rc-dash-header-block">
         <span className="rc-dash-eyebrow">— YOUR ACCOUNT</span>
         <h2 className="rc-dash-title">
-          Welcome, {fullName}
+          Welcome, <span className="rc-title-name">{fullName}</span>
         </h2>
         <p className="rc-dash-sub">
           A quick look at your orders, delivery details and account security.
         </p>
       </div>
 
-      {/* ══ 2FA Security Recommendation Banner (Matching Image 3) ══ */}
+      {/* ══ 2FA Security Recommendation Banner ══ */}
       {!user?.twoFactorEnabled && (
-        <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: '1.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-            <div style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              background: 'rgba(202, 160, 88, 0.12)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#B58838',
-              fontSize: '0.95rem',
-              flexShrink: 0
-            }}>
+        <div className="rc-card-white rc-2fa-banner">
+          <div className="rc-2fa-banner-left">
+            <div className="rc-2fa-icon-wrap">
               <FaShieldAlt />
             </div>
             <div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+              <h4 className="rc-card-title">
                 Protect your account with 2FA
               </h4>
-              <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+              <p className="rc-card-desc">
                 Turn on two-factor authentication for extra security whenever you log in.
               </p>
             </div>
@@ -99,31 +118,25 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
         </div>
       )}
 
-      {/* ══ 3 Stat Cards Grid (Matching Image 3) ══ */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '1.25rem',
-        marginBottom: '2.5rem'
-      }}>
+      {/* ══ 3 Stat Cards Grid (Responsive App Metric Tiles) ══ */}
+      <div className="rc-stat-grid">
         {/* TOTAL ORDERS */}
         <div
-          className="rc-card-white"
+          className="rc-card-white rc-stat-card"
           onClick={() => onNavigate('orders')}
-          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+          role="button"
+          tabIndex={0}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
-              TOTAL ORDERS
-            </span>
-            <FaShoppingBag style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
+          <div className="rc-stat-card-top">
+            <span className="rc-stat-label">TOTAL ORDERS</span>
+            <FaShoppingBag className="rc-stat-icon" />
           </div>
-          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: '#1E140E', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+          <div className="rc-stat-number">
             {orders.length}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
-            <span>{orders.length === 1 ? '1 order placed' : `${orders.length} orders placed`}</span>
-            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="rc-stat-bottom">
+            <span className="rc-stat-subtext">{orders.length === 1 ? '1 order placed' : `${orders.length} orders placed`}</span>
+            <span className="rc-stat-arrow-link">
               View orders →
             </span>
           </div>
@@ -131,22 +144,21 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
 
         {/* ACTIVE ORDERS */}
         <div
-          className="rc-card-white"
+          className="rc-card-white rc-stat-card"
           onClick={() => onNavigate('orders')}
-          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+          role="button"
+          tabIndex={0}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
-              ACTIVE ORDERS
-            </span>
-            <FaClock style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
+          <div className="rc-stat-card-top">
+            <span className="rc-stat-label">ACTIVE ORDERS</span>
+            <FaClock className="rc-stat-icon" />
           </div>
-          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: '#1E140E', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+          <div className="rc-stat-number">
             {activeOrders.length}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
-            <span>{activeOrders.length === 0 ? 'No active orders' : `${activeOrders.length} active`}</span>
-            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="rc-stat-bottom">
+            <span className="rc-stat-subtext">{activeOrders.length === 0 ? 'No active orders' : `${activeOrders.length} active`}</span>
+            <span className="rc-stat-arrow-link">
               Track →
             </span>
           </div>
@@ -154,72 +166,57 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
 
         {/* ACCOUNT SECURITY */}
         <div
-          className="rc-card-white"
+          className="rc-card-white rc-stat-card"
           onClick={() => onNavigate('security')}
-          style={{ cursor: 'pointer', padding: '1.5rem 1.75rem', marginBottom: 0 }}
+          role="button"
+          tabIndex={0}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70' }}>
-              ACCOUNT SECURITY
-            </span>
-            <FaLock style={{ color: '#8E7D70', fontSize: '0.9rem' }} />
+          <div className="rc-stat-card-top">
+            <span className="rc-stat-label">ACCOUNT SECURITY</span>
+            <FaLock className="rc-stat-icon" />
           </div>
-          <div style={{ fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)', fontSize: '2.4rem', fontWeight: 700, color: user?.twoFactorEnabled ? '#2e7d32' : '#B58838', lineHeight: 1.1, margin: '0.25rem 0 0.85rem' }}>
+          <div className={`rc-stat-number ${user?.twoFactorEnabled ? 'security-fortified' : 'security-standard'}`}>
             {user?.twoFactorEnabled ? 'Fortified' : 'Standard'}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', color: '#665548' }}>
-            <span>{user?.twoFactorEnabled ? '2FA Active' : '2FA recommended'}</span>
-            <span style={{ color: '#1E140E', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div className="rc-stat-bottom">
+            <span className="rc-stat-subtext">{user?.twoFactorEnabled ? '2FA Active' : '2FA recommended'}</span>
+            <span className="rc-stat-arrow-link">
               Manage →
             </span>
           </div>
         </div>
       </div>
 
-      {/* ══ Recent Activity Section (Matching Image 3) ══ */}
-      <div style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      {/* ══ Recent Activity Section ══ */}
+      <div className="rc-activity-section">
+        <div className="rc-activity-header">
           <div>
-            <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '2px' }}>
+            <span className="rc-activity-eyebrow">
               RECENT ACTIVITY
             </span>
-            <h3 style={{
-              fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
-              fontSize: '1.35rem',
-              fontWeight: 700,
-              color: '#1E140E',
-              margin: 0
-            }}>
+            <h3 className="rc-section-heading">
               Latest order
             </h3>
           </div>
 
           <button
             type="button"
+            className="rc-history-link-btn"
             onClick={() => onNavigate('orders')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1E140E',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              padding: 0
-            }}
           >
             Order history →
           </button>
         </div>
 
         {latestOrder ? (
-          <div className="rc-card-white" style={{ padding: '1.75rem 2rem', marginBottom: 0 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
-              <div>
-                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1E140E' }}>
+          <div className="rc-card-white rc-latest-order-card">
+            <div className="rc-order-header-row">
+              <div className="rc-order-ref-meta">
+                <span className="rc-order-ref-title">
                   Order #{latestOrder.orderNumber || latestOrder._id.slice(-8).toUpperCase()}
                 </span>
-                <span style={{ margin: '0 8px', color: '#D4C9BC' }}>·</span>
-                <span style={{ fontSize: '0.84rem', color: '#8E7D70' }}>
+                <span className="rc-order-sep">·</span>
+                <span className="rc-order-date-text">
                   {formatOrderDate(latestOrder.createdAt)}
                 </span>
               </div>
@@ -237,12 +234,12 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
               })()}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid #F2ECE3' }}>
-              <div>
-                <span style={{ fontSize: '0.75rem', color: '#8E7D70', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block' }}>
+            <div className="rc-order-summary-row">
+              <div className="rc-order-amount-col">
+                <span className="rc-order-amount-label">
                   Total Amount
                 </span>
-                <span style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1E140E' }}>
+                <span className="rc-order-amount-value">
                   KES {Number(latestOrder.total || latestOrder.totalAmount || 0).toLocaleString()}
                 </span>
               </div>
@@ -250,7 +247,7 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
               {(() => {
                 const isLatestCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
                 return (
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div className="rc-order-actions-group">
                     <button
                       type="button"
                       className="rc-btn-white"
@@ -258,6 +255,17 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
                     >
                       <FaReceipt style={{ fontSize: '0.75rem' }} /> {isLatestCancelled ? 'Order details' : 'Receipt'}
                     </button>
+                    {!isLatestCancelled && latestOrder.fulfillmentStatus === 'shipped' && !latestOrder.customerDeliveredConfirmed && (
+                      <button
+                        type="button"
+                        className="rc-btn-gold"
+                        style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
+                        onClick={() => handleConfirmDelivery(latestOrder)}
+                        disabled={confirmingDelivery}
+                      >
+                        {confirmingDelivery ? 'Confirming…' : '✓ Confirm Received'}
+                      </button>
+                    )}
                     {!isLatestCancelled ? (
                       <button
                         type="button"
@@ -269,8 +277,7 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
                     ) : (
                       <button
                         type="button"
-                        className="rc-btn-gold"
-                        style={{ background: '#1E140E', color: '#FFFFFF' }}
+                        className="rc-btn-gold rc-btn-dark-fallback"
                         onClick={() => onNavigate('orders')}
                       >
                         View in orders →
@@ -282,65 +289,37 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
             </div>
           </div>
         ) : (
-          <div className="rc-card-white" style={{ textAlign: 'center', padding: '3.5rem 2rem', marginBottom: 0 }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              background: '#FAF6EE',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 1.25rem',
-              color: '#CAA058',
-              fontSize: '1.4rem'
-            }}>
+          <div className="rc-card-white rc-no-orders-card">
+            <div className="rc-no-orders-icon-wrap">
               <FaShoppingBag />
             </div>
-            <h4 style={{
-              fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
-              fontSize: '1.25rem',
-              fontWeight: 700,
-              color: '#1E140E',
-              margin: '0 0 0.5rem'
-            }}>
+            <h4 className="rc-no-orders-title">
               No orders yet
             </h4>
-            <p style={{ color: '#665548', fontSize: '0.88rem', maxWidth: '380px', margin: '0 auto' }}>
+            <p className="rc-no-orders-desc">
               Your first order will appear here, with updates from checkout through delivery.
             </p>
           </div>
         )}
       </div>
 
-      {/* ══ Account In Good Standing Banner (Matching Image 3) ══ */}
-      <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            background: 'rgba(202, 160, 88, 0.12)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#B58838',
-            fontSize: '0.85rem',
-            flexShrink: 0
-          }}>
+      {/* ══ Account In Good Standing Banner ══ */}
+      <div className="rc-card-white rc-standing-card">
+        <div className="rc-standing-left">
+          <div className="rc-standing-icon-wrap">
             <FaCheck />
           </div>
           <div>
-            <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+            <h4 className="rc-standing-title">
               Your account is in good standing
             </h4>
-            <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+            <p className="rc-standing-desc">
               Add two-step verification for an extra layer of protection.
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.88rem', fontWeight: 600, color: '#B58838' }}>
+        <div className="rc-standing-badge">
           <span>✨</span>
           <span>{user?.twoFactorEnabled ? 'Fortified' : 'Standard'}</span>
         </div>

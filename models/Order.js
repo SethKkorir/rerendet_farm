@@ -206,7 +206,9 @@ const orderSchema = new mongoose.Schema({
     enum: ['unverified', 'verified', 'rejected'],
     default: 'unverified'
   },
-  trackingNumber: { type: String },
+  trackingNumber: { type: String, index: true },
+  customerDeliveredConfirmed: { type: Boolean, default: false },
+  customerDeliveredConfirmedAt: { type: Date },
   estimatedDeliveryDate: { type: Date },
   notes: { type: String },
 
@@ -266,14 +268,9 @@ orderSchema.pre('save', function (next) {
       this.orderNumber = `ORD-${timestamp}-${random}`;
     }
 
-    // 2. Generate Tracking Number (8 chars total: RC + 6 random)
+    // 2. Generate Tracking Number (Simple 4-digit code e.g. 2345)
     if (!this.trackingNumber) {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluded I, O, 0, 1 for clarity
-      let randomPart = '';
-      for (let i = 0; i < 6; i++) {
-        randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      this.trackingNumber = `RC${randomPart}`;
+      this.trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
     }
 
     // 3. Set paymentExpiresAt for Paybill orders (default: 24h)

@@ -405,3 +405,79 @@ export const sendNewSupportTicketAdminAlert = async (ticket) => {
         console.error('❌ Failed to send support ticket admin alert:', err.message);
     }
 };
+
+/**
+ * Send an email alert to admin when a customer confirms receiving their order
+ */
+export const sendCustomerDeliveryConfirmationAdminAlert = async (order) => {
+    try {
+        const recipients = await getActiveAdminRecipients();
+        if (!recipients.length) return;
+
+        const orderRef = order.orderNumber || order._id.toString().slice(-8).toUpperCase();
+        const trackingNum = order.trackingNumber || 'N/A';
+        const customerName = order.shippingAddress?.fullName || order.user?.firstName || 'Customer';
+        const customerPhone = order.shippingAddress?.phone || 'N/A';
+        const totalFormatted = `KES ${Number(order.total || 0).toLocaleString()}`;
+        const confirmedAt = new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' });
+        const frontendUrl = process.env.FRONTEND_URL || 'https://rerendet-farm.vercel.app';
+
+        const emailHtml = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; padding: 32px 24px; color: #1F2937; line-height: 1.5; background-color: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 12px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <img src="${frontendUrl}/rerendet-logo.png" alt="Rerendet" height="42" style="height: 42px; margin-bottom: 8px;" onerror="this.style.display='none'" />
+                </div>
+
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <span style="display: inline-block; background-color: rgba(16, 185, 129, 0.15); color: #065F46; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; padding: 4px 12px; border-radius: 9999px;">
+                        📦 Delivery Confirmed by Customer
+                    </span>
+                    <h1 style="color: #111827; margin: 12px 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">Package Received</h1>
+                    <p style="color: #6B7280; font-size: 13.5px; margin: 0;">Order #${orderRef} &bull; Tracking #${trackingNum}</p>
+                </div>
+
+                <!-- Order Details Card -->
+                <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 18px 20px; margin-bottom: 20px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 8px;">Order Summary</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;">
+                        <span style="color: #6B7280;">Customer:</span>
+                        <strong style="color: #111827;">${customerName} (${customerPhone})</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;">
+                        <span style="color: #6B7280;">Total Paid:</span>
+                        <strong style="color: #111827;">${totalFormatted}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px;">
+                        <span style="color: #6B7280;">Confirmed At:</span>
+                        <span style="color: #4B5563;">${confirmedAt} EAT</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                        <span style="color: #6B7280;">Tracking Code:</span>
+                        <strong style="color: #D4AF37; font-family: monospace; font-size: 16px;">${trackingNum}</strong>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div style="text-align: center; margin-top: 28px;">
+                    <a href="${frontendUrl}/admin/orders?fulfillmentStatus=delivered" style="background-color: #1E3D2F; color: #FFFFFF !important; padding: 13px 36px; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(30, 61, 47, 0.2);">
+                        View in Completed Orders →
+                    </a>
+                </div>
+
+                <div style="margin-top: 24px; text-align: center; font-size: 12px; color: #9CA3AF;">
+                    Rerendet Coffee Co. &bull; Automated Delivery Notice
+                </div>
+            </div>
+        `;
+
+        await Promise.allSettled(recipients.map(to => sendEmail({
+            to,
+            subject: `📦 Delivery Confirmed: Order #${orderRef} (${trackingNum}) received by ${customerName}`,
+            html: emailHtml
+        })));
+
+        console.log(`📧 Delivery confirmation alert sent for #${orderRef} to ${recipients.join(', ')}`);
+    } catch (err) {
+        console.error('❌ Failed to send delivery confirmation alert:', err.message);
+    }
+};

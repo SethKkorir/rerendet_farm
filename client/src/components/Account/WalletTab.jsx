@@ -131,10 +131,10 @@ const WalletTab = ({ onNavigate }) => {
       {/* ══ Inline Edit Form (when active) ══ */}
       {isEditingMpesa && (
         <div className="rc-card-white" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1E140E', margin: '0 0 0.5rem' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 0.5rem' }}>
             Update Lipa na M-Pesa Line
           </h3>
-          <p style={{ fontSize: '0.84rem', color: '#665548', margin: '0 0 1.25rem' }}>
+          <p style={{ fontSize: '0.84rem', color: 'var(--cust-text-muted, #665548)', margin: '0 0 1.25rem' }}>
             Enter your Safaricom mobile line. You will receive an STK Push PIN prompt on this phone whenever checking out.
           </p>
 
@@ -181,7 +181,7 @@ const WalletTab = ({ onNavigate }) => {
           fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
           fontSize: '1.35rem',
           fontWeight: 700,
-          color: '#1E140E',
+          color: 'var(--cust-text, #1E140E)',
           margin: '0 0 1rem 0'
         }}>
           Payment details
@@ -204,10 +204,10 @@ const WalletTab = ({ onNavigate }) => {
               <FaPhone />
             </div>
             <div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 2px 0' }}>
                 Mobile money
               </h4>
-              <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--cust-text-muted, #665548)', margin: 0 }}>
                 Use your registered M-Pesa line at checkout
               </p>
             </div>

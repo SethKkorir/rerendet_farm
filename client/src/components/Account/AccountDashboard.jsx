@@ -247,24 +247,41 @@ function AccountDashboard() {
 
         {/* ═══ MAIN CANVAS ═══ */}
         <div className="portal-main-canvas">
-          {/* Mobile-Only Dashboard Header */}
-          <div className="portal-mobile-app-header">
+          {/* Mobile-Only App Header (Like Admin) */}
+          <header className="portal-mobile-app-header">
             <div className="portal-mobile-brand-pill" onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }}>
               <span className="portal-mobile-badge">R·C</span>
-              <span className="portal-mobile-title">
-                {navSections.flatMap(s => s.items).find(i => i.id === activeTab)?.label || 'Overview'}
-              </span>
+              <div className="portal-mobile-titles">
+                <span className="portal-mobile-brand-name">Rerendet</span>
+                <span className="portal-mobile-current-tab">
+                  {navSections.flatMap(s => s.items).find(i => i.id === activeTab)?.label || 'Overview'}
+                </span>
+              </div>
             </div>
-            <button
-              type="button"
-              className="portal-mobile-avatar-pill"
-              onClick={() => setIsSidebarOpen(prev => !prev)}
-              aria-label="Toggle Full Account Menu"
-            >
-              <span>{((activeUser?.firstName?.[0] || 'S') + (activeUser?.lastName?.[0] || 'K')).toUpperCase()}</span>
-              {!activeUser?.twoFactorEnabled && <span className="portal-avatar-alert-dot" />}
-            </button>
-          </div>
+
+            <div className="portal-mobile-header-actions">
+              <button
+                type="button"
+                className="portal-mobile-store-btn"
+                onClick={() => navigate('/')}
+                title="Go to Coffee Shop"
+                aria-label="Go to Coffee Shop"
+              >
+                <FaShoppingBag />
+                <span>Shop</span>
+              </button>
+
+              <button
+                type="button"
+                className="portal-mobile-avatar-pill"
+                onClick={() => setIsSidebarOpen(prev => !prev)}
+                aria-label="Toggle Full Account Menu"
+              >
+                <span>{((activeUser?.firstName?.[0] || 'S') + (activeUser?.lastName?.[0] || 'K')).toUpperCase()}</span>
+                {!activeUser?.twoFactorEnabled && <span className="portal-avatar-alert-dot" />}
+              </button>
+            </div>
+          </header>
 
           {/* ── Active Tab View ── */}
           <main className="portal-content-body modern-main-content">

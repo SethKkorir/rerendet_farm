@@ -25,6 +25,34 @@ const OrderTracking = () => {
     const [reportNotes, setReportNotes] = useState('');
     const [submittingReport, setSubmittingReport] = useState(false);
     const [reportSuccess, setReportSuccess] = useState(false);
+    const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+
+    const handleConfirmDelivery = async () => {
+        if (!order) return;
+        if (!window.confirm(`Has order #${order.orderNumber} arrived at your delivery address?`)) return;
+        setConfirmingDelivery(true);
+        try {
+            const targetId = order._id || order.orderNumber;
+            const res = await fetch(`/api/orders/track/${targetId}/confirm-delivery`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification(data.message || 'Package delivery confirmed! Thank you.', 'success');
+                fetchOrderDetails(false);
+            } else {
+                showNotification(data.message || 'Confirmation failed', 'error');
+            }
+        } catch {
+            showNotification('Network error confirming delivery', 'error');
+        } finally {
+            setConfirmingDelivery(false);
+        }
+    };
 
     const handleCopyTracking = () => {
         if (!order?.trackingNumber) return;
@@ -438,6 +466,70 @@ const OrderTracking = () => {
                             >
                                 <FaFileAlt style={{ fontSize: '15px' }} /> Download PDF Receipt
                             </a>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Customer Package Delivery Confirmation Box */}
+                {!isCancelled && !isExpired && (order.fulfillmentStatus === 'shipped' || order.customerDeliveredConfirmed) && (
+                    <motion.div
+                        variants={itemVariants}
+                        className="ot-paybill-instructions-card"
+                        style={{
+                            borderColor: order.customerDeliveredConfirmed ? '#BBF7D0' : '#FDE68A',
+                            background: order.customerDeliveredConfirmed ? '#F0FDF4' : '#FFFBEB',
+                            marginBottom: '18px'
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                    width: '42px',
+                                    height: '42px',
+                                    borderRadius: '50%',
+                                    background: order.customerDeliveredConfirmed ? '#DCFCE7' : '#FEF3C7',
+                                    color: order.customerDeliveredConfirmed ? '#16A34A' : '#D97706',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '20px'
+                                }}>
+                                    <FaCheckCircle />
+                                </div>
+                                <div>
+                                    <h4 style={{ margin: 0, fontSize: '16px', color: order.customerDeliveredConfirmed ? '#166534' : '#92400E', fontWeight: 800 }}>
+                                        {order.customerDeliveredConfirmed ? 'Package Arrival Confirmed' : 'Has Your Package Arrived?'}
+                                    </h4>
+                                    <span style={{ fontSize: '13px', color: '#475569' }}>
+                                        {order.customerDeliveredConfirmed
+                                            ? 'Thank you for confirming receipt. Enjoy your freshly roasted coffee!'
+                                            : 'Let our team know once your parcel arrives so we can finalize delivery.'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {!order.customerDeliveredConfirmed && (
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmDelivery}
+                                    disabled={confirmingDelivery}
+                                    style={{
+                                        background: '#16A34A',
+                                        color: '#FFFFFF',
+                                        border: 'none',
+                                        padding: '10px 20px',
+                                        borderRadius: '8px',
+                                        fontSize: '13.5px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}
+                                >
+                                    <FaCheck /> {confirmingDelivery ? 'Confirming...' : 'I Have Received My Coffee'}
+                                </button>
+                            )}
                         </div>
                     </motion.div>
                 )}

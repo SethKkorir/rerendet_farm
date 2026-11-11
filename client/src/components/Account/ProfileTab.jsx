@@ -77,10 +77,10 @@ const ProfileTab = ({ onNavigate }) => {
             <FaUser />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 2px 0' }}>
               Personal information
             </h3>
-            <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--cust-text-muted, #665548)', margin: 0 }}>
               Your details are only shared when needed to fulfil an order.
             </p>
           </div>
@@ -172,7 +172,7 @@ const ProfileTab = ({ onNavigate }) => {
               <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '0.45rem' }}>
                 FULL NAME
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 600, color: '#1E140E' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)' }}>
                 <FaUser style={{ color: '#B58838', fontSize: '0.8rem' }} />
                 <span>{fullName}</span>
               </div>
@@ -183,7 +183,7 @@ const ProfileTab = ({ onNavigate }) => {
               <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '0.45rem' }}>
                 EMAIL ADDRESS
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 500, color: '#1E140E' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 500, color: 'var(--cust-text, #1E140E)' }}>
                 <FaEnvelope style={{ color: '#B58838', fontSize: '0.8rem' }} />
                 <span>{email}</span>
               </div>
@@ -194,7 +194,7 @@ const ProfileTab = ({ onNavigate }) => {
               <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '0.45rem' }}>
                 PHONE NUMBER
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 500, color: '#1E140E' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', fontWeight: 500, color: 'var(--cust-text, #1E140E)' }}>
                 <FaPhone style={{ color: '#B58838', fontSize: '0.8rem' }} />
                 <span>{phone}</span>
               </div>
@@ -205,7 +205,7 @@ const ProfileTab = ({ onNavigate }) => {
               <span style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8E7D70', marginBottom: '0.45rem' }}>
                 DATE OF BIRTH
               </span>
-              <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#1E140E' }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--cust-text, #1E140E)' }}>
                 — {memberSince}
               </div>
             </div>
@@ -213,7 +213,7 @@ const ProfileTab = ({ onNavigate }) => {
         )}
 
         {/* Card Footer: Last updated & Account holder */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid #F2ECE3', fontSize: '0.78rem', color: '#8E7D70' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--cust-border-subtle, #F2ECE3)', fontSize: '0.78rem', color: '#8E7D70' }}>
           <span>Last updated just now</span>
           <span style={{ fontWeight: 600, color: '#B58838' }}>Account holder</span>
         </div>
@@ -237,10 +237,10 @@ const ProfileTab = ({ onNavigate }) => {
             <FaMapMarkerAlt />
           </div>
           <div>
-            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 2px 0' }}>
               Default delivery area
             </h4>
-            <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--cust-text-muted, #665548)', margin: 0 }}>
               {deliveryArea} - Address details saved with your orders
             </p>
           </div>
@@ -252,7 +252,7 @@ const ProfileTab = ({ onNavigate }) => {
           style={{
             background: 'none',
             border: 'none',
-            color: '#1E140E',
+            color: 'var(--cust-gold, #CAA058)',
             fontSize: '0.85rem',
             fontWeight: 600,
             cursor: 'pointer',

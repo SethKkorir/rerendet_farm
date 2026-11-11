@@ -110,7 +110,7 @@ const OrdersManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     paymentStatus: 'all',
-    fulfillmentStatus: 'all',
+    fulfillmentStatus: 'active',
     search: '',
     startDate: '',
     endDate: '',
@@ -285,10 +285,11 @@ const OrdersManagement = () => {
   const handleSelectOrder = (id) =>
     setSelectedOrders(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
-  const FULFILLMENT_PILLS = ['all', 'payment_queue', 'awaiting_payment', 'unfulfilled', 'packed', 'shipped', 'delivered', 'returned'];
+  const FULFILLMENT_PILLS = ['active', 'payment_queue', 'awaiting_payment', 'unfulfilled', 'packed', 'shipped', 'delivered', 'returned', 'all'];
 
   const pillCounts = useMemo(() => {
     const counts = {
+      active: 0,
       all: pagination.total || orders.length,
       payment_queue: stats.paymentReported || 0,
       awaiting_payment: stats.awaitingPayment || 0
@@ -296,6 +297,9 @@ const OrdersManagement = () => {
     orders.forEach(o => {
       const st = o.fulfillmentStatus || 'unfulfilled';
       counts[st] = (counts[st] || 0) + 1;
+      if (st !== 'delivered' && st !== 'returned' && o.orderStatus !== 'cancelled') {
+        counts.active = (counts.active || 0) + 1;
+      }
     });
     return counts;
   }, [orders, pagination.total, stats.paymentReported, stats.awaitingPayment]);
@@ -415,12 +419,16 @@ const OrdersManagement = () => {
             <span>
               {f === 'payment_queue' && <FaBell style={{ marginRight: '6px', fontSize: '11px', color: '#D97706' }} />}
               {f === 'awaiting_payment' && <FaClock style={{ marginRight: '6px', fontSize: '11px' }} />}
-              {f === 'all'
+              {f === 'active'
+                ? 'Active Orders'
+                : f === 'all'
                 ? 'All Orders'
                 : f === 'payment_queue'
                 ? 'Verification Queue'
                 : f === 'awaiting_payment'
                 ? 'Awaiting Payment'
+                : f === 'delivered'
+                ? 'Delivered (Archived)'
                 : FULFILLMENT_CONFIG[f]?.label || f}
             </span>
             {pillCounts[f] !== undefined && (
@@ -707,10 +715,7 @@ const OrderDrawer = ({ order, onClose, onUpdate, onManualOverride, onConfirmPaym
                 } else if (order.fulfillmentStatus === 'packed') {
                   nextStatus = 'shipped';
                   if (!genTracking) {
-                    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                    let rand = '';
-                    for (let i = 0; i < 3; i++) rand += chars.charAt(Math.floor(Math.random() * chars.length));
-                    genTracking = `RC${rand}`;
+                    genTracking = Math.floor(1000 + Math.random() * 9000).toString();
                   }
                 } else if (order.fulfillmentStatus === 'shipped') {
                   nextStatus = 'delivered';
@@ -1212,14 +1217,14 @@ const OrderDrawer = ({ order, onClose, onUpdate, onManualOverride, onConfirmPaym
                   <div className="om-form-field">
                     <label>
                       Logistics ID (Tracking #)
-                      <span className="om-hint"> — Auto-generated as RC...</span>
+                      <span className="om-hint"> — 4-digit code e.g. 2345</span>
                     </label>
                     <div className="om-input-with-button">
                       <input
                         type="text"
                         value={trackingNumber}
                         onChange={e => setTrackingNumber(e.target.value)}
-                        placeholder="e.g., RC49A"
+                        placeholder="e.g., 2345"
                         required={fulfillmentStatus === 'shipped'}
                         className="mono"
                       />

@@ -68,6 +68,7 @@ const LazyInventoryHealth = lazy(() => import('./components/Admin/InventoryHealt
 const LazyOperationalControls = lazy(() => import('./components/Admin/OperationalControlsHardened'));
 
 import BrandLoader from './components/UI/BrandLoader';
+import MaintenanceMode from './components/UI/MaintenanceMode';
 
 const PageLoader = () => <BrandLoader fullScreen />;
 
@@ -165,17 +166,7 @@ function App() {
   const isEmergencyRoute = location.pathname.startsWith('/emergency');
 
   if (globalMaintenance && !isAdminRoute && !isAdmin && !isEmergencyRoute) {
-    return (
-      <div className="maintenance-overlay">
-        <div className="maintenance-content">
-          <div style={{ fontSize: '4rem', marginBottom: '1.5rem', filter: 'drop-shadow(0 0 15px rgba(212, 175, 55, 0.3))' }}>🚧</div>
-          <h1 style={{ fontFamily: 'var(--font-heading)', color: 'var(--color-primary)', letterSpacing: '2px' }}>Under Maintenance</h1>
-          <p style={{ margin: '1.5rem 0', lineHeight: '1.8' }}>
-            {publicSettings?.maintenance?.message || 'Our storefront is temporarily offline for scheduled maintenance. We will be back shortly!'}
-          </p>
-        </div>
-      </div>
-    );
+    return <MaintenanceMode publicSettings={publicSettings} />;
   }
 
   return (
@@ -267,9 +258,9 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
-        {!isAdminRoute && !isEmergencyRoute && <Footer />}
+        {!isAdminRoute && !isEmergencyRoute && !isPortalRoute && <Footer />}
 
-        {!isAdminRoute && !isEmergencyRoute && (
+        {!isAdminRoute && !isEmergencyRoute && !isPortalRoute && (
           <>
             <CartSidebar />
             <PaymentModals />

@@ -10,7 +10,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { sanitizeObject, sanitizeEmail, sanitizePhone, sanitizeAmount } from '../utils/inputSanitizer.js';
 import sendEmail from '../utils/sendEmail.js';
 import { getOrderConfirmationEmail, getOrderStatusEmail, getOrderAwaitingPaymentEmail, getPaymentReportReceivedCustomerEmail } from '../utils/emailTemplates.js';
-import { sendLowStockAlert, sendNewOrderAwaitingPaymentAdminAlert, sendNewOrderAdminAlert, sendPaymentReportedAdminAlert } from '../utils/adminNotificationService.js';
+import { sendLowStockAlert, sendNewOrderAwaitingPaymentAdminAlert, sendNewOrderAdminAlert, sendPaymentReportedAdminAlert, sendCustomerDeliveryConfirmationAdminAlert } from '../utils/adminNotificationService.js';
 import { generateReceiptPDF } from '../utils/receiptGenerator.js';
 import Coupon from '../models/Coupon.js';
 import Subscription from '../models/Subscription.js';
@@ -1750,6 +1750,103 @@ const reportPayment = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Customer confirms package received / delivery completed
+// @route   POST /api/orders/:id/confirm-delivery
+// @access  Protected or Public with order identifier
+const confirmDeliveryCustomer = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  let order;
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    order = await Order.findById(id).populate('user', 'firstName lastName email phone role');
+  }
+  if (!order) {
+    order = await Order.findOne({
+      $or: [
+        { orderNumber: id },
+        { trackingNumber: id }
+      ]
+    }).populate('user', 'firstName lastName email phone role');
+  }
+
+  if (!order) {
+    return res.status(404).json({
+      success: false,
+      message: 'Order not found.'
+    });
+  }
+
+  // Security check: if req.user exists and is not admin, verify ownership
+  if (req.user && req.user.role !== 'admin' && order.user) {
+    const orderUserId = order.user._id ? order.user._id.toString() : order.user.toString();
+    if (orderUserId !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to confirm delivery for this order.'
+      });
+    }
+  }
+
+  if (order.orderStatus === 'cancelled') {
+    return res.status(400).json({
+      success: false,
+      message: 'This order was cancelled and cannot be marked as delivered.'
+    });
+  }
+
+  // Already confirmed
+  if (order.fulfillmentStatus === 'delivered' && order.customerDeliveredConfirmed) {
+    return res.json({
+      success: true,
+      message: 'Package arrival was already confirmed. Thank you!',
+      data: order
+    });
+  }
+
+  // Update order delivery status
+  order.fulfillmentStatus = 'delivered';
+  order.customerDeliveredConfirmed = true;
+  order.customerDeliveredConfirmedAt = new Date();
+
+  // Audit trail
+  order.orderEvents.push({
+    status: 'DELIVERED',
+    note: 'Delivery confirmed received by customer.',
+    user: req.user?._id || order.user?._id || undefined,
+    timestamp: new Date()
+  });
+
+  const city = order.shippingAddress?.city || 'Delivery Address';
+  order.trackingHistory.push({
+    status: 'delivered',
+    location: city,
+    message: 'Package arrived & verified received by customer.',
+    timestamp: new Date()
+  });
+
+  await order.save();
+
+  // Trigger admin email alert
+  try {
+    sendCustomerDeliveryConfirmationAdminAlert(order).catch(console.error);
+  } catch (alertErr) {
+    console.error('❌ Failed to trigger delivery confirmation admin alert:', alertErr.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Thank you for confirming! We hope you love your coffee.',
+    data: {
+      _id: order._id,
+      orderNumber: order.orderNumber,
+      trackingNumber: order.trackingNumber,
+      fulfillmentStatus: order.fulfillmentStatus,
+      customerDeliveredConfirmed: order.customerDeliveredConfirmed,
+      customerDeliveredConfirmedAt: order.customerDeliveredConfirmedAt
+    }
+  });
+});
+
 // @desc    Download Official Digital Payment Receipt (PDF)
 // @route   GET /api/orders/:id/receipt
 // @access  Protected (Order Customer or Admin)
@@ -1914,6 +2011,7 @@ export {
   updateRoastStage,
   trackOrderPublic,
   reportPayment,
+  confirmDeliveryCustomer,
   downloadOrderReceipt,
   validateCart
 };

@@ -582,11 +582,11 @@ const AddressesTab = () => {
         <div>
           {addresses.length === 0 ? (
             <div className="rc-card-white" style={{ textAlign: 'center', padding: '3.5rem 2rem' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#FAF6EE', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#CAA058', fontSize: '1.4rem' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(202, 160, 88, 0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem', color: '#CAA058', fontSize: '1.4rem' }}>
                 <FaMapMarkerAlt />
               </div>
-              <h3 style={{ fontFamily: 'var(--font-heading, "Playfair Display", serif)', fontSize: '1.4rem', color: '#1E140E', margin: '0 0 0.5rem' }}>No saved addresses yet</h3>
-              <p style={{ color: '#665548', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto 1.5rem' }}>
+              <h3 style={{ fontFamily: 'var(--font-heading, "Playfair Display", serif)', fontSize: '1.4rem', color: 'var(--cust-text, #1E140E)', margin: '0 0 0.5rem' }}>No saved addresses yet</h3>
+              <p style={{ color: 'var(--cust-text-muted, #665548)', fontSize: '0.9rem', maxWidth: '420px', margin: '0 auto 1.5rem' }}>
                 Add your delivery destination for seamless order fulfillment and swift checkout.
               </p>
               <button
@@ -624,7 +624,7 @@ const AddressesTab = () => {
                       }}>
                         <FaMapMarkerAlt />
                       </div>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1E140E' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)' }}>
                         {addr.isDefault ? 'Primary delivery address' : `${addr.label || 'Saved'} delivery address`}
                       </span>
                     </div>
@@ -641,7 +641,7 @@ const AddressesTab = () => {
                     fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
                     fontSize: '1.35rem',
                     fontWeight: 700,
-                    color: '#1E140E',
+                    color: 'var(--cust-text, #1E140E)',
                     margin: '0 0 0.65rem 0'
                   }}>
                     {addr.recipientName || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'Valued Customer'}
@@ -724,12 +724,12 @@ const AddressesTab = () => {
               fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
               fontSize: '1.35rem',
               fontWeight: 700,
-              color: '#1E140E',
+              color: 'var(--cust-text, #1E140E)',
               margin: '0 0 0.25rem 0'
             }}>
               Delivery preferences
             </h3>
-            <p style={{ color: '#665548', fontSize: '0.88rem', margin: '0 0 1.25rem 0' }}>
+            <p style={{ color: 'var(--cust-text-muted, #665548)', fontSize: '0.88rem', margin: '0 0 1.25rem 0' }}>
               Small details help every delivery go smoothly.
             </p>
 
@@ -750,10 +750,10 @@ const AddressesTab = () => {
                 <FaCheck />
               </div>
               <div>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1E140E', margin: '0 0 0.25rem 0' }}>
+                <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 0.25rem 0' }}>
                   Private and protected
                 </h4>
-                <p style={{ fontSize: '0.84rem', color: '#665548', margin: 0, lineHeight: 1.45 }}>
+                <p style={{ fontSize: '0.84rem', color: 'var(--cust-text-muted, #665548)', margin: 0, lineHeight: 1.45 }}>
                   Your address is used only to deliver your Rerendet Coffee orders. You can update it at any time.
                 </p>
               </div>

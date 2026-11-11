@@ -16,6 +16,7 @@ import {
   updateRoastStage,
   trackOrderPublic,
   reportPayment,
+  confirmDeliveryCustomer,
   downloadOrderReceipt,
   validateCart
 } from '../controllers/orderController.js';
@@ -29,6 +30,7 @@ router.post('/validate-cart', validateCart);
 router.post('/shipping-cost', calculateShippingCost);
 router.get('/track/:id', trackOrderPublic);
 router.post('/track/:id/report-payment', reportPayment);
+router.post('/track/:id/confirm-delivery', confirmDeliveryCustomer);
 router.post('/:id/report-payment', reportPayment);
 
 // Protected routes
@@ -39,6 +41,7 @@ router.post('/validate-coupon', validateCoupon);
 router.post('/abandoned', logAbandonedCheckout);
 router.post('/', checkoutLimiter, createOrder);
 router.get('/my', getUserOrders);
+router.post('/:id/confirm-delivery', confirmDeliveryCustomer);
 router.get('/:id/cancel-warning', getCancelOrderWarning);
 router.post('/:id/cancel', cancelOrder);
 router.put('/:id/cancel', cancelOrder);

@@ -175,7 +175,10 @@ const getOrders = asyncHandler(async (req, res) => {
   // 1. Fulfillment Status Filter
   const effectiveFulfillmentStatus = fulfillmentStatus || status;
   if (effectiveFulfillmentStatus && effectiveFulfillmentStatus !== 'all') {
-    if (effectiveFulfillmentStatus === 'awaiting_payment') {
+    if (effectiveFulfillmentStatus === 'active') {
+      filter.fulfillmentStatus = { $nin: ['delivered', 'returned'] };
+      filter.orderStatus = { $ne: 'cancelled' };
+    } else if (effectiveFulfillmentStatus === 'awaiting_payment') {
       filter.paymentMethod = 'paybill';
       filter.paymentStatus = { $in: ['pending', 'partially_paid'] };
     } else if (effectiveFulfillmentStatus === 'payment_queue' || effectiveFulfillmentStatus === 'awaiting_verification') {

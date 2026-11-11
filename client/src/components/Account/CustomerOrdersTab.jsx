@@ -36,7 +36,34 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [cancellingId, setCancellingId] = useState(null);
+  const [confirmingDeliveryId, setConfirmingDeliveryId] = useState(null);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState(null);
+
+  const handleConfirmDelivery = async (order) => {
+    if (!window.confirm(`Has order #${order.orderNumber} arrived at your address?`)) return;
+    setConfirmingDeliveryId(order._id);
+    try {
+      const activeToken = token || (JSON.parse(localStorage.getItem('auth') || '{}').token);
+      const res = await fetch(`/api/orders/${order._id}/confirm-delivery`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${activeToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (data.success) {
+        showNotification?.('Package arrival confirmed! Thank you.', 'success');
+        onRefresh?.();
+      } else {
+        showNotification?.(data.message || 'Confirmation failed', 'error');
+      }
+    } catch {
+      showNotification?.('Network error during confirmation', 'error');
+    } finally {
+      setConfirmingDeliveryId(null);
+    }
+  };
 
   const handleReorder = (order) => {
     if (!order.items || order.items.length === 0) {
@@ -142,8 +169,8 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
               padding: '0.5rem 1.15rem',
               borderRadius: '20px',
               border: 'none',
-              background: statusFilter === 'all' ? '#EFE7DA' : 'transparent',
-              color: statusFilter === 'all' ? '#1E140E' : '#69584B',
+              background: statusFilter === 'all' ? 'var(--cust-gold, #CAA058)' : 'transparent',
+              color: statusFilter === 'all' ? '#FFFFFF' : 'var(--cust-text-muted, #69584B)',
               fontWeight: statusFilter === 'all' ? 700 : 500,
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -159,8 +186,8 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
               padding: '0.5rem 1.15rem',
               borderRadius: '20px',
               border: 'none',
-              background: statusFilter === 'active' ? '#EFE7DA' : 'transparent',
-              color: statusFilter === 'active' ? '#1E140E' : '#69584B',
+              background: statusFilter === 'active' ? 'var(--cust-gold, #CAA058)' : 'transparent',
+              color: statusFilter === 'active' ? '#FFFFFF' : 'var(--cust-text-muted, #69584B)',
               fontWeight: statusFilter === 'active' ? 700 : 500,
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -176,8 +203,8 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
               padding: '0.5rem 1.15rem',
               borderRadius: '20px',
               border: 'none',
-              background: statusFilter === 'delivered' ? '#EFE7DA' : 'transparent',
-              color: statusFilter === 'delivered' ? '#1E140E' : '#69584B',
+              background: statusFilter === 'delivered' ? 'var(--cust-gold, #CAA058)' : 'transparent',
+              color: statusFilter === 'delivered' ? '#FFFFFF' : 'var(--cust-text-muted, #69584B)',
               fontWeight: statusFilter === 'delivered' ? 700 : 500,
               fontSize: '0.85rem',
               cursor: 'pointer',
@@ -209,7 +236,7 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
               background: 'transparent',
               outline: 'none',
               fontSize: '0.84rem',
-              color: '#1E140E',
+              color: 'var(--cust-text, #1E140E)',
               width: '100%'
             }}
           />
@@ -235,10 +262,10 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
             📦
           </div>
           <div>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1E140E', margin: '0 0 2px 0' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--cust-text, #1E140E)', margin: '0 0 2px 0' }}>
               Order history
             </h3>
-            <p style={{ fontSize: '0.8rem', color: '#69584B', margin: 0 }}>
+            <p style={{ fontSize: '0.8rem', color: 'var(--cust-text-muted, #69584B)', margin: 0 }}>
               {filteredOrders.length === 1 ? '1 order placed so far' : `${filteredOrders.length} orders placed so far`}
             </p>
           </div>
@@ -389,6 +416,24 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                       </a>
                     )}
 
+                    {!isCancelled && order.fulfillmentStatus === 'shipped' && !order.customerDeliveredConfirmed && (
+                      <button
+                        type="button"
+                        className="ord-action-btn solid"
+                        style={{ background: '#16a34a', color: '#FFFFFF', borderColor: '#16a34a', fontWeight: 600 }}
+                        onClick={() => handleConfirmDelivery(order)}
+                        disabled={confirmingDeliveryId === order._id}
+                      >
+                        {confirmingDeliveryId === order._id ? 'Confirming…' : '✓ Confirm Package Received'}
+                      </button>
+                    )}
+
+                    {!isCancelled && order.customerDeliveredConfirmed && (
+                      <span style={{ fontSize: '12px', color: '#16a34a', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        ✓ Received
+                      </span>
+                    )}
+
                     {!isCancelled ? (
                       <button
                         type="button"
@@ -455,12 +500,12 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
             fontFamily: 'var(--font-heading, "Playfair Display", Georgia, serif)',
             fontSize: '1.45rem',
             fontWeight: 700,
-            color: '#1E140E',
+            color: 'var(--cust-text, #1E140E)',
             margin: '0 0 0.65rem'
           }}>
             Your order history starts here
           </h4>
-          <p style={{ color: '#665548', fontSize: '0.9rem', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.5 }}>
+          <p style={{ color: 'var(--cust-text-muted, #665548)', fontSize: '0.9rem', maxWidth: '440px', margin: '0 auto 2rem', lineHeight: 1.5 }}>
             When you place an order, you'll find its receipt, delivery progress and tracking details right here.
           </p>
 
@@ -472,12 +517,12 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
             flexWrap: 'wrap',
             gap: '2rem',
             padding: '1.25rem 0',
-            borderTop: '1px solid #F2ECE3',
-            borderBottom: '1px solid #F2ECE3',
+            borderTop: '1px solid var(--cust-border-subtle, #F2ECE3)',
+            borderBottom: '1px solid var(--cust-border-subtle, #F2ECE3)',
             maxWidth: '560px',
             margin: '0 auto 2rem',
             fontSize: '0.85rem',
-            color: '#69584B',
+            color: 'var(--cust-text-muted, #69584B)',
             fontWeight: 500
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -508,10 +553,10 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
       {/* ══ Need a Hand Banner (Matching Image 2) ══ */}
       <div className="rc-card-white" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.75rem', marginBottom: 0 }}>
         <div>
-          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1E140E', margin: '0 0 2px 0' }}>
+          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cust-text, #1E140E)', margin: '0 0 2px 0' }}>
             Need a hand with an order?
           </h4>
-          <p style={{ fontSize: '0.82rem', color: '#665548', margin: 0 }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--cust-text-muted, #665548)', margin: 0 }}>
             Our team can help with delivery questions and order updates.
           </p>
         </div>

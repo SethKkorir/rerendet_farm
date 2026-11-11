@@ -137,10 +137,12 @@ function Navbar() {
     }
   };
 
+  const isPortalRoute = location.pathname.startsWith('/account') || location.pathname.startsWith('/profile');
+
   return (
     <>
       <header
-        className={`header ${(isScrolled || location.pathname !== '/') ? 'header--scrolled' : ''}`}
+        className={`header ${(isScrolled || location.pathname !== '/') ? 'header--scrolled' : ''} ${isPortalRoute ? 'header--portal-route' : ''}`}
       >
         <div className="header__container">
           {/* Logo Signature */}
