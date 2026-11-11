@@ -3,6 +3,7 @@ import asyncHandler from 'express-async-handler';
 import Contact from '../models/Contact.js';
 import Order from '../models/Order.js';
 import sendEmail from '../utils/sendEmail.js';
+import { sendNewSupportTicketAdminAlert } from '../utils/adminNotificationService.js';
 
 // @desc    Submit a contact inquiry (Public)
 // @route   POST /api/contact
@@ -61,7 +62,14 @@ export const submitContactInquiry = asyncHandler(async (req, res) => {
     status: 'new'
   });
 
-  // 5. Send Confirmation Email to Customer
+  // 5. Send Immediate Admin Notification (to rerendet@gmail.com)
+  try {
+    await sendNewSupportTicketAdminAlert(contact);
+  } catch (adminErr) {
+    console.error('Failed to dispatch contact admin alert:', adminErr.message);
+  }
+
+  // 6. Send Confirmation Email to Customer
   try {
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff;">

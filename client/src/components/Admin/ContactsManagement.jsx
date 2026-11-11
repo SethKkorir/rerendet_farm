@@ -6,8 +6,10 @@ import {
     FaSearch, FaEnvelope, FaPhone, FaCalendar, FaSync,
     FaTimes, FaReply, FaTrash, FaCheckCircle, FaTimesCircle,
     FaInbox, FaRegClock, FaTag, FaUser, FaChevronRight,
-    FaPaperPlane, FaArchive, FaExclamationTriangle, FaBell
+    FaPaperPlane, FaArchive, FaExclamationTriangle, FaBell,
+    FaArrowLeft, FaExternalLinkAlt
 } from 'react-icons/fa';
+import API from '../../api/api';
 import './ContactsManagement.css';
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -82,23 +84,28 @@ const ContactsManagement = () => {
     const fetchContacts = async () => {
         try {
             setLoading(true);
-            const params = new URLSearchParams(filters).toString();
-            const res = await fetch(`/api/admin/contacts?${params}`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.success) {
-                const list = data.data.contacts || [];
+            const res = await API.get('/admin/contacts', { params: filters });
+            if (res.data?.success) {
+                const list = res.data.data.contacts || [];
                 setContacts(list);
-                setPagination(data.data.pagination || {});
+                setPagination(res.data.data.pagination || {});
                 setStats({
-                    total: data.data.pagination?.total || list.length,
-                    pending: list.filter(c => c.status === 'pending').length,
+                    total: res.data.data.pagination?.total || list.length,
+                    pending: list.filter(c => c.status === 'pending' || c.status === 'new').length,
                     replied: list.filter(c => c.status === 'replied').length,
                     closed: list.filter(c => c.status === 'closed').length,
                 });
+
+                // Deep link auto-select (from admin email notification ?ticket=<id>)
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetId = urlParams.get('ticket') || urlParams.get('id');
+                if (targetId) {
+                    const match = list.find(c => c._id === targetId || c.ticketNumber === targetId);
+                    if (match) setSelectedContact(match);
+                }
             }
-        } catch {
+        } catch (err) {
+            console.error('Fetch contacts error:', err);
             showAlert('Failed to load inquiries', 'error');
         } finally {
             setLoading(false);
@@ -107,37 +114,34 @@ const ContactsManagement = () => {
 
     const handleStatusUpdate = async (id, status, adminResponse = '') => {
         try {
-            const res = await fetch(`/api/admin/contacts/${id}/status`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status, adminResponse })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showAlert(status === 'replied' ? 'Reply sent successfully!' : 'Status updated', 'success');
+            const res = await API.put(`/admin/contacts/${id}/status`, { status, adminResponse });
+            if (res.data?.success) {
+                showAlert(status === 'replied' ? 'Reply sent & emailed to customer!' : 'Status updated', 'success');
                 fetchContacts();
                 if (selectedContact?._id === id) {
                     setSelectedContact(prev => ({ ...prev, status, adminResponse, respondedAt: new Date().toISOString() }));
                 }
             }
-        } catch { showAlert('Failed to update status', 'error'); }
+        } catch (err) {
+            console.error('Update status error:', err);
+            showAlert('Failed to update status', 'error');
+        }
     };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Delete this inquiry permanently?')) return;
         try {
-            const res = await fetch(`/api/admin/contacts/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (data.success) {
+            const res = await API.delete(`/admin/contacts/${id}`);
+            if (res.data?.success) {
                 setContacts(p => p.filter(c => c._id !== id));
                 if (selectedContact?._id === id) setSelectedContact(null);
                 showAlert('Inquiry deleted', 'success');
                 fetchContacts();
             }
-        } catch { showAlert('Failed to delete inquiry', 'error'); }
+        } catch (err) {
+            console.error('Delete inquiry error:', err);
+            showAlert('Failed to delete inquiry', 'error');
+        }
     };
 
     const STATUS_TABS = [
@@ -174,9 +178,9 @@ const ContactsManagement = () => {
             </div>
 
             {/* ── Inbox Grid ── */}
-            <div className="ci-inbox-layout">
+            <div className={`ci-inbox-layout ${selectedContact ? 'has-active-thread' : 'no-active-thread'}`}>
                 {/* ── LEFT: List Panel ── */}
-                <div className="ci-list-panel">
+                <div className={`ci-list-panel ${selectedContact ? 'mobile-hidden' : ''}`}>
                     {/* Search */}
                     <div className="ci-search-bar">
                         <FaSearch className="ci-search-icon" />
@@ -224,7 +228,7 @@ const ContactsManagement = () => {
                             contacts.map((contact, i) => (
                                 <motion.div
                                     key={contact._id}
-                                    className={`ci-contact-card ${selectedContact?._id === contact._id ? 'active' : ''} ${contact.status === 'pending' ? 'unread' : ''}`}
+                                    className={`ci-contact-card ${selectedContact?._id === contact._id ? 'active' : ''} ${contact.status === 'pending' || contact.status === 'new' ? 'unread' : ''}`}
                                     initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: i * 0.03 }}
@@ -239,9 +243,9 @@ const ContactsManagement = () => {
 
                                     <div className="ci-contact-content">
                                         <div className="ci-contact-top">
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'wrap' }}>
                                                 <strong className="ci-contact-name">{contact.name}</strong>
-                                                <span style={{ fontSize: '0.66rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--color-primary, #6F4E37)', background: 'rgba(111,78,55,0.08)', padding: '1px 5px', borderRadius: '4px', flexShrink: 0 }}>
+                                                <span className="ci-ticket-badge">
                                                     #{contact.ticketNumber || contact.ticketReference || ('TKT-' + contact._id.slice(-6).toUpperCase())}
                                                 </span>
                                             </div>
@@ -249,10 +253,17 @@ const ContactsManagement = () => {
                                         </div>
                                         <p className="ci-contact-subject">{contact.subject}</p>
                                         <p className="ci-contact-preview">{contact.message?.slice(0, 75)}…</p>
-                                        <StatusBadge status={contact.status} />
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                            <StatusBadge status={contact.status} />
+                                            {(contact.orderNumber || contact.linkedOrderSnapshot?.orderNumber) && (
+                                                <span className="ci-order-micro-badge">
+                                                    📦 #{contact.orderNumber || contact.linkedOrderSnapshot?.orderNumber}
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
-                                    {contact.status === 'pending' && <span className="ci-unread-dot" />}
+                                    {(contact.status === 'pending' || contact.status === 'new') && <span className="ci-unread-dot" />}
                                     <FaChevronRight className="ci-card-arrow" />
                                 </motion.div>
                             ))
@@ -276,7 +287,7 @@ const ContactsManagement = () => {
                 </div>
 
                 {/* ── RIGHT: Detail + Reply Panel ── */}
-                <div className="ci-detail-panel">
+                <div className={`ci-detail-panel ${!selectedContact ? 'mobile-hidden' : ''}`}>
                     <AnimatePresence mode="wait">
                         {selectedContact ? (
                             <motion.div
@@ -305,8 +316,8 @@ const ContactsManagement = () => {
                                     <div className="ci-empty-ring ci-ring-1" />
                                     <div className="ci-empty-ring ci-ring-2" />
                                 </div>
-                                <h3>Select an inquiry</h3>
-                                <p>Click any message from the list to read and reply</p>
+                                <h3>Select a support inquiry</h3>
+                                <p>Click any message from the list to read full inquiry details and send an email reply</p>
                                 {stats.pending > 0 && (
                                     <div className="ci-pending-notice">
                                         <FaBell /> {stats.pending} pending {stats.pending === 1 ? 'inquiry' : 'inquiries'} need your attention
@@ -353,16 +364,36 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
 
     return (
         <div className="ci-thread-inner">
+            {/* Mobile Back Button Bar */}
+            <div className="ci-mobile-back-bar">
+                <button
+                    type="button"
+                    className="ci-mobile-back-btn"
+                    onClick={onClose}
+                >
+                    <FaArrowLeft /> Back to Tickets
+                </button>
+            </div>
+
             {/* Thread Header */}
             <div className="ci-thread-header">
                 <div className="ci-thread-subject-block">
                     <h2 className="ci-thread-subject">{contact.subject}</h2>
                     <div className="ci-thread-meta">
-                        <span style={{ fontSize: '0.74rem', fontFamily: 'monospace', fontWeight: 800, color: 'var(--color-primary, #6F4E37)', background: 'rgba(111,78,55,0.08)', padding: '2px 8px', borderRadius: '5px', letterSpacing: '0.5px' }}>
+                        <span className="ci-ticket-pill">
                             Ref: #{contact.ticketNumber || contact.ticketReference || ('TKT-' + contact._id.slice(-6).toUpperCase())}
                         </span>
                         <StatusBadge status={contact.status} />
                         <span className="ci-thread-date"><FaCalendar /> {formatDate(contact.createdAt)}</span>
+                        {(contact.orderNumber || contact.linkedOrderSnapshot?.orderNumber) && (
+                            <a
+                                href={`/admin/orders?search=${contact.orderNumber || contact.linkedOrderSnapshot?.orderNumber}`}
+                                className="ci-order-link-pill"
+                                title="View linked order in admin"
+                            >
+                                📦 Order #{contact.orderNumber || contact.linkedOrderSnapshot?.orderNumber} <FaExternalLinkAlt style={{ fontSize: '0.65rem' }} />
+                            </a>
+                        )}
                     </div>
                 </div>
                 <div className="ci-thread-header-actions">
@@ -392,8 +423,8 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
                         <div className="ci-bubble-header">
                             <div className="ci-bubble-sender">
                                 <strong>{contact.name}</strong>
-                                <span className="ci-bubble-email"><FaEnvelope /> {contact.email}</span>
-                                {contact.phone && <span className="ci-bubble-phone"><FaPhone /> {contact.phone}</span>}
+                                <a href={`mailto:${contact.email}`} className="ci-bubble-email"><FaEnvelope /> {contact.email}</a>
+                                {contact.phone && <a href={`tel:${contact.phone}`} className="ci-bubble-phone"><FaPhone /> {contact.phone}</a>}
                             </div>
                             <span className="ci-bubble-time">{formatDateTime(contact.createdAt)}</span>
                         </div>
@@ -417,7 +448,7 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
                                 <span className="ci-bubble-time">{formatDateTime(contact.respondedAt)}</span>
                             </div>
                             <div className="ci-bubble-text">{contact.adminResponse}</div>
-                            <div className="ci-reply-sent-tag"><FaCheckCircle /> Reply sent via email</div>
+                            <div className="ci-reply-sent-tag"><FaCheckCircle /> Reply sent via email to {contact.email}</div>
                         </div>
                     </motion.div>
                 )}
@@ -425,7 +456,7 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
                 {/* Closed Banner */}
                 {isClosed && (
                     <div className="ci-closed-banner">
-                        <FaArchive /> This inquiry has been closed
+                        <FaArchive /> This inquiry has been resolved and closed
                     </div>
                 )}
             </div>
@@ -443,13 +474,14 @@ const InquiryThread = ({ contact, onUpdate, onDelete, onClose }) => {
                         onChange={e => setReplyText(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={`Type your reply to ${contact.name}… (Ctrl+Enter to send)`}
-                        rows={5}
+                        rows={4}
                     />
                     <div className="ci-reply-footer">
                         <span className="ci-reply-hint">
-                            <FaEnvelope /> Will be emailed to <strong>{contact.email}</strong>
+                            <FaEnvelope /> Automatically emailed to <strong>{contact.email}</strong>
                         </span>
                         <button
+                            type="button"
                             className="ci-send-btn"
                             onClick={handleSendReply}
                             disabled={!replyText.trim() || sending}

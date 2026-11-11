@@ -4,6 +4,8 @@ import Address from '../models/Address.js';
 import PaymentMethod from '../models/PaymentMethod.js';
 import Order from '../models/Order.js';
 import Contact from '../models/Contact.js';
+import sendEmail from '../utils/sendEmail.js';
+import { sendNewSupportTicketAdminAlert } from '../utils/adminNotificationService.js';
 
 // @desc    Get dashboard data
 // @route   GET /api/dashboard/data
@@ -587,6 +589,41 @@ const createTicket = asyncHandler(async (req, res) => {
     slaDeadline,
     status: 'new'
   });
+
+  // 1. Dispatch Immediate Admin Email Notification (to rerendet@gmail.com)
+  try {
+    await sendNewSupportTicketAdminAlert(ticket);
+  } catch (alertErr) {
+    console.error('Failed to dispatch support ticket admin alert:', alertErr.message);
+  }
+
+  // 2. Dispatch Confirmation Email to Customer
+  try {
+    const ticketRef = ticket.ticketNumber || `TKT-${ticket._id.toString().slice(-6).toUpperCase()}`;
+    await sendEmail({
+      to: req.user.email,
+      subject: `☕ Support Ticket Opened [#${ticketRef}]: ${subject}`,
+      html: `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <h1 style="color: #6F4E37; margin: 0; font-size: 22px;">☕ Rerendet Customer Care</h1>
+            <p style="color: #666; font-size: 13px; margin-top: 4px;">Support Inquiry Confirmation</p>
+          </div>
+          <p style="font-size: 15px; color: #333;">Hello <strong>${req.user.firstName}</strong>,</p>
+          <p style="font-size: 14px; color: #555; line-height: 1.6;">
+            We have received your support ticket regarding <strong>"${subject}"</strong>. Our concierge support team is reviewing it and will respond within 2 to 4 business hours.
+          </p>
+          <div style="padding: 14px 18px; background-color: #f9f6f0; border-left: 4px solid #D4AF37; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 13px; color: #333;"><strong>Ticket Reference:</strong> #${ticketRef}</p>
+            ${linkedOrderSnapshot ? `<p style="margin: 6px 0 0; font-size: 13px; color: #333;"><strong>Associated Order:</strong> #${linkedOrderSnapshot.orderNumber}</p>` : ''}
+          </div>
+          <p style="font-size: 13px; color: #777;">You can track this inquiry directly in your Rerendet account under Help & Support.</p>
+        </div>
+      `
+    });
+  } catch (emailErr) {
+    console.error('Failed to send customer ticket confirmation email:', emailErr.message);
+  }
 
   res.status(201).json({
     success: true,

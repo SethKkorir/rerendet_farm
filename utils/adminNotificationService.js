@@ -322,3 +322,86 @@ export const sendPartialPaymentAdminAlert = async (order, mpesaCode, amountRecei
         console.error('❌ Failed to send partial payment admin alert:', error.message);
     }
 };
+
+/**
+ * Notify admins when a customer submits a new help & support ticket or contact inquiry
+ */
+export const sendNewSupportTicketAdminAlert = async (ticket) => {
+    const recipients = await getActiveAdminRecipients();
+    if (!recipients || recipients.length === 0) return;
+
+    try {
+        const frontendUrl = getFrontendUrl();
+        const ticketRef = ticket.ticketNumber || ticket.ticketReference || `TKT-${ticket._id ? ticket._id.toString().slice(-6).toUpperCase() : 'NEW'}`;
+        const customerName = ticket.name || 'Valued Customer';
+        const customerEmail = ticket.email || '';
+        const subject = ticket.subject || 'Support Inquiry';
+        const messageText = ticket.message || '';
+        const orderInfo = ticket.orderNumber || ticket.linkedOrderSnapshot?.orderNumber || (ticket.order?.orderNumber ? ticket.order.orderNumber : null);
+        const createdAt = new Date(ticket.createdAt || Date.now()).toLocaleString('en-GB', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+        });
+
+        const emailHtml = `
+            <div style="font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 580px; margin: 30px auto; padding: 40px 36px 36px; border: 1px solid #E5E7EB; border-top: 4px solid #D4AF37; border-radius: 8px; background-color: #FFFFFF; text-align: left;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="https://res.cloudinary.com/dln2pifwf/image/upload/v1779294419/rerendet-coffee/products/pb7indr2rhu7fnhh3jjh.png" alt="Rerendet Coffee" width="130" style="display: block; margin: 0 auto;" />
+                </div>
+
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <span style="display: inline-block; background-color: rgba(212, 175, 55, 0.15); color: #8A6D1C; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.2px; padding: 4px 12px; border-radius: 9999px;">
+                        🎧 Customer Support Ticket
+                    </span>
+                    <h1 style="color: #111827; margin: 12px 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em;">New Inquiry Received</h1>
+                    <p style="color: #6B7280; font-size: 13.5px; margin: 0;">Ticket #${ticketRef} &bull; ${createdAt}</p>
+                </div>
+
+                <!-- Customer Details Card -->
+                <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 18px 20px; margin-bottom: 20px;">
+                    <span style="font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 8px;">Customer Information</span>
+                    <strong style="color: #111827; font-size: 15px; display: block;">${customerName}</strong>
+                    <div style="margin-top: 4px; font-size: 13px; color: #4B5563;">
+                        <span>✉️ <a href="mailto:${customerEmail}" style="color: #1E3D2F; text-decoration: none; font-weight: 600;">${customerEmail}</a></span>
+                        ${ticket.phone ? `&bull; <span>📞 ${ticket.phone}</span>` : ''}
+                    </div>
+                    ${orderInfo ? `
+                        <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #E5E7EB; font-size: 13px; color: #4B5563;">
+                            <strong>Linked Order:</strong> <span style="font-family: monospace; font-weight: 700; color: #D4AF37;">#${orderInfo}</span>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Subject & Message Card -->
+                <div style="border: 1px solid #E5E7EB; border-radius: 8px; padding: 20px; margin-bottom: 24px; background-color: #FFFFFF;">
+                    <span style="font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">Subject</span>
+                    <h3 style="color: #111827; margin: 0 0 14px; font-size: 16px; font-weight: 700;">${subject}</h3>
+
+                    <span style="font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">Customer Message</span>
+                    <div style="font-size: 14px; color: #374151; line-height: 1.6; background-color: #F9FAFB; padding: 14px 16px; border-radius: 6px; border-left: 3px solid #D4AF37; white-space: pre-wrap; word-break: break-word;">${messageText}</div>
+                </div>
+
+                <!-- Action Button -->
+                <div style="text-align: center; margin-top: 28px;">
+                    <a href="${frontendUrl}/admin/contacts?ticket=${ticket._id}" style="background-color: #1E3D2F; color: #FFFFFF !important; padding: 13px 36px; text-decoration: none; border-radius: 9999px; font-weight: 700; font-size: 14px; display: inline-block; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(30, 61, 47, 0.2);">
+                        View &amp; Reply in Admin Portal →
+                    </a>
+                </div>
+
+                <div style="margin-top: 24px; text-align: center; font-size: 12px; color: #9CA3AF;">
+                    Standard Response SLA: 24 business hours &bull; Rerendet Coffee Co.
+                </div>
+            </div>
+        `;
+
+        await Promise.allSettled(recipients.map(to => sendEmail({
+            to,
+            subject: `🎧 Support Ticket #${ticketRef}: ${subject} — ${customerName}`,
+            html: emailHtml
+        })));
+
+        console.log(`📧 Support ticket alert sent for #${ticketRef} to ${recipients.join(', ')}`);
+    } catch (err) {
+        console.error('❌ Failed to send support ticket admin alert:', err.message);
+    }
+};
