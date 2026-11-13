@@ -190,22 +190,29 @@ const createSession = async (req, res, user, replacingJti = null) => {
         */
       }
 
-      // Geo-anomaly check
+      // Geo-anomaly check (bypass for local/loopback development logins)
       const currentCountry = lookupCountryByIp(ip);
-      const lastSessions = await AdminSession.find({ adminId: user._id })
-        .sort({ createdAt: -1 })
-        .limit(5);
+      const isLocal = currentCountry === 'Localhost' || ['127.0.0.1', '::1', 'localhost'].includes(ip) || ip?.startsWith('::ffff:127.');
 
-      const lastCountries = lastSessions.map(s => s.country || 'Kenya');
-      if (lastCountries.length > 0 && !lastCountries.includes(currentCountry)) {
-        await sendEmail({
-          to: user.email,
-          subject: '🚨 New country login detected',
-          html: `<p>We detected an administrator login from a new country: <strong>${currentCountry}</strong>. Previous login countries: ${[...new Set(lastCountries)].join(', ')}. If this wasn't you, please secure your account immediately.</p>`
-        });
+      if (!isLocal) {
+        const lastSessions = await AdminSession.find({ adminId: user._id })
+          .sort({ createdAt: -1 })
+          .limit(10);
 
-        const { createAlert } = await import('../models/AdminAlert.js');
-        await createAlert('critical', 'killswitch_event', `New country login detected for admin ${user.email} from ${currentCountry}`);
+        const lastCountries = lastSessions
+          .map(s => s.country)
+          .filter(c => c && c !== 'Localhost');
+
+        if (lastCountries.length > 0 && !lastCountries.includes(currentCountry)) {
+          await sendEmail({
+            to: user.email,
+            subject: '🚨 New country login detected',
+            html: `<p>We detected an administrator login from a new country: <strong>${currentCountry}</strong>. Previous login countries: ${[...new Set(lastCountries)].join(', ')}. If this wasn't you, please secure your account immediately.</p>`
+          });
+
+          const { createAlert } = await import('../models/AdminAlert.js');
+          await createAlert('critical', 'killswitch_event', `New country login detected for admin ${user.email} from ${currentCountry}`);
+        }
       }
 
       const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_SECONDS * 1000);

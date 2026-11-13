@@ -83,7 +83,7 @@ function AccountDashboard() {
   const loadOrders = async (showLoading = true) => {
     if (showLoading) setOrdersLoading(true);
     try {
-      const payload = await fetchUserOrders(1, 15);
+      const payload = await fetchUserOrders(1, 50);
       if (payload?.data?.orders) {
         setOrders(payload.data.orders);
       } else if (payload?.orders) {

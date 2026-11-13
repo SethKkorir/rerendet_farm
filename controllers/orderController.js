@@ -160,10 +160,10 @@ const createOrder = asyncHandler(async (req, res) => {
       });
     }
 
-    // ✅ SECURITY: Generate unique order number with UUID
-    const uuid = uuidv4().split('-')[0].toUpperCase();
-    const timestamp = Date.now().toString().slice(-8);
-    const orderNumber = `ORD-${timestamp}-${uuid}`;
+    // Compact order number (e.g. RF-2841) and 4-digit tracking ID
+    const randomOrderDigits = Math.floor(1000 + Math.random() * 9000).toString();
+    const orderNumber = `RF-${randomOrderDigits}`;
+    const trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
 
     // Process order items and validate stock
     let calculatedSubtotal = 0;
@@ -315,6 +315,7 @@ const createOrder = asyncHandler(async (req, res) => {
     // Create order with granular status
     const order = new Order({
       orderNumber: orderNumber,
+      trackingNumber: trackingNumber,
       user: userId,
       items: orderItems,
       shippingAddress: {
@@ -633,18 +634,29 @@ const getUserOrders = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
+  // Query by user ID OR user's registered email/phone to ensure past orders are never missed
+  const userEmails = [req.user.email].filter(Boolean).map(e => e.trim().toLowerCase());
+  const userPhones = [req.user.phone].filter(Boolean).map(p => p.trim());
 
+  const userConditions = [{ user: userId }];
+  if (userEmails.length > 0) {
+    userConditions.push({ 'shippingAddress.email': { $in: userEmails.map(e => new RegExp(`^${e}$`, 'i')) } });
+  }
+  if (userPhones.length > 0) {
+    userConditions.push({ 'shippingAddress.phone': { $in: userPhones } });
+  }
+  const userFilter = userConditions.length === 1 ? userConditions[0] : { $or: userConditions };
 
   try {
     const [ordersList, total] = await Promise.all([
-      Order.find({ user: userId })
-        .select('orderNumber items total subtotal shippingCost discountAmount tax shippingAddress paymentMethod paymentStatus orderStatus fulfillmentStatus roastStage transactionId trackingNumber createdAt')
+      Order.find(userFilter)
+        .select('orderNumber items total subtotal shippingCost discountAmount tax shippingAddress paymentMethod paymentStatus orderStatus fulfillmentStatus roastStage transactionId trackingNumber customerDeliveredConfirmed customerDeliveredConfirmedAt createdAt')
         .populate('items.product', 'name images price category')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Order.countDocuments({ user: userId })
+      Order.countDocuments(userFilter)
     ]);
 
     // Manually map virtual fields to preserve lean query performance
@@ -1662,6 +1674,12 @@ const reportPayment = asyncHandler(async (req, res) => {
   }
 
   const cleanCode = (mpesaCode || '').trim().toUpperCase();
+  if (!cleanCode) {
+    return res.status(400).json({
+      success: false,
+      message: 'M-Pesa confirmation code is required to report payment.'
+    });
+  }
   const cleanPhone = (customerPhone || order.shippingAddress?.phone || '').trim();
   const cleanNotes = (notes || '').trim();
 
@@ -1725,7 +1743,8 @@ const reportPayment = asyncHandler(async (req, res) => {
           order.orderNumber,
           cleanCode,
           logoUrl,
-          order._id
+          order._id,
+          order.trackingNumber
         );
 
         sendEmail({

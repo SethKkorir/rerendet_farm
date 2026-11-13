@@ -261,11 +261,10 @@ orderSchema.virtual('status').get(function () {
 // Generate Order Number & Tracking Number
 orderSchema.pre('save', function (next) {
   if (this.isNew) {
-    // 1. Generate Order Number
+    // 1. Generate Order Number (Compact e.g. RF-2841)
     if (!this.orderNumber) {
-      const timestamp = Date.now().toString().slice(-8);
-      const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-      this.orderNumber = `ORD-${timestamp}-${random}`;
+      const random = Math.floor(1000 + Math.random() * 9000).toString();
+      this.orderNumber = `RF-${random}`;
     }
 
     // 2. Generate Tracking Number (Simple 4-digit code e.g. 2345)

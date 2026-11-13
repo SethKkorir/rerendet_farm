@@ -64,6 +64,11 @@ const OrderTracking = () => {
     const handleReportPayment = async (e) => {
         e?.preventDefault();
         if (!order) return;
+        const cleanCode = (reportMpesaCode || '').trim();
+        if (!cleanCode) {
+            showNotification('Please enter your M-Pesa Confirmation Code (e.g. QKH7123456)', 'error');
+            return;
+        }
         setSubmittingReport(true);
         try {
             const targetId = order._id || order.orderNumber;
@@ -358,7 +363,7 @@ const OrderTracking = () => {
                         </p>
                         <div className="ot-paybill-steps">
                             <div>1. Go to <strong>M-Pesa</strong> &rarr; Select <strong>Lipa na M-Pesa</strong> &rarr; <strong>Paybill</strong></div>
-                            <div>2. Business Number (Paybill): <strong style={{ fontFamily: 'monospace', fontSize: '15px' }}>{paybillNumber}</strong></div>
+                            <div>2. Business Number (Paybill): <strong style={{ fontFamily: 'monospace', fontSize: '15px' }}>{paybillNumber}</strong> <span style={{ fontSize: '13px', color: '#64748B' }}>(Paybill Name: <strong style={{ color: '#0F172A' }}>Rerendet Farm</strong>)</span></div>
                             <div>3. Account Number: <strong style={{ fontFamily: 'monospace', fontSize: '15px' }}>{paybillAccount}</strong> <span style={{ fontSize: '13px', color: '#64748B' }}>(Reference: <strong>{order.orderNumber}</strong>)</span></div>
                             <div>4. Amount: <strong style={{ color: '#ea580c', fontSize: '15px' }}>KES {order.total?.toLocaleString()}</strong></div>
                             <div>5. Enter your M-Pesa PIN and press Send</div>
@@ -381,14 +386,15 @@ const OrderTracking = () => {
                                 {showReportForm && (
                                     <form onSubmit={handleReportPayment} style={{ marginTop: '14px' }}>
                                         <div style={{ marginBottom: '10px' }}>
-                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>
-                                                M-Pesa Reference Code (Optional)
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                                                M-Pesa Confirmation Code <span style={{ color: '#EF4444' }}>*</span>
                                             </label>
                                             <input
                                                 type="text"
                                                 placeholder="e.g. QKH7123456"
                                                 value={reportMpesaCode}
                                                 onChange={e => setReportMpesaCode(e.target.value.toUpperCase())}
+                                                required
                                                 style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '13.5px', fontFamily: 'monospace' }}
                                             />
                                         </div>

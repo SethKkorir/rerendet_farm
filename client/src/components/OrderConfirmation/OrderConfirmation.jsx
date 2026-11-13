@@ -149,7 +149,7 @@ const OrderConfirmation = () => {
     || order.paymentConfirmation?.mpesaCode
     || order.paymentReporting?.reportedMpesaCode
     || order.transactionId
-    || (order.paymentMethod === 'paybill' ? `Paybill 516600 (Acc: 934558 • Ref: ${order.orderNumber})` : 'Pending Verification');
+    || (order.paymentMethod === 'paybill' ? `Paybill 516600 (Rerendet Farm • Acc: 934558 • Ref: ${order.orderNumber})` : 'Pending Verification');
 
   return (
     <div className="oc-clean-page">

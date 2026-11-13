@@ -57,8 +57,8 @@
 }
 
 .header__logo-img {
-  height: 60px;
-  max-height: 60px;
+  height: 76px;
+  max-height: 76px;
   width: auto;
   object-fit: contain;
   transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s ease;
@@ -66,8 +66,8 @@
 }
 
 .header--scrolled .header__logo-img {
-  height: 48px;
-  max-height: 48px;
+  height: 60px;
+  max-height: 60px;
 }
 
 /* ── Desktop Navigation ── */
@@ -362,13 +362,13 @@
   }
 
   .header__logo-img {
-    height: 46px;
-    max-height: 46px;
+    height: 58px;
+    max-height: 58px;
   }
 
   .header--scrolled .header__logo-img {
-    height: 38px;
-    max-height: 38px;
+    height: 48px;
+    max-height: 48px;
   }
 }
 

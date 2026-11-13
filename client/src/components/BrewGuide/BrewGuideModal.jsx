@@ -294,7 +294,7 @@ const BrewGuideModal = ({ isOpen, onClose }) => {
           {/* Footer */}
           <div className="bg-modal-footer">
             <span className="bg-footer-origin">
-              Single-origin Arabica from Rerendet Highlands (1,800m ASL)
+              Single-origin Arabica from Bomet County, Kenya
             </span>
             <div className="bg-footer-right-actions">
               <button

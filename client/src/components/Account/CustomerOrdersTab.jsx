@@ -300,10 +300,18 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
               <div key={order._id} className="ord-clean-card">
                 {/* Top Meta Strip */}
                 <div className="ord-clean-top">
-                  <div className="ord-clean-meta-left">
+                  <div className="ord-clean-meta-left" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
                     <span className="ord-clean-number">Order #{order.orderNumber}</span>
                     <span className="ord-clean-dot-sep" />
                     <span className="ord-clean-date">{formattedDate}</span>
+                    {order.trackingNumber && (
+                      <>
+                        <span className="ord-clean-dot-sep" />
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', background: '#F3F4F6', color: '#1E3D2F', padding: '2px 8px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                          Track: {order.trackingNumber}
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   <div className="ord-clean-badges-right" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -727,6 +735,13 @@ const CustomerOrdersTab = ({ orders = [], loading = false, onRefresh }) => {
                         <div className="or-meta-item">
                           <span className="or-meta-title">Invoice No :</span>
                           <span className="or-meta-val">No. {selectedInvoiceOrder.orderNumber}</span>
+                        </div>
+                      )}
+
+                      {selectedInvoiceOrder.trackingNumber && (
+                        <div className="or-meta-item">
+                          <span className="or-meta-title">Tracking ID :</span>
+                          <span className="or-meta-val" style={{ fontFamily: 'monospace', fontWeight: 800, color: '#1E3D2F' }}>{selectedInvoiceOrder.trackingNumber}</span>
                         </div>
                       )}
 

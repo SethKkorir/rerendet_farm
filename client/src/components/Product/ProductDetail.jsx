@@ -50,7 +50,7 @@ const ProductDetail = () => {
 
     const isOutOfStock = isProductOutOfStock(product);
     const isCoffee = Boolean(product?.roastLevel || (product?.flavorNotes && product.flavorNotes.length > 0) || product?.category === 'coffee-beans' || (product?.grindOptions && product.grindOptions.length > 0));
-    const availableGrinds = product?.grindOptions?.length > 0 ? product.grindOptions : ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'];
+    const availableGrinds = product?.grindOptions?.length > 0 ? product.grindOptions : ['Beans', 'Ground'];
 
     const handleAddToCart = async () => {
         if (!selectedSize || !product) return;
@@ -155,7 +155,7 @@ const ProductDetail = () => {
                         )}
 
                         <h1>{product.name}</h1>
-                        <p className="origin">{product.origin}</p>
+                        <p className="origin">{product.origin || 'Bomet County, Kenya'}</p>
 
                         <div className="price-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                             {hasDiscount && (
@@ -221,7 +221,7 @@ const ProductDetail = () => {
 
                         {isCoffee && (
                             <div className="grind-selector" style={{ marginTop: '1.25rem' }}>
-                                <h3 className="desc-heading" style={{ marginBottom: '0.6rem' }}>Select Grind Profile:</h3>
+                                <h3 className="desc-heading" style={{ marginBottom: '0.6rem' }}>Select Coffee Format (Beans / Ground):</h3>
                                 <div className="grind-options-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.5rem' }}>
                                     {availableGrinds.map(g => (
                                         <button

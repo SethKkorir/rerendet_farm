@@ -65,7 +65,7 @@ const Footer = () => {
                 }}
               />
               <span className="footer-brand-title">Rerendet</span>
-              <span className="footer-brand-sub">Coffee Farm</span>
+              <span className="footer-brand-sub">Coffee Farm · Bomet County, Kenya</span>
             </Link>
 
             {/* Social Icons Row */}

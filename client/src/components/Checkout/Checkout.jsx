@@ -91,6 +91,11 @@ function Checkout() {
   const handleReportPayment = async (e) => {
     e?.preventDefault();
     if (!createdPaybillOrder) return;
+    const cleanCode = (reportMpesaCode || '').trim();
+    if (!cleanCode) {
+      showNotification?.('Please enter your M-Pesa Confirmation Code (e.g. QKH7123456)', 'error');
+      return;
+    }
     setSubmittingReport(true);
     try {
       const orderId = createdPaybillOrder._id || createdPaybillOrder.orderNumber;
@@ -1369,6 +1374,9 @@ function Checkout() {
                             {copiedField === 'paybill' ? <FaCheck style={{ color: '#10B981' }} /> : <FaCopy />}
                           </button>
                         </span>
+                        <div style={{ fontSize: '0.84rem', color: '#64748B', marginTop: '4px' }}>
+                          Paybill Name: <strong style={{ color: '#0F172A', fontWeight: 700 }}>Rerendet Farm</strong>
+                        </div>
                       </div>
                     </div>
                     <div className="paybill-step-item">
@@ -1436,14 +1444,15 @@ function Checkout() {
                     {showReportForm && (
                       <form onSubmit={handleReportPayment} style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #E2E8F0' }}>
                         <div style={{ marginBottom: '12px' }}>
-                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                            M-Pesa Confirmation Code (Optional)
+                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            M-Pesa Confirmation Code <span style={{ color: '#EF4444' }}>*</span>
                           </label>
                           <input
                             type="text"
                             placeholder="e.g. QKH7123456"
                             value={reportMpesaCode}
                             onChange={e => setReportMpesaCode(e.target.value.toUpperCase())}
+                            required
                             style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #CBD5E1', fontSize: '14px', fontFamily: 'monospace' }}
                           />
                         </div>
@@ -1551,7 +1560,7 @@ function Checkout() {
                       ☕ Easy M-Pesa Paybill Payment
                     </p>
                     <p style={{ margin: '0 0 12px', color: '#475569', fontSize: '13.5px', lineHeight: 1.6 }}>
-                      Your fresh coffee is safely reserved for you for <strong>24 hours</strong>. On the next screen, you’ll get our Paybill details and your Order Number to pay directly from your M-Pesa menu or app. We’ll confirm your payment and issue an official receipt right away!
+                      Your fresh coffee is safely reserved for you for <strong>24 hours</strong>. On the next screen, you’ll get our Paybill details (Paybill Name: <strong>Rerendet Farm</strong>, Business No: <strong>516600</strong>) and your Order Number to pay directly from your M-Pesa menu or app. We’ll confirm your payment and issue an official receipt right away!
                     </p>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '6px 14px', borderRadius: '9999px', fontSize: '12.5px', color: '#065f46', fontWeight: 600 }}>
                       <span>🔒 Safe &amp; verified · Instant digital receipt &amp; fast dispatch</span>

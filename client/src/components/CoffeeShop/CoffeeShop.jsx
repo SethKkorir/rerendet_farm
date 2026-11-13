@@ -124,11 +124,8 @@ export const getProductSizes = (product) => {
 };
 
 export const GRIND_OPTIONS = [
-  'Whole Beans',
-  'French Press',
-  'Pour-Over',
-  'AeroPress',
-  'Espresso'
+  'Beans',
+  'Ground'
 ];
 
 /* ══════════════════════════════════════════════════════════
@@ -380,13 +377,11 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
       {/* ── Card Body & Details ── */}
       <div className="cs-card-body">
         {/* Origin Tag */}
-        {product.origin && (
-          <div className="cs-meta-row">
-            <span className="cs-origin-pill">
-              {product.origin}
-            </span>
-          </div>
-        )}
+        <div className="cs-meta-row">
+          <span className="cs-origin-pill">
+            {product.origin || 'Bomet County, Kenya'}
+          </span>
+        </div>
 
         {/* Product Name */}
         <h3
@@ -524,7 +519,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
     return availableSizes[0];
   });
   const [selectedGrind, setSelectedGrind] = useState(() => {
-    return product.defaultGrind || product.grindOptions?.[0] || 'Whole Beans';
+    return product.defaultGrind || product.grindOptions?.[0] || 'Beans';
   });
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
@@ -631,11 +626,9 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
           <div className="cs-modal-info-col">
             {(product.origin || product.process) && (
               <div className="cs-modal-tags-row">
-                {product.origin && (
-                  <span className="cs-pill gold">
-                    <FaLeaf /> {product.origin}
-                  </span>
-                )}
+                <span className="cs-pill gold">
+                  <FaLeaf /> {product.origin || 'Bomet County, Kenya'}
+                </span>
                 {product.process && (
                   <span className="cs-pill">{product.process}</span>
                 )}
@@ -683,7 +676,7 @@ const QuickViewModal = ({ product, onClose, onAddToCart, addingToCart }) => {
             {/* Grind Selector (Coffee Only) */}
             {isCoffee && (
               <div className="cs-modal-section">
-                <span className="cs-section-label">Select Grind Profile</span>
+                <span className="cs-section-label">Select Coffee Format (Beans / Ground)</span>
                 <div className="cs-modal-options-grid grinds">
                   {(product.grindOptions && product.grindOptions.length > 0 ? product.grindOptions : GRIND_OPTIONS).map((g) => (
                     <button
@@ -916,7 +909,7 @@ const CoffeeShop = () => {
   }, [products, activeCategory, roastFilter, searchTerm, sortBy]);
 
   // Strict Add To Cart Method
-  const handleAddToCart = async (product, size, price, qty = 1, grind = 'Whole Beans') => {
+  const handleAddToCart = async (product, size, price, qty = 1, grind = 'Beans') => {
     // HARD ENFORCEMENT: If product is out of stock, completely block!
     if (isProductOutOfStock(product) || getAvailableStockCount(product) <= 0) {
       showAlert(`"${product.name}" is out of stock and cannot be added to cart.`, 'error');
@@ -964,82 +957,60 @@ const CoffeeShop = () => {
           </h1>
         </div>
 
-        {/* ── Refined Toolbar (Categories, Search, Roast, Sort) ── */}
-        <div className="cs-toolbar">
-          {/* Categories Row */}
-          <div className="cs-categories-strip">
-            {categoriesList.map((cat) => {
-              const label = cat === 'all'
-                ? 'All Coffees'
-                : cat.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
-              const isActive = activeCategory === cat;
+        {/* ── Simple, Clean Roast Filter & Search Bar ── */}
+        <div className="cs-simple-toolbar">
+          {/* Roast Profile Tabs */}
+          <div className="cs-roast-tabs">
+            {roastLevelsList.map(r => {
+              const label = r === 'all'
+                ? 'All Roasts'
+                : r.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              const isActive = roastFilter.toLowerCase() === r.toLowerCase();
 
               return (
                 <button
-                  key={cat}
+                  key={r}
                   type="button"
-                  className={`cs-cat-btn ${isActive ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat)}
+                  className={`cs-roast-tab ${isActive ? 'active' : ''}`}
+                  onClick={() => setRoastFilter(r)}
                 >
-                  {cat === 'all' && <FaCoffee className="cs-cat-icon" />}
                   {label}
                 </button>
               );
             })}
           </div>
 
-          {/* Secondary Controls Bar */}
-          <div className="cs-secondary-controls">
-            {/* Live Search */}
-            <div className="cs-search-box">
-              <FaSearch className="cs-search-icon" />
+          {/* Simple Search & Sort */}
+          <div className="cs-simple-actions">
+            <div className="cs-simple-search">
+              <FaSearch className="cs-simple-search-icon" />
               <input
                 type="text"
-                placeholder="Search roasts, notes (e.g. Jasmine, Citrus, Bomet)..."
+                placeholder="Search coffee..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="cs-search-input"
+                className="cs-simple-search-input"
               />
               {searchTerm && (
-                <button className="cs-search-clear" onClick={() => setSearchTerm('')} aria-label="Clear search">
+                <button
+                  type="button"
+                  className="cs-simple-search-clear"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Clear search"
+                >
                   <FaTimes />
                 </button>
               )}
             </div>
 
-            {/* Roast Profile Quick Pills (dynamically derived from admin added products) */}
-            {roastLevelsList.length > 1 && (
-              <div className="cs-roast-pills">
-                {roastLevelsList.map(r => {
-                  const label = r === 'all'
-                    ? 'All Roasts'
-                    : r.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                  const isActive = roastFilter.toLowerCase() === r.toLowerCase();
-
-                  return (
-                    <button
-                      key={r}
-                      type="button"
-                      className={`cs-roast-pill ${isActive ? 'active' : ''}`}
-                      onClick={() => setRoastFilter(r)}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Sort Selector */}
-            <div className="cs-sort-box">
+            <div className="cs-simple-sort">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="cs-select"
+                className="cs-simple-select"
                 aria-label="Sort coffee roasts"
               >
-                <option value="featured">✨ Featured Harvest</option>
-                <option value="discount">🔥 Special Offers</option>
+                <option value="featured">Featured</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
                 <option value="name">Alphabetical</option>
@@ -1048,25 +1019,25 @@ const CoffeeShop = () => {
           </div>
         </div>
 
-        {/* ── Active Filters Summary Count ── */}
-        <div className="cs-results-bar">
-          <span className="cs-results-count">
-            Showing <strong>{filteredProducts.length}</strong> {filteredProducts.length === 1 ? 'specialty coffee' : 'specialty coffees'}
-          </span>
-          {(searchTerm || activeCategory !== 'all' || roastFilter !== 'all') && (
+        {/* ── Active Filter Clear Hint (if filtered) ── */}
+        {(searchTerm || roastFilter !== 'all') && (
+          <div className="cs-filter-active-bar">
+            <span>
+              Filtering by: <strong>{roastFilter !== 'all' ? roastFilter.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'All Roasts'}</strong>
+              {searchTerm ? ` · "${searchTerm}"` : ''}
+            </span>
             <button
               type="button"
-              className="cs-reset-btn"
+              className="cs-filter-clear-link"
               onClick={() => {
                 setSearchTerm('');
-                setActiveCategory('all');
                 setRoastFilter('all');
               }}
             >
-              Reset Filters ✕
+              Clear filters ✕
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* ── Products Grid ── */}
         {loading ? (

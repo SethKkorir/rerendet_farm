@@ -28,7 +28,7 @@ const Features = () => {
       num: '03',
       icon: <FaHandshake />,
       title: "Direct from the Farm",
-      description: "Sourced directly from our family farm in Kenya, ensuring pure origin and sustainable farming."
+      description: "Sourced directly from our family farm in Bomet County, Kenya, ensuring pure origin and sustainable farming."
     },
     {
       num: '04',

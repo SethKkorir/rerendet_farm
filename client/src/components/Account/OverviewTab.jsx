@@ -208,69 +208,72 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
           </button>
         </div>
 
-        {latestOrder ? (
-          <div className="rc-card-white rc-latest-order-card">
-            <div className="rc-order-header-row">
-              <div className="rc-order-ref-meta">
-                <span className="rc-order-ref-title">
-                  Order #{latestOrder.orderNumber || latestOrder._id.slice(-8).toUpperCase()}
-                </span>
-                <span className="rc-order-sep">·</span>
-                <span className="rc-order-date-text">
-                  {formatOrderDate(latestOrder.createdAt)}
-                </span>
-              </div>
+        {orders && orders.length > 0 ? (
+          orders.slice(0, 3).map(orderItem => {
+            const isItemCancelled = orderItem.status === 'cancelled' || orderItem.orderStatus === 'cancelled';
+            return (
+              <div key={orderItem._id} className="rc-card-white rc-latest-order-card" style={{ marginBottom: '1rem' }}>
+                <div className="rc-order-header-row">
+                  <div className="rc-order-ref-meta">
+                    <span className="rc-order-ref-title">
+                      Order #{orderItem.orderNumber || orderItem._id.slice(-8).toUpperCase()}
+                    </span>
+                    <span className="rc-order-sep">·</span>
+                    <span className="rc-order-date-text">
+                      {formatOrderDate(orderItem.createdAt)}
+                    </span>
+                    {orderItem.trackingNumber && (
+                      <>
+                        <span className="rc-order-sep">·</span>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem', background: '#F3F4F6', color: '#1E3D2F', padding: '2px 8px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                          Track: {orderItem.trackingNumber}
+                        </span>
+                      </>
+                    )}
+                  </div>
 
-              {(() => {
-                const isLatestCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
-                return (
                   <span
                     className="rc-badge-preferred"
-                    style={isLatestCancelled ? { background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' } : undefined}
+                    style={isItemCancelled ? { background: '#FEE2E2', color: '#991B1B', border: '1px solid #FECACA' } : undefined}
                   >
-                    {isLatestCancelled ? 'Cancelled' : (latestOrder.fulfillmentStatus || latestOrder.status || 'Processing')}
+                    {isItemCancelled ? 'Cancelled' : (orderItem.fulfillmentStatus || orderItem.status || 'Processing')}
                   </span>
-                );
-              })()}
-            </div>
+                </div>
 
-            <div className="rc-order-summary-row">
-              <div className="rc-order-amount-col">
-                <span className="rc-order-amount-label">
-                  Total Amount
-                </span>
-                <span className="rc-order-amount-value">
-                  KES {Number(latestOrder.total || latestOrder.totalAmount || 0).toLocaleString()}
-                </span>
-              </div>
+                <div className="rc-order-summary-row">
+                  <div className="rc-order-amount-col">
+                    <span className="rc-order-amount-label">
+                      Total Amount
+                    </span>
+                    <span className="rc-order-amount-value">
+                      KES {Number(orderItem.total || orderItem.totalAmount || 0).toLocaleString()}
+                    </span>
+                  </div>
 
-              {(() => {
-                const isLatestCancelled = latestOrder.status === 'cancelled' || latestOrder.orderStatus === 'cancelled';
-                return (
                   <div className="rc-order-actions-group">
                     <button
                       type="button"
                       className="rc-btn-white"
                       onClick={() => onNavigate('orders')}
                     >
-                      <FaReceipt style={{ fontSize: '0.75rem' }} /> {isLatestCancelled ? 'Order details' : 'Receipt'}
+                      <FaReceipt style={{ fontSize: '0.75rem' }} /> {isItemCancelled ? 'Order details' : 'Receipt'}
                     </button>
-                    {!isLatestCancelled && latestOrder.fulfillmentStatus === 'shipped' && !latestOrder.customerDeliveredConfirmed && (
+                    {!isItemCancelled && orderItem.fulfillmentStatus === 'shipped' && !orderItem.customerDeliveredConfirmed && (
                       <button
                         type="button"
                         className="rc-btn-gold"
                         style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
-                        onClick={() => handleConfirmDelivery(latestOrder)}
+                        onClick={() => handleConfirmDelivery(orderItem)}
                         disabled={confirmingDelivery}
                       >
                         {confirmingDelivery ? 'Confirming…' : '✓ Confirm Received'}
                       </button>
                     )}
-                    {!isLatestCancelled ? (
+                    {!isItemCancelled ? (
                       <button
                         type="button"
                         className="rc-btn-gold"
-                        onClick={() => navigate(`/track-order/${latestOrder._id}`)}
+                        onClick={() => navigate(`/track-order/${orderItem._id}`)}
                       >
                         Track order →
                       </button>
@@ -284,10 +287,10 @@ const OverviewTab = ({ user, orders = [], onNavigate }) => {
                       </button>
                     )}
                   </div>
-                );
-              })()}
-            </div>
-          </div>
+                </div>
+              </div>
+            );
+          })
         ) : (
           <div className="rc-card-white rc-no-orders-card">
             <div className="rc-no-orders-icon-wrap">

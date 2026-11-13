@@ -14,12 +14,12 @@ import './ProductsManagement.css';
 import API, { tokenStore, updateProductStock } from '../../api/api';
 import InventoryHealth from './InventoryHealth';
 
-/* ─── Strictly the 4 Store Varieties ─────────────────────────── */
+/* ─── Strictly the 4 Store Roast Options ─────────────────────────── */
 export const ROAST_LEVELS = [
-  { value: 'raw', label: 'Raw', color: '#10b981', emoji: '🌱', desc: 'Raw Green Unroasted Beans' },
-  { value: 'light', label: 'Light', color: '#e8c99a', emoji: '☀️', desc: 'Light Roast' },
-  { value: 'medium', label: 'Medium', color: '#a0672e', emoji: '⛅', desc: 'Medium Roast' },
-  { value: 'dark', label: 'Dark Roast', color: '#4a2010', emoji: '☕', desc: 'Dark Roast' },
+  { value: 'light-roast', label: 'Light Roast', color: '#e8c99a', emoji: '☀️', desc: 'Bright, delicate & floral notes' },
+  { value: 'medium-roast', label: 'Medium Roast', color: '#a0672e', emoji: '⛅', desc: 'Balanced, smooth with sweet caramel' },
+  { value: 'medium-to-dark-roast', label: 'Medium to Dark Roast', color: '#7a421a', emoji: '🍂', desc: 'Rich body with hints of cocoa & spice' },
+  { value: 'dark-roast', label: 'Dark Roast', color: '#4a2010', emoji: '☕', desc: 'Bold, deep & smoky chocolate notes' },
 ];
 
 // Built-in primary store category
@@ -767,8 +767,8 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
       : [{ size: '250g', price: '', originalPrice: '' }],
     category: product?.categoryId?._id || product?.categoryId || product?.category || (allCategories[0]?.value || 'coffee-beans'),
     categoryAttributes: product?.categoryAttributes || {},
-    roastLevel: product?.roastLevel || 'Medium',
-    origin: product?.origin || 'Bomet, Kenya (1,950m ASL)',
+    roastLevel: product?.roastLevel || 'Medium Roast',
+    origin: product?.origin || 'Bomet County, Kenya',
     flavorNotes: product?.flavorNotes || [],
     badge: product?.badge || '',
     discountBadge: product?.discountBadge || '',
@@ -778,8 +778,8 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
     },
     grindOptions: (product?.grindOptions && product.grindOptions.length > 0)
       ? product.grindOptions
-      : ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'],
-    defaultGrind: product?.defaultGrind || 'Whole Beans',
+      : ['Beans', 'Ground'],
+    defaultGrind: product?.defaultGrind || 'Beans',
     tags: product?.tags?.join(', ') || '',
     isFeatured: product?.isFeatured || false,
   });
@@ -832,103 +832,103 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
     }
     set('grindOptions', updated);
     if (!updated.includes(formData.defaultGrind)) {
-      set('defaultGrind', updated[0] || 'Whole Beans');
+      set('defaultGrind', updated[0] || 'Beans');
     }
   };
 
   const selectAllGrinds = () => {
-    set('grindOptions', ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso']);
+    set('grindOptions', ['Beans', 'Ground']);
   };
 
-  const selectWholeBeansOnly = () => {
-    set('grindOptions', ['Whole Beans']);
-    set('defaultGrind', 'Whole Beans');
+  const selectBeansOnly = () => {
+    set('grindOptions', ['Beans']);
+    set('defaultGrind', 'Beans');
   };
 
   // Quick 4-variety presets matching Rerendet coffee offerings
   const QUICK_TEMPLATES = [
     {
-      label: 'Rerendet AA Reserve',
-      variety: 'Medium',
-      icon: '☕',
+      label: 'Light Roast',
+      variety: 'Light Roast',
+      icon: '☀️',
       data: {
-        name: 'Rerendet AA Arabica Reserve',
-        description: 'Single-origin specialty Arabica harvested at high altitude in Bomet, Kenya. Rich tasting notes of citrus, blackcurrant, and smooth caramel with a creamy velvet finish.',
+        name: 'Rerendet Light Roast',
+        description: 'Bright and delicate roast with floral aromatics, crisp citrus sweetness, and a silky smooth finish.',
+        sizes: [
+          { size: '250g', price: 850, originalPrice: '' },
+          { size: '500g', price: 1600, originalPrice: '' },
+          { size: '1kg', price: 3000, originalPrice: '' }
+        ],
+        roastLevel: 'Light Roast',
+        origin: 'Bomet County, Kenya',
+        flavorNotes: ['Floral', 'Citrus', 'Honey Sweetness'],
+        badge: 'Light Roast',
+        tags: 'light-roast, arabica, single-origin, rerendet',
+        inventory: { physicalStock: 50, lowStockThreshold: 10 },
+        isFeatured: false
+      }
+    },
+    {
+      label: 'Medium Roast',
+      variety: 'Medium Roast',
+      icon: '⛅',
+      data: {
+        name: 'Rerendet Medium Roast',
+        description: 'Single-origin specialty Arabica harvested in Bomet County, Kenya. Balanced notes of caramel, blackcurrant, and milk chocolate.',
         sizes: [
           { size: '250g', price: 750, originalPrice: '' },
           { size: '500g', price: 1450, originalPrice: '' },
           { size: '1kg', price: 2800, originalPrice: '' }
         ],
-        roastLevel: 'Medium',
-        origin: 'Bomet, Kenya (1,950m ASL)',
-        flavorNotes: ['Citrus', 'Blackcurrant', 'Caramel'],
-        badge: 'Top Harvest',
-        tags: 'specialty, arabica, single-origin, rerendet',
+        roastLevel: 'Medium Roast',
+        origin: 'Bomet County, Kenya',
+        flavorNotes: ['Caramel', 'Blackcurrant', 'Chocolate'],
+        badge: 'Classic Roast',
+        tags: 'medium-roast, arabica, single-origin, rerendet',
         inventory: { physicalStock: 50, lowStockThreshold: 10 },
         isFeatured: true
       }
     },
     {
-      label: 'Dark Forest Volcanic',
-      variety: 'Dark Roast',
-      icon: '🌑',
+      label: 'Medium to Dark Roast',
+      variety: 'Medium to Dark Roast',
+      icon: '🍂',
       data: {
-        name: 'Dark Forest Volcanic Blend',
-        description: 'Deep, bold dark roast crafted from volcanic rich soils. Intense dark chocolate notes, molasses richness, and a robust velvet crema.',
+        name: 'Rerendet Medium to Dark Roast',
+        description: 'Rich, full-bodied roast balancing smooth toffee sweetness with deep cocoa and roasted hazelnut.',
+        sizes: [
+          { size: '250g', price: 800, originalPrice: '' },
+          { size: '500g', price: 1550, originalPrice: '' },
+          { size: '1kg', price: 2950, originalPrice: '' }
+        ],
+        roastLevel: 'Medium to Dark Roast',
+        origin: 'Bomet County, Kenya',
+        flavorNotes: ['Toffee', 'Dark Chocolate', 'Hazelnut'],
+        badge: 'Medium-Dark',
+        tags: 'medium-dark-roast, arabica, single-origin, rerendet',
+        inventory: { physicalStock: 50, lowStockThreshold: 10 },
+        isFeatured: true
+      }
+    },
+    {
+      label: 'Dark Roast',
+      variety: 'Dark Roast',
+      icon: '☕',
+      data: {
+        name: 'Rerendet Dark Roast',
+        description: 'Bold, intense dark roast with smoky dark chocolate depth, molasses richness, and a dense golden crema.',
         sizes: [
           { size: '250g', price: 900, originalPrice: '' },
           { size: '500g', price: 1700, originalPrice: '' },
           { size: '1kg', price: 3200, originalPrice: '' }
         ],
         roastLevel: 'Dark Roast',
-        origin: 'Bomet Highlands, Kenya',
-        flavorNotes: ['Dark Chocolate', 'Molasses', 'Spices'],
-        badge: 'Bold Roast',
+        origin: 'Bomet County, Kenya',
+        flavorNotes: ['Dark Chocolate', 'Molasses', 'Warm Spice'],
+        badge: 'Bold Dark Roast',
         tags: 'dark-roast, espresso, bold, rerendet',
         inventory: { physicalStock: 45, lowStockThreshold: 10 },
         isFeatured: true
-      }
-    },
-    {
-      label: 'Bomet Sunrise Light',
-      variety: 'Light',
-      icon: '☀️',
-      data: {
-        name: 'Bomet Sunrise Blend',
-        description: 'Vibrant and bright morning roast with floral jasmine aromas, crisp citrus sweetness, and a sparkling clean finish.',
-        sizes: [
-          { size: '250g', price: 850, originalPrice: '' },
-          { size: '500g', price: 1600, originalPrice: '' },
-          { size: '1kg', price: 3000, originalPrice: '' }
-        ],
-        roastLevel: 'Light',
-        origin: 'Bomet High Altitudes, Kenya',
-        flavorNotes: ['Jasmine', 'Honey', 'Citrus'],
-        badge: 'Morning Cup',
-        tags: 'light-roast, bright, floral, morning',
-        inventory: { physicalStock: 50, lowStockThreshold: 10 },
-        isFeatured: false
-      }
-    },
-    {
-      label: 'Raw Green Coffee',
-      variety: 'Raw',
-      icon: '🌱',
-      data: {
-        name: 'Rerendet Raw Green Coffee Reserve',
-        description: '100% natural, unroasted green Arabica coffee beans directly from Rerendet Farm. Ideal for home roasters and raw coffee brewing.',
-        sizes: [
-          { size: '500g', price: 700, originalPrice: '' },
-          { size: '1kg', price: 1300, originalPrice: '' },
-          { size: '5kg Bag', price: 6000, originalPrice: '' }
-        ],
-        roastLevel: 'Raw',
-        origin: 'Rerendet Farm Estate, Bomet',
-        flavorNotes: ['Herbal', 'Sweet Grass', 'Raw Grain'],
-        badge: 'Raw Unroasted',
-        tags: 'raw, green-coffee, unroasted, artisan',
-        inventory: { physicalStock: 60, lowStockThreshold: 10 },
-        isFeatured: false
       }
     }
   ];
@@ -1022,7 +1022,7 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
 
     if (stepId === 'details') {
       if (!formData.roastLevel) {
-        showAlert('Please select one of the 4 varieties: Raw, Light, Medium, or Dark Roast.', 'error');
+        showAlert('Please select one of the 4 roast options: Light Roast, Medium Roast, Medium to Dark Roast, or Dark Roast.', 'error');
         return false;
       }
       return true;
@@ -1108,13 +1108,16 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
         discountBadge: formData.discountBadge ? formData.discountBadge.trim() : undefined,
         inventory: {
           physicalStock: stock,
-          lowStockThreshold: parseInt(formData.inventory.lowStockThreshold, 10) || 5
+          stock: stock,
+          lowStockThreshold: parseInt(formData.inventory.lowStockThreshold, 10) || 5,
+          lowStockAlert: parseInt(formData.inventory.lowStockThreshold, 10) || 5
         },
-        roastLevel: formData.roastLevel ? formData.roastLevel.trim() : undefined,
-        origin: formData.origin ? formData.origin.trim() : 'Bomet, Kenya',
+        stock: stock,
+        roastLevel: formData.roastLevel ? formData.roastLevel.trim() : 'Medium Roast',
+        origin: formData.origin ? formData.origin.trim() : 'Bomet County, Kenya',
         flavorNotes: Array.isArray(formData.flavorNotes) ? formData.flavorNotes : [],
-        grindOptions: formData.grindOptions || ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso'],
-        defaultGrind: formData.defaultGrind || 'Whole Beans',
+        grindOptions: formData.grindOptions || ['Beans', 'Ground'],
+        defaultGrind: formData.defaultGrind || 'Beans',
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         isFeatured: formData.isFeatured
       };
@@ -1447,27 +1450,24 @@ const ProductModal = ({ product, onClose, onSave, allCategories, onAddCategory }
                       type="text"
                       value={formData.origin}
                       onChange={e => updateOrigin(e.target.value)}
-                      placeholder="e.g. Bomet, Kenya (1,950m ASL) High Altitude"
+                      placeholder="e.g. Bomet County, Kenya"
                     />
                   </div>
 
                   {/* Grind Profiles */}
                   <div className="pm-grind-section" style={{ marginTop: '1.25rem' }}>
                     <div className="pm-grind-header">
-                      <label className="pm-variety-heading">Grind Profiles Available to Customers</label>
+                      <label className="pm-variety-heading">Coffee Format (Grind Profiles Available to Customers)</label>
                       <div className="pm-qs-chips">
-                        <button type="button" className="pm-qs-chip" onClick={selectAllGrinds}>All 5 Profiles</button>
-                        <button type="button" className="pm-qs-chip" onClick={selectWholeBeansOnly}>Whole Beans Only</button>
+                        <button type="button" className="pm-qs-chip" onClick={selectAllGrinds}>Beans &amp; Ground</button>
+                        <button type="button" className="pm-qs-chip" onClick={selectBeansOnly}>Beans Only</button>
                       </div>
                     </div>
 
                     <div className="pm-grind-options-grid">
                       {[
-                        { name: 'Whole Beans', icon: '🫘', desc: 'Fresh roasted whole beans' },
-                        { name: 'French Press', icon: '⚱️', desc: 'Coarse immersion grind' },
-                        { name: 'Pour-Over', icon: '☕', desc: 'Medium drip grind' },
-                        { name: 'AeroPress', icon: '⏳', desc: 'Fine-medium pressure grind' },
-                        { name: 'Espresso', icon: '⚡', desc: 'Fine espresso grind' }
+                        { name: 'Beans', icon: '🫘', desc: 'Fresh whole coffee beans' },
+                        { name: 'Ground', icon: '☕', desc: 'Freshly ground coffee' }
                       ].map(g => {
                         const isSelected = formData.grindOptions?.includes(g.name);
                         const isDefault = formData.defaultGrind === g.name;

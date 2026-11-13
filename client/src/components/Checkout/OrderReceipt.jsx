@@ -241,6 +241,13 @@ const OrderReceipt = () => {
                 </div>
               )}
 
+              {order.trackingNumber && (
+                <div className="or-meta-item">
+                  <span className="or-meta-title">Tracking ID :</span>
+                  <span className="or-meta-val" style={{ fontFamily: 'monospace', fontWeight: 800, color: '#1E3D2F' }}>{order.trackingNumber}</span>
+                </div>
+              )}
+
               <div className="or-meta-item">
                 <span className="or-meta-title">{isPaid ? 'Receipt Date:' : 'Invoice Date:'}</span>
                 <span className="or-meta-val">{invoiceDate}</span>

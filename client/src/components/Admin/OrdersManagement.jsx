@@ -110,7 +110,7 @@ const OrdersManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     paymentStatus: 'all',
-    fulfillmentStatus: 'active',
+    fulfillmentStatus: 'all',
     search: '',
     startDate: '',
     endDate: '',
@@ -285,7 +285,7 @@ const OrdersManagement = () => {
   const handleSelectOrder = (id) =>
     setSelectedOrders(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id]);
 
-  const FULFILLMENT_PILLS = ['active', 'payment_queue', 'awaiting_payment', 'unfulfilled', 'packed', 'shipped', 'delivered', 'returned', 'all'];
+  const FULFILLMENT_PILLS = ['all', 'active', 'payment_queue', 'awaiting_payment', 'unfulfilled', 'packed', 'shipped', 'delivered', 'returned'];
 
   const pillCounts = useMemo(() => {
     const counts = {

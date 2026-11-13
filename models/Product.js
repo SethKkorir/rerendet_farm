@@ -72,17 +72,20 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  // Grind Profile options configured for this coffee product
+  // Grind Profile options configured for this coffee product (Beans or Ground)
   grindOptions: {
     type: [String],
-    default: ['Whole Beans', 'French Press', 'Pour-Over', 'AeroPress', 'Espresso']
+    default: ['Beans', 'Ground']
   },
   defaultGrind: {
     type: String,
-    default: 'Whole Beans'
+    default: 'Beans'
   },
   flavorNotes: [String],
-  origin: String,
+  origin: {
+    type: String,
+    default: 'Bomet County, Kenya'
+  },
   // Extra fields for non-coffee categories (equipment, accessories, etc.)
   brand: { type: String, trim: true },
   material: { type: String, trim: true },

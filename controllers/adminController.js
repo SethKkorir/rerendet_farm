@@ -700,18 +700,31 @@ const createProduct = asyncHandler(async (req, res) => {
 
   if (inventory) {
     try {
+      let parsedInventory = inventory;
       if (typeof inventory === 'string') {
-        const parsedInventory = JSON.parse(inventory);
-        stock = parseInt(parsedInventory.stock) || 0;
-        lowStockAlert = parseInt(parsedInventory.lowStockAlert) || 5;
-      } else if (typeof inventory === 'object') {
-        stock = parseInt(inventory.stock) || 0;
-        lowStockAlert = parseInt(inventory.lowStockAlert) || 5;
+        parsedInventory = JSON.parse(inventory);
+      }
+      if (typeof parsedInventory === 'object' && parsedInventory !== null) {
+        const rawStock = parsedInventory.physicalStock !== undefined ? parsedInventory.physicalStock : parsedInventory.stock;
+        stock = parseInt(rawStock, 10);
+        if (isNaN(stock)) stock = 0;
+
+        const rawThreshold = parsedInventory.lowStockThreshold !== undefined ? parsedInventory.lowStockThreshold : parsedInventory.lowStockAlert;
+        lowStockAlert = parseInt(rawThreshold, 10);
+        if (isNaN(lowStockAlert)) lowStockAlert = 5;
+      } else {
+        stock = parseInt(inventory, 10) || 0;
       }
     } catch (e) {
       // If it's not JSON, try parsing it as a simple number (old behavior)
-      stock = parseInt(inventory) || 0;
+      stock = parseInt(inventory, 10) || 0;
     }
+  }
+
+  // Also check top-level requestBody.stock if passed directly
+  if (stock === 0 && requestBody.stock !== undefined) {
+    const directStock = parseInt(requestBody.stock, 10);
+    if (!isNaN(directStock) && directStock > 0) stock = directStock;
   }
 
   if (isNaN(stock) || stock < 0) {
@@ -3126,7 +3139,8 @@ const confirmPayment = asyncHandler(async (req, res) => {
           receiptNumber,
           totalPaid,
           logoUrl,
-          order._id.toString()
+          order._id.toString(),
+          order.trackingNumber
         );
 
         await sendEmail({

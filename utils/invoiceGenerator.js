@@ -142,9 +142,13 @@ export const generateInvoice = (order, res = null) => {
 
             // Invoice Details Column (Right)
             doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#1C1C1C')
-               .text(`Invoice No. ${order.orderNumber?.replace('ORD-', '') || '—'}`, M, metaY, { align: 'right', width: W - M * 2 });
+               .text(`Invoice No. ${order.orderNumber || '—'}`, M, metaY, { align: 'right', width: W - M * 2 });
             doc.font('Helvetica').fontSize(9.5).fillColor('#555555')
                .text(formatDate(order.createdAt || new Date()), M, metaY + 16, { align: 'right', width: W - M * 2 });
+            if (order.trackingNumber) {
+              doc.font('Helvetica-Bold').fontSize(9).fillColor('#1E3D2F')
+                 .text(`Tracking ID: ${order.trackingNumber}`, M, metaY + 30, { align: 'right', width: W - M * 2 });
+            }
 
             // ── Table Content ───────────────────────────────────────
             const tableTopY = 225;
@@ -263,7 +267,7 @@ export const generateInvoice = (order, res = null) => {
 
             if (order.paymentMethod?.toLowerCase() === 'mpesa') {
                 doc.text('Business Paybill: 174379', M, paymentY + 14);
-                doc.text(`Account No: ${order.orderNumber?.replace('ORD-', '') || '—'}`, M, paymentY + 28);
+                doc.text(`Account No: ${order.orderNumber || '—'}`, M, paymentY + 28);
             } else {
                 doc.text('Recipient: Rerendet Coffee Ltd', M, paymentY + 14);
                 if (order.transactionId) {

@@ -15,10 +15,10 @@ const About = () => {
   const aboutData = publicSettings?.about || {};
   const story =
     aboutData.story ||
-    'Founded in the highlands of Kenya, Rerendet Farm has been cultivating exceptional coffee for generations.';
+    'Founded in Bomet County, Kenya, Rerendet Farm has been cultivating exceptional single-origin coffee for generations.';
   const subStory =
     aboutData.subStory ||
-    'Our name comes from the local Kalenjin word for the evergreen tree that provides shade for our coffee plants. At elevations of 1,800 meters above sea level, our beans develop slowly, allowing complex flavors to mature fully before harvest. Each batch is hand-picked, carefully processed, and roasted to perfection.';
+    'Our name comes from the local Kalenjin word for the evergreen tree that provides shade for our coffee plants. Cultivated on our family farm in Bomet County, Kenya, our beans develop slowly in fertile highland soil, allowing balanced flavors to mature naturally before harvest. Each batch is hand-picked, carefully processed, and freshly roasted to order.';
   const image =
     aboutData.imageUrl ||
     '/images/coffee/Rerendet_CoffeeFarm.png';

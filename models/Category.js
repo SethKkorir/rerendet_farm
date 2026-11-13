@@ -96,7 +96,7 @@ categorySchema.statics.seedCategories = async function () {
       icon: 'coffee',
       sortOrder: 1,
       attributeSchema: [
-        { key: 'roastLevel', label: 'Roast Level', type: 'select', options: ['light', 'medium-light', 'medium', 'medium-dark', 'dark', 'espresso'], required: true },
+        { key: 'roastLevel', label: 'Roast Level', type: 'select', options: ['Light Roast', 'Medium Roast', 'Medium to Dark Roast', 'Dark Roast'], required: true },
         { key: 'origin', label: 'Origin', type: 'text', required: false },
         { key: 'processMethod', label: 'Process Method', type: 'text', required: false },
         { key: 'packageWeight', label: 'Package Weight', type: 'unit_weight', required: false, unit: 'g' }

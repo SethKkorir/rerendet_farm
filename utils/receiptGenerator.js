@@ -238,6 +238,14 @@ export const generateReceiptPDF = async (order, res = null) => {
          .text(`#${order.orderNumber}`, metaRightEdge - 120, metaY, { width: 120, align: 'right' });
       metaY += 16;
 
+      if (order.trackingNumber) {
+        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#64748B')
+           .text('Tracking ID :', rightColX, metaY, { width: rightColW - 130, align: 'right' });
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#1E3D2F')
+           .text(order.trackingNumber, metaRightEdge - 120, metaY, { width: 120, align: 'right' });
+        metaY += 16;
+      }
+
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#64748B')
          .text(isPaid ? 'Receipt Date :' : 'Invoice Date :', rightColX, metaY, { width: rightColW - 130, align: 'right' });
       doc.font('Helvetica').fontSize(9).fillColor('#334155')

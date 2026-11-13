@@ -7,8 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import API from '../../api/api';
 import './AdminLogin.css';
 
-let initialFormHash = null;
-
 const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -114,6 +112,8 @@ const AdminLogin = () => {
   }, [resendTimer]);
 
   // DOM Integrity Monitoring (Layer 6) — Monitored specifically in primary login view
+  // Verifies form destination, structure, and detects injection attacks (scripts, iframes, malicious action/inputs)
+  // without false positives from React state changes (loading/showPassword) or browser autofill/extensions
   useEffect(() => {
     let integrityInterval = null;
 
@@ -121,70 +121,83 @@ const AdminLogin = () => {
       return;
     }
 
-    const sanitizeFormHTML = (html) => {
-      if (!html) return '';
-      return html
-        .replace(/value="[^"]*"/g, '')
-        .replace(/disabled/g, '')
-        .replace(/placeholder="[^"]*"/g, '')
-        .replace(/class="[^"]*"/g, '')
-        .replace(/style="[^"]*"/g, '')
-        .replace(/autocomplete="[^"]*"/g, '')
-        .replace(/\s+/g, '');
-    };
+    const checkDOMIntegrity = () => {
+      const form = formRef.current;
+      if (!form || step !== 'login') return true;
 
-    const computeHash = async (html) => {
-      const sanitized = sanitizeFormHTML(html);
-      const encoded = new TextEncoder().encode(sanitized);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
-      return Array.from(new Uint8Array(hashBuffer))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-    };
-
-    const setupIntegrity = async () => {
-      if (formRef.current && step === 'login') {
-        initialFormHash = await computeHash(formRef.current.innerHTML);
-
-        integrityInterval = setInterval(async () => {
-          if (formRef.current && step === 'login') {
-            const currentHash = await computeHash(formRef.current.innerHTML);
-            if (initialFormHash && currentHash !== initialFormHash) {
-              // DOM Tampered!
-              if (emailRef.current) emailRef.current.value = '';
-              if (passwordRef.current) passwordRef.current.value = '';
-              clearInterval(integrityInterval);
-              setError('Security check failed. Please contact the administrator.');
-              setFormDestroyed(true);
-
-              // Dispatch alert (X-Internal-Alert header set by backend config)
-              try {
-                await API.post('/auth/admin/security-alert', {
-                  type: 'dom_tampering',
-                  ip: 'client-side-detected',
-                  timestamp: new Date().toISOString()
-                }, {
-                  headers: {
-                    'X-Internal-Alert': import.meta.env.VITE_INTERNAL_ALERT_SECRET || 'static_internal_security_alert_secret'
-                  }
-                });
-              } catch (alertErr) {
-                console.error('Failed to submit security alert:', alertErr);
-              }
-            }
-          }
-        }, 5000);
+      // 1. Verify no malicious external action attribute has been injected onto the form
+      const action = form.getAttribute('action');
+      if (action && action !== '' && action !== '#' && !action.startsWith('/')) {
+        return false;
       }
+
+      // 2. Check for injected malicious executable elements (scripts, iframes, embeds, objects)
+      const maliciousElements = form.querySelectorAll('script, iframe, embed, object');
+      if (maliciousElements.length > 0) {
+        return false;
+      }
+
+      // 3. Check for unauthorized input elements or malicious formaction overrides
+      const inputs = form.querySelectorAll('input');
+      const allowedNames = new Set(['email', 'password', 'bot_trap', 'code']);
+      for (const input of inputs) {
+        const name = input.getAttribute('name');
+        if (name && !allowedNames.has(name)) {
+          return false;
+        }
+        const formaction = input.getAttribute('formaction');
+        if (formaction && !formaction.startsWith('/')) {
+          return false;
+        }
+      }
+
+      // 4. Verify critical inputs remain present and attached to the form
+      if (emailRef.current && !form.contains(emailRef.current)) {
+        return false;
+      }
+      if (passwordRef.current && !form.contains(passwordRef.current)) {
+        return false;
+      }
+
+      return true;
     };
 
-    // Wait slightly for DOM to settle
-    const timeout = setTimeout(setupIntegrity, 500);
+    integrityInterval = setInterval(async () => {
+      // Skip check while form is destroyed, submitting, or view has changed
+      if (formDestroyed || loading || step !== 'login' || !formRef.current) {
+        return;
+      }
+
+      const isValid = checkDOMIntegrity();
+      if (!isValid) {
+        // DOM Tampered!
+        if (emailRef.current) emailRef.current.value = '';
+        if (passwordRef.current) passwordRef.current.value = '';
+        clearInterval(integrityInterval);
+        setError('Security check failed. Please contact the administrator.');
+        setFormDestroyed(true);
+
+        // Dispatch alert (X-Internal-Alert header set by backend config)
+        try {
+          await API.post('/auth/admin/security-alert', {
+            type: 'dom_tampering',
+            ip: 'client-side-detected',
+            timestamp: new Date().toISOString()
+          }, {
+            headers: {
+              'X-Internal-Alert': import.meta.env.VITE_INTERNAL_ALERT_SECRET || 'static_internal_security_alert_secret'
+            }
+          });
+        } catch (alertErr) {
+          console.error('Failed to submit security alert:', alertErr);
+        }
+      }
+    }, 5000);
 
     return () => {
-      clearTimeout(timeout);
       if (integrityInterval) clearInterval(integrityInterval);
     };
-  }, [step]);
+  }, [step, loading, formDestroyed]);
 
   const handleChange = () => {
     setError('');

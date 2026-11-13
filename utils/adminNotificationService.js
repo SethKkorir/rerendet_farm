@@ -110,7 +110,7 @@ export const sendNewOrderAdminAlert = async (order) => {
                 </div>
 
                 <h1 style="color: #111827; margin: 0 0 8px; font-size: 24px; font-weight: 700; text-align: center;">New Order Placed</h1>
-                <p style="color: #6B7280; font-size: 14px; margin: 0 0 20px; text-align: center;">Order #${order.orderNumber} &bull; ${new Date(order.createdAt || Date.now()).toLocaleString()}</p>
+                <p style="color: #6B7280; font-size: 14px; margin: 0 0 20px; text-align: center;">Order #${order.orderNumber} &bull; Tracking ID: <strong style="color: #111827; font-family: monospace; font-size: 16px;">${order.trackingNumber || 'N/A'}</strong> &bull; ${new Date(order.createdAt || Date.now()).toLocaleString()}</p>
 
                 <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 18px 20px; margin-bottom: 20px;">
                     <span style="font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">Customer & Delivery</span>
@@ -143,7 +143,7 @@ export const sendNewOrderAdminAlert = async (order) => {
         await Promise.allSettled(recipients.map(email => 
             sendEmail({
                 to: email,
-                subject: `New Order Placed: #${order.orderNumber}`,
+                subject: `New Order Placed: #${order.orderNumber} · Tracking: ${order.trackingNumber || 'N/A'}`,
                 html: emailHtml
             })
         ));
@@ -169,7 +169,7 @@ export const sendNewOrderAwaitingPaymentAdminAlert = async (order) => {
                 </div>
 
                 <h1 style="color: #111827; margin: 0 0 8px; font-size: 24px; font-weight: 700; text-align: center;">New Order Awaiting Payment</h1>
-                <p style="color: #6B7280; font-size: 14px; margin: 0 0 20px; text-align: center;">Order #${order.orderNumber} placed via Paybill (KES ${order.total?.toLocaleString()})</p>
+                <p style="color: #6B7280; font-size: 14px; margin: 0 0 20px; text-align: center;">Order #${order.orderNumber} &bull; Tracking ID: <strong style="color: #111827; font-family: monospace; font-size: 16px;">${order.trackingNumber || 'N/A'}</strong> &bull; KES ${order.total?.toLocaleString()}</p>
 
                 <div style="color: #374151; font-size: 13.5px; background: #FFFBEB; border: 1px solid #FCD34D; padding: 16px 18px; border-radius: 8px; line-height: 1.6;">
                     Customer: <strong>${order.shippingAddress?.firstName || ''} ${order.shippingAddress?.lastName || ''}</strong> (${order.shippingAddress?.phone || ''})<br/>
@@ -187,7 +187,7 @@ export const sendNewOrderAwaitingPaymentAdminAlert = async (order) => {
         await Promise.allSettled(recipients.map(email => 
             sendEmail({
                 to: email,
-                subject: `New Order Awaiting Payment: #${order.orderNumber}`,
+                subject: `New Order Awaiting Payment: #${order.orderNumber} · Tracking: ${order.trackingNumber || 'N/A'}`,
                 html: emailHtml
             })
         ));

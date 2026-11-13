@@ -136,13 +136,16 @@ export const createOrder = [
         throw new Error(`Order total validation failed. Expected KSh ${finalTotal}, received KSh ${total}`);
       }
 
-      // 6. Generate unique order number
-      const orderNumber = 'RND-' + Date.now().toString().slice(-6) + crypto.randomBytes(2).toString('hex').toUpperCase();
+      // 6. Generate compact unique order number (e.g. RF-2841) and tracking number
+      const randomOrderDigits = Math.floor(1000 + Math.random() * 9000).toString();
+      const orderNumber = `RF-${randomOrderDigits}`;
+      const trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
 
       // Create the order document
       const order = new Order({
         user: req.user._id,
         orderNumber,
+        trackingNumber,
         items: orderItems,
         shippingAddress: {
           name: shippingInfo.name || `${req.user.firstName} ${req.user.lastName}`,
@@ -225,13 +228,25 @@ export const getUserOrders = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const orders = await Order.find({ user: req.user._id })
+  const userEmails = [req.user.email].filter(Boolean).map(e => e.trim().toLowerCase());
+  const userPhones = [req.user.phone].filter(Boolean).map(p => p.trim());
+
+  const userConditions = [{ user: req.user._id }];
+  if (userEmails.length > 0) {
+    userConditions.push({ 'shippingAddress.email': { $in: userEmails.map(e => new RegExp(`^${e}$`, 'i')) } });
+  }
+  if (userPhones.length > 0) {
+    userConditions.push({ 'shippingAddress.phone': { $in: userPhones } });
+  }
+  const userFilter = userConditions.length === 1 ? userConditions[0] : { $or: userConditions };
+
+  const orders = await Order.find(userFilter)
     .sort({ createdAt: -1 })
     .limit(limit)
     .skip(skip)
     .populate('items.product', 'name images price');
 
-  const total = await Order.countDocuments({ user: req.user._id });
+  const total = await Order.countDocuments(userFilter);
 
   res.json({
     success: true,

@@ -338,9 +338,10 @@ export const getOrderConfirmationEmail = (name, orderNumber, items = [], total =
     </p>
 
     ${trackingNumber ? `
-      <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 14px 18px; text-align: center; margin-bottom: 22px;">
-        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Waybill Tracking Number</span>
-        <span style="font-family: monospace; font-size: 20px; font-weight: 700; color: #111827; letter-spacing: 2px;">${trackingNumber}</span>
+      <div style="background-color: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 8px; padding: 14px 18px; text-align: center; margin-bottom: 22px;">
+        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Code</span>
+        <span style="font-family: monospace; font-size: 26px; font-weight: 800; color: #111827; letter-spacing: 4px;">${trackingNumber}</span>
+        <span style="font-size: 12px; color: #166534; display: block; margin-top: 4px;">Save this code or your Order Number #${orderNumber} to track live</span>
       </div>
     ` : ''}
 
@@ -393,9 +394,9 @@ export const getOrderStatusEmail = (name, orderNumber, status, trackingNumber, m
     </div>
 
     ${trackingNumber ? `
-      <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 14px 18px; text-align: center; margin: 20px 0;">
-        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Number</span>
-        <span style="font-family: monospace; font-size: 18px; font-weight: 700; color: #111827; letter-spacing: 2px;">${trackingNumber}</span>
+      <div style="background-color: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 8px; padding: 14px 18px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Code</span>
+        <span style="font-family: monospace; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: 4px;">${trackingNumber}</span>
       </div>
     ` : ''}
 
@@ -584,12 +585,21 @@ export const getOrderAwaitingPaymentEmail = (name, orderNumber, items = [], tota
       Thank you, ${name || 'Valued Customer'}! Your fresh beans are reserved for <strong>24 hours</strong>. Complete payment via M-Pesa Paybill below:
     </p>
 
+    ${trackingNumber ? `
+      <!-- Tracking Code Badge -->
+      <div style="background-color: #FEF3C7; border: 1.5px solid #FCD34D; border-radius: 8px; padding: 14px 18px; text-align: center; margin: 18px 0 22px;">
+        <span style="font-size: 11px; font-weight: 700; color: #92400E; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Code</span>
+        <span style="font-family: monospace; font-size: 26px; font-weight: 800; color: #78350F; letter-spacing: 4px;">${trackingNumber}</span>
+        <span style="font-size: 12px; color: #92400E; display: block; margin-top: 4px;">Save this code or your Order Number #${orderNumber} to track live anytime.</span>
+      </div>
+    ` : ''}
+
     <!-- M-Pesa Instructions Card -->
     <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 18px 20px; margin: 20px 0; text-align: left;">
       <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 10px;">Lipa na M-Pesa Paybill Steps</span>
       <ol style="margin: 0; padding-left: 20px; color: #166534; font-size: 13.5px; line-height: 1.8;">
         <li>Go to <strong>M-Pesa</strong> &rarr; Select <strong>Lipa na M-Pesa</strong> &rarr; <strong>Paybill</strong></li>
-        <li>Enter Business Number (Paybill): <strong style="font-family: monospace; font-size: 15px; color: #111827;">${paybillNumber}</strong></li>
+        <li>Enter Business Number (Paybill): <strong style="font-family: monospace; font-size: 15px; color: #111827;">${paybillNumber}</strong> &nbsp;(Paybill Name: <strong>Rerendet Farm</strong>)</li>
         <li>Enter Account Number: <strong style="font-family: monospace; font-size: 15px; color: #111827;">${paybillAccount}</strong> <span style="font-size: 12px; color: #4B5563;">(Reference: <strong>${orderNumber}</strong>)</span></li>
         <li>Enter Amount: <strong style="font-size: 15px; color: #1E3D2F;">KES ${Number(total).toLocaleString()}</strong></li>
         <li>Enter your M-Pesa PIN and press Send</li>
@@ -650,12 +660,19 @@ export const getOrderExpiredEmail = (name, orderNumber, logoUrl) => {
 };
 
 // ── 18. CUSTOMER PAYMENT REPORT RECEIVED ────────────────────────────────────
-export const getPaymentReportReceivedCustomerEmail = (name, orderNumber, mpesaCode, logoUrl, orderId = null) => {
+export const getPaymentReportReceivedCustomerEmail = (name, orderNumber, mpesaCode, logoUrl, orderId = null, trackingNumber = null) => {
   const content = `
     <h1 class="hero-title">Payment reported &middot; #${orderNumber}</h1>
     <p class="hero-subtitle">
       Hi ${name || 'Valued Customer'}, we received your payment notification for Order <strong>#${orderNumber}</strong>.
     </p>
+
+    ${trackingNumber ? `
+      <div style="background-color: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 8px; margin: 18px 0; padding: 14px 18px; text-align: center;">
+        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Code</span>
+        <span style="font-family: monospace; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: 4px;">${trackingNumber}</span>
+      </div>
+    ` : ''}
 
     <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin: 20px 0; padding: 18px 20px; text-align: center;">
       <span style="font-size: 11.5px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 6px;">Submitted M-Pesa Code</span>
@@ -673,12 +690,19 @@ export const getPaymentReportReceivedCustomerEmail = (name, orderNumber, mpesaCo
 };
 
 // ── 19. PAYMENT CONFIRMED WITH PDF RECEIPT ──────────────────────────────────
-export const getPaymentConfirmedWithReceiptEmail = (name, orderNumber, receiptNumber, total, logoUrl, orderId = null) => {
+export const getPaymentConfirmedWithReceiptEmail = (name, orderNumber, receiptNumber, total, logoUrl, orderId = null, trackingNumber = null) => {
   const content = `
     <h1 class="hero-title">Payment confirmed &middot; #${orderNumber}</h1>
     <p class="hero-subtitle">
       Hi ${name || 'Valued Customer'}, your payment of <strong>KES ${Number(total).toLocaleString()}</strong> for Order <strong>#${orderNumber}</strong> has been confirmed.
     </p>
+
+    ${trackingNumber ? `
+      <div style="background-color: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 8px; margin: 18px 0; padding: 14px 18px; text-align: center;">
+        <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px;">Tracking Code</span>
+        <span style="font-family: monospace; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: 4px;">${trackingNumber}</span>
+      </div>
+    ` : ''}
 
     <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; margin: 20px 0; padding: 18px 20px; text-align: center;">
       <span style="font-size: 11.5px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 4px;">Official Receipt Number</span>
