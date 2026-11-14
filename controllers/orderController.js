@@ -160,10 +160,20 @@ const createOrder = asyncHandler(async (req, res) => {
       });
     }
 
-    // Compact order number (e.g. RF-2841) and 4-digit tracking ID
-    const randomOrderDigits = Math.floor(1000 + Math.random() * 9000).toString();
-    const orderNumber = `RF-${randomOrderDigits}`;
-    const trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
+    // Compact order number (e.g. RF-2841) and 4-digit tracking ID with collision check
+    let orderNumber = `RF-${Math.floor(1000 + Math.random() * 9000)}`;
+    for (let i = 0; i < 5; i++) {
+      const exists = await Order.exists({ orderNumber });
+      if (!exists) break;
+      orderNumber = `RF-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    let trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
+    for (let i = 0; i < 5; i++) {
+      const exists = await Order.exists({ trackingNumber, orderStatus: { $ne: 'cancelled' }, fulfillmentStatus: { $ne: 'delivered' } });
+      if (!exists) break;
+      trackingNumber = Math.floor(1000 + Math.random() * 9000).toString();
+    }
 
     // Process order items and validate stock
     let calculatedSubtotal = 0;
