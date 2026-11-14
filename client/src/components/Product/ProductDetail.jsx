@@ -155,7 +155,25 @@ const ProductDetail = () => {
                         )}
 
                         <h1>{product.name}</h1>
-                        <p className="origin">{product.origin || 'Bomet County, Kenya'}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', margin: '0.4rem 0 1rem' }}>
+                            <span className="origin" style={{ margin: 0, fontWeight: 600 }}>📍 {product.origin || 'Bomet County, Kenya'}</span>
+                            {product.roastLevel && (
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: 'rgba(212, 175, 55, 0.15)',
+                                    color: '#8B5A2B',
+                                    border: '1px solid rgba(212, 175, 55, 0.35)',
+                                    padding: '0.25rem 0.65rem',
+                                    borderRadius: '9999px',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 700
+                                }}>
+                                    ☕ {product.roastLevel}
+                                </span>
+                            )}
+                        </div>
 
                         <div className="price-tag" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                             {hasDiscount && (

@@ -13,7 +13,7 @@ const Contact = () => {
   const supportPhone = publicSettings?.support?.phone || '+254 711 245 765';
   const supportEmail = publicSettings?.support?.email || 'support@rerendetcoffee.com';
   const ordersEmail = 'orders@rerendetcoffee.com';
-  const farmAddress = publicSettings?.store?.address || 'Rerendet Farm, Nandi County, Highland Ridge, Kenya';
+  const farmAddress = publicSettings?.store?.address || 'Rerendet Farm, Bomet County, Kenya';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -165,7 +165,7 @@ const Contact = () => {
                 </div>
                 <div className="detail-content">
                   <h4>Roastery & Farm Location</h4>
-                  <p>Rerendet Farm, Nandi County<br />Highland Ridge, Kenya — Delivery Nationwide</p>
+                  <p>Rerendet Farm, Bomet County<br />Highland Ridge, Kenya — Delivery Nationwide</p>
                 </div>
               </div>
 

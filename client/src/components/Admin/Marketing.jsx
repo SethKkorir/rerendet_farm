@@ -38,7 +38,7 @@ const EMAIL_TEMPLATES = [
         label: '☕ New Arrival',
         subject: '✨ New Single-Origin Roast Just Landed — Try It First!',
         content: `<h2 style="color:#0F2444; font-size:28px; font-weight:800; margin:0 0 14px 0; text-align:center; letter-spacing:-0.5px;">Something Special Just Arrived ☕</h2>
-<p style="color:#64748B; font-size:14.5px; line-height:1.65; text-align:center; margin:0 auto 20px auto; max-width:440px;">We are thrilled to unveil our latest harvest lot — hand-picked at 2,000m altitude in Nandi Hills and freshly roasted in micro-batches for peak cup aroma.</p>
+<p style="color:#64748B; font-size:14.5px; line-height:1.65; text-align:center; margin:0 auto 20px auto; max-width:440px;">We are thrilled to unveil our latest harvest lot — hand-picked in the highlands of Bomet County, Kenya and freshly roasted in micro-batches for peak cup aroma.</p>
 <div style="text-align:center; margin:22px auto 26px auto;">
   <svg width="68" height="12" viewBox="0 0 68 12" fill="none" style="display:inline-block;"><path d="M2 6C12 2 18 10 28 6C38 2 44 10 54 6C59 4 64 7 66 6" stroke="#FF5A36" stroke-width="2.2" stroke-linecap="round"/></svg>
 </div>
@@ -682,7 +682,7 @@ const Marketing = () => {
                                                         <a href="#">Track Order</a> • <a href="#">Privacy</a> • <a href="#">Unsubscribe</a>
                                                     </p>
                                                     <p className="mk-footer-copy">
-                                                        &copy; {new Date().getFullYear()} Rerendet Coffee Estate • Nandi Hills, Kenya
+                                                        &copy; {new Date().getFullYear()} Rerendet Coffee Estate • Bomet County, Kenya
                                                     </p>
                                                 </div>
                                             </div>

@@ -273,6 +273,33 @@ const OrderConfirmation = () => {
             </div>
           </div>
 
+          {/* M-Pesa Paybill Instructions Card for Unpaid Paybill Orders */}
+          {!isPaid && !isCancelled && (order.paymentMethod === 'paybill' || !order.paymentMethod) && (
+            <div style={{
+              background: '#F0FDF4',
+              border: '1.5px solid #BBF7D0',
+              borderRadius: '12px',
+              padding: '16px 18px',
+              margin: '18px 0 20px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                  Lipa na M-Pesa Paybill
+                </span>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '2px 8px', borderRadius: '9999px' }}>
+                  Paybill Name: <strong>Rerendet Farm</strong>
+                </span>
+              </div>
+              <ol style={{ margin: 0, paddingLeft: '18px', color: '#166534', fontSize: '13.5px', lineHeight: 1.8 }}>
+                <li>Go to <strong>M-Pesa</strong> &rarr; <strong>Lipa na M-Pesa</strong> &rarr; <strong>Paybill</strong></li>
+                <li>Business No: <strong style={{ fontFamily: 'monospace', fontSize: '15px', color: '#111827' }}>{publicSettings?.payment?.paybillNumber || '516600'}</strong> <span style={{ fontSize: '12.5px', color: '#374151' }}>(Paybill Name: <strong>Rerendet Farm</strong>)</span></li>
+                <li>Account No: <strong style={{ fontFamily: 'monospace', fontSize: '15px', color: '#111827' }}>{publicSettings?.payment?.paybillAccount || '934558'}</strong> <span style={{ fontSize: '12px', color: '#4B5563' }}>(Reference: <strong>{order.orderNumber}</strong>)</span></li>
+                <li>Amount: <strong style={{ fontSize: '15px', color: '#1E3D2F' }}>KES {Number(order.total || 0).toLocaleString()}</strong></li>
+              </ol>
+            </div>
+          )}
+
           {/* 3-Step Vertical Timeline (Non-cancelled orders ONLY) */}
           {!isCancelled && (
             <div className="oc-timeline">

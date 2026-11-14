@@ -337,13 +337,17 @@ const getPublicSettings = asyncHandler(async (req, res) => {
         countyShipping: settings.countyShipping,
         paybillNumber: process.env.PAYBILL_NUMBER || settings.payment?.mpesaPaybillNumber || '516600',
         paybillAccount: process.env.PAYBILL_ACCOUNT || settings.payment?.mpesaPaybillAccount || '934558',
+        paybillName: 'Rerendet Farm',
         whatsappNumber: process.env.WHATSAPP_NUMBER || settings.whatsappSupport?.phoneNumber || '254705684984',
         paybillExpiryHours: parseInt(process.env.PAYMENT_EXPIRY_HOURS || process.env.PAYBILL_EXPIRY_HOURS, 10) || 24,
         paymentGraceHours: parseInt(process.env.PAYMENT_REVIEW_GRACE_HOURS || process.env.PAYBILL_EXPIRY_GRACE_HOURS, 10) || 24
       },
       seo: settings.seo,
       policies: settings.policies,
-      maintenance: settings.maintenance,
+      maintenance: {
+        enabled: Boolean(settings.maintenance?.enabled),
+        message: settings.maintenance?.message || 'We are currently performing maintenance. Please check back soon.'
+      },
       features: settings.features
     };
 

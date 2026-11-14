@@ -1592,8 +1592,14 @@ const trackOrderPublic = asyncHandler(async (req, res) => {
 
   // Mask sensitive PII for public access
   const maskedAddress = order.shippingAddress ? {
-    ...order.shippingAddress,
-    address: '*** (Hidden for privacy)',
+    firstName: order.shippingAddress.firstName ? (order.shippingAddress.firstName[0] + '***') : 'Customer',
+    lastName: '***',
+    address: '*** (Protected for privacy)',
+    landmark: '***',
+    city: order.shippingAddress.city || '',
+    county: order.shippingAddress.county || '',
+    town: order.shippingAddress.town || '',
+    country: order.shippingAddress.country || 'Kenya',
     phone: '***-***-' + (order.shippingAddress.phone?.slice(-4) || '****'),
     email: '***@***.***'
   } : {};
@@ -1608,7 +1614,11 @@ const trackOrderPublic = asyncHandler(async (req, res) => {
     paymentMethod: order.paymentMethod,
     paymentExpiresAt: order.paymentExpiresAt,
     paymentGraceExpiresAt: order.paymentGraceExpiresAt,
-    paymentReporting: order.paymentReporting,
+    paymentReporting: order.paymentReporting?.reported ? {
+      reported: true,
+      reportedAt: order.paymentReporting.reportedAt,
+      customerPhone: order.paymentReporting.customerPhone ? ('***-***-' + order.paymentReporting.customerPhone.slice(-4)) : undefined
+    } : undefined,
     paymentConfirmation: order.paymentConfirmation ? {
       confirmedAt: order.paymentConfirmation.confirmedAt,
       amountReceived: order.paymentConfirmation.amountReceived

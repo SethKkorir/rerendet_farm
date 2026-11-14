@@ -1007,7 +1007,7 @@ Rerendet Farm strictly respects your personal privacy and complies with the Keny
                       <Input label="Store Name" required value={s.store?.name} onChange={v => set('store', 'name', v)} placeholder="Rerendet Coffee" />
                       <Input label="Store Email" type="email" value={s.store?.email} onChange={v => set('store', 'email', v)} placeholder="info@rerendetcoffee.com" />
                       <Input label="General Phone Number" value={s.store?.phone} onChange={v => set('store', 'phone', v)} placeholder="+254 711 245 765" />
-                      <Input label="Physical Address" value={s.store?.address} onChange={v => set('store', 'address', v)} placeholder="Nandi & Bomet County, Kenya" />
+                      <Input label="Physical Address" value={s.store?.address} onChange={v => set('store', 'address', v)} placeholder="Bomet County, Kenya" />
                     </div>
                     <Field label="Store Description" hint="Shown in footers and meta tags">
                       <textarea className="st-textarea" rows={3} value={s.store?.description || ''} onChange={e => set('store', 'description', e.target.value)} placeholder="Premium coffee blends roasted to perfection…" />

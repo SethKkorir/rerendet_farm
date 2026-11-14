@@ -101,17 +101,6 @@ const Login = () => {
       <p>
         Don't have an account? <a href="/signup">Sign Up</a>
       </p>
-      
-      {/* Admin test credentials */}
-      {formData.userType === 'admin' && (
-        <div style={{ marginTop: '1rem', padding: '1rem', background: '#f5f5f5', borderRadius: '8px' }}>
-          <p style={{ fontSize: '0.9rem', color: '#666', margin: 0 }}>
-            <strong>Admin Test Credentials:</strong><br />
-            Email: admin@rerendetcoffee.com<br />
-            Password: Admin123!
-          </p>
-        </div>
-      )}
     </div>
   );
 };

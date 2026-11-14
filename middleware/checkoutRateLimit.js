@@ -23,6 +23,18 @@ if (useRedis) {
   console.warn('⚠️  Rate limiter: Falling back to MemoryStore (Allowed in development only)');
 }
 
+// Rate limiter for public order tracking to prevent enumeration
+export const trackingLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 40, // 40 queries per 10 minutes per IP
+    message: {
+        success: false,
+        message: 'Too many tracking requests. Please try again in a few minutes.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
 // Rate limiter specifically for checkout endpoints
 // Prevents rapid checkout attempts and potential fraud
 export const checkoutLimiter = rateLimit({

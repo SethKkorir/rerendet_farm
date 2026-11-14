@@ -20,7 +20,7 @@ const DEFAULT_TESTIMONIALS = [
     author: 'David Mwangi',
     role: 'Highland Espresso Lover',
     rating: 5,
-    text: 'The medium roast from the Nandi Highlands has completely elevated my morning ritual. Fresh, aromatic, and delightfully balanced.'
+    text: 'The medium roast from the Bomet Highlands has completely elevated my morning ritual. Fresh, aromatic, and delightfully balanced.'
   },
   {
     id: '3',

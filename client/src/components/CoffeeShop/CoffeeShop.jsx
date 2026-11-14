@@ -238,6 +238,11 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
   const availableSizes = useMemo(() => getProductSizes(product), [product]);
   const [selectedSize, setSelectedSize] = useState(availableSizes[0]);
 
+  const availableGrinds = useMemo(() => (
+    product?.grindOptions && product.grindOptions.length > 0 ? product.grindOptions : ['Beans', 'Ground']
+  ), [product]);
+  const [selectedGrind, setSelectedGrind] = useState(() => product?.defaultGrind || availableGrinds[0] || 'Beans');
+
   // Sync selected size if availableSizes change
   useEffect(() => {
     if (availableSizes.length > 0 && (!selectedSize || !availableSizes.find(s => s.size === selectedSize.size))) {
@@ -271,11 +276,21 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
 
   const roastBadge = useMemo(() => {
     if (product?.roastLevel) {
-      const rl = product.roastLevel.toLowerCase();
-      if (rl.includes('espresso')) return { label: 'Espresso Roast', emoji: '☕' };
-      if (rl.includes('light')) return { label: 'Light Roast', emoji: '☀️' };
-      if (rl.includes('dark')) return { label: 'Dark Roast', emoji: '🌑' };
-      return { label: `${product.roastLevel} Roast`, emoji: '⛅' };
+      const rl = product.roastLevel.toLowerCase().trim();
+      if (rl.includes('medium to dark') || rl.includes('medium-to-dark') || rl.includes('medium dark')) {
+        return { label: 'Medium to Dark Roast', emoji: '🍂' };
+      }
+      if (rl.includes('espresso') || (rl.includes('dark') && !rl.includes('medium'))) {
+        return { label: 'Dark Roast', emoji: '☕' };
+      }
+      if (rl.includes('light')) {
+        return { label: 'Light Roast', emoji: '☀️' };
+      }
+      if (rl.includes('medium')) {
+        return { label: 'Medium Roast', emoji: '⛅' };
+      }
+      const formatted = product.roastLevel.endsWith('Roast') ? product.roastLevel : `${product.roastLevel} Roast`;
+      return { label: formatted, emoji: '☕' };
     }
     return null;
   }, [product]);
@@ -300,7 +315,7 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
       selectedSize?.size || 'Standard',
       currentPrice,
       1,
-      isCoffee ? 'Whole Beans' : undefined
+      isCoffee ? selectedGrind : undefined
     );
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 2200);
@@ -312,8 +327,9 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
     const originUrl = typeof window !== 'undefined' ? window.location.origin : '';
     const itemUrl = `${originUrl}/product/${product.slug || product._id}`;
     const sizeText = selectedSize?.size && selectedSize.size !== 'Standard' ? ` (${selectedSize.size})` : '';
+    const grindText = isCoffee ? ` [Format: ${selectedGrind}]` : '';
     const stockNote = isOutOfStock ? ' [Batch Depleted - Inquiring for Restock]' : '';
-    const msg = `Hello Rerendet Coffee Estate! ☕\nI would like to order *${product.name}*${sizeText} for *${currencySymbol} ${currentPrice.toLocaleString()}*${stockNote}.\n${itemUrl}`;
+    const msg = `Hello Rerendet Coffee Estate! ☕\nI would like to order *${product.name}*${sizeText}${grindText} for *${currencySymbol} ${currentPrice.toLocaleString()}*${stockNote}.\n${itemUrl}`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -376,11 +392,16 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
 
       {/* ── Card Body & Details ── */}
       <div className="cs-card-body">
-        {/* Origin Tag */}
+        {/* Origin & Roast Tags */}
         <div className="cs-meta-row">
           <span className="cs-origin-pill">
             {product.origin || 'Bomet County, Kenya'}
           </span>
+          {roastBadge && (
+            <span className="cs-origin-pill cs-roast-pill" style={{ marginLeft: '6px' }}>
+              {roastBadge.emoji} {roastBadge.label}
+            </span>
+          )}
         </div>
 
         {/* Product Name */}
@@ -416,6 +437,29 @@ const CoffeeCard = ({ product, index, handleAddToCart, addingToCart, setSelected
                     onClick={() => setSelectedSize(s)}
                   >
                     {s.size}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Format Selection (Beans / Ground) */}
+        {isCoffee && availableGrinds.length > 1 && (
+          <div className="cs-size-selector-strip" onClick={(e) => e.stopPropagation()} style={{ marginTop: '0.4rem' }}>
+            <span className="cs-size-label">Format:</span>
+            <div className="cs-size-buttons">
+              {availableGrinds.map((g) => {
+                const isSelected = (selectedGrind === g);
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`cs-size-btn ${isSelected ? 'active' : ''}`}
+                    onClick={() => setSelectedGrind(g)}
+                    title={g === 'Beans' ? 'Whole Coffee Beans' : 'Ground Coffee'}
+                  >
+                    {g === 'Beans' ? '🫘 Beans' : '☕ Ground'}
                   </button>
                 );
               })}
@@ -857,16 +901,19 @@ const CoffeeShop = () => {
     return ['all', ...raw];
   }, [products]);
 
-  // Dynamic Roast Levels added by the admin on products
+  // 4 Standard Store Roast Options: Light Roast, Medium Roast, Medium to Dark Roast, Dark Roast
+  const STANDARD_ROASTS = ['Light Roast', 'Medium Roast', 'Medium to Dark Roast', 'Dark Roast'];
+
   const roastLevelsList = useMemo(() => {
-    const set = new Set();
+    const list = ['all', ...STANDARD_ROASTS];
+    // Also include any custom roast if already assigned to products
     products.forEach(p => {
       const r = p.roastLevel?.trim();
-      if (r) set.add(r);
+      if (r && !list.some(existing => existing.toLowerCase().replace(/[-\s]/g, '') === r.toLowerCase().replace(/[-\s]/g, ''))) {
+        list.push(r);
+      }
     });
-    const unique = Array.from(set);
-    if (unique.length === 0) return [];
-    return ['all', ...unique];
+    return list;
   }, [products]);
 
   // Filter & Sort
@@ -878,7 +925,11 @@ const CoffeeShop = () => {
     }
 
     if (roastFilter !== 'all') {
-      list = list.filter(p => p.roastLevel?.trim().toLowerCase() === roastFilter.trim().toLowerCase());
+      const rf = roastFilter.toLowerCase().replace(/[-\s]/g, '');
+      list = list.filter(p => {
+        const pr = (p.roastLevel || '').toLowerCase().replace(/[-\s]/g, '');
+        return pr === rf || pr.includes(rf) || rf.includes(pr);
+      });
     }
 
     if (searchTerm.trim()) {

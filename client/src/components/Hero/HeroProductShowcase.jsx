@@ -85,7 +85,7 @@ const HeroProductShowcase = ({
         name: 'Rerendet Reserve Micro-lot',
         image: heroData.imageUrl3,
         fallbackImage: '/images/coffee/rerendet-espresso-1kg.png',
-        origin: 'Nandi Hills & Bomet · 2,000m',
+        origin: 'Bomet County, Kenya',
         subOrigin: 'Artisan Micro-Lot Selection',
         roastText: 'Medium-Dark · Floral & Caramel',
         roastDots: 4,

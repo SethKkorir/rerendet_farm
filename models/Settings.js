@@ -8,7 +8,7 @@ const settingsSchema = new mongoose.Schema({
     name: { type: String, default: 'Rerendet Coffee' },
     email: { type: String, default: 'info@rerendetcoffee.com' },
     phone: { type: String, default: '+254700000000' },
-    address: { type: String, default: 'Bomet, Kenya' },
+    address: { type: String, default: 'Bomet County, Kenya' },
     description: { type: String, default: 'Premium coffee blends roasted to perfection' },
     logo: { type: String, default: '' },
     favicon: { type: String, default: '' },

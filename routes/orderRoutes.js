@@ -21,17 +21,17 @@ import {
   validateCart
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
-import { checkoutLimiter } from '../middleware/checkoutRateLimit.js';
+import { checkoutLimiter, trackingLimiter } from '../middleware/checkoutRateLimit.js';
 
 const router = express.Router();
 
 // Public routes
 router.post('/validate-cart', validateCart);
 router.post('/shipping-cost', calculateShippingCost);
-router.get('/track/:id', trackOrderPublic);
-router.post('/track/:id/report-payment', reportPayment);
+router.get('/track/:id', trackingLimiter, trackOrderPublic);
+router.post('/track/:id/report-payment', trackingLimiter, reportPayment);
 router.post('/track/:id/confirm-delivery', confirmDeliveryCustomer);
-router.post('/:id/report-payment', reportPayment);
+router.post('/:id/report-payment', trackingLimiter, reportPayment);
 
 // Protected routes
 router.use(protect);
